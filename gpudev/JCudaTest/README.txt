@@ -9,10 +9,11 @@ CUDA common, runtime and driver.
 
 2. Download mavenized-jcuda:
 git clone https://github.com/MysterionRise/mavenized-jcuda
-Then add a new profile, just like unix-x86_64 one, but with <arch>ppc64le</arch>
+Then add a new maven profile, just like unix-x86_64 one, but with <arch>ppc64le</arch>
 and changed names. Then put into repo/jcuda/libJCudaRuntime/0.7.0a/ the .so file from
 the previous step with name changed to libJCudaRuntime-0.7.0a-linux-ppc_64.so.
-Do the same for the driver file. Then compile mavenized-cuda with
+Do the same for the other .so files. Comment out entries with missing .so files in the
+maven file. Then compile mavenized-cuda with
 mvn clean install
 Check in log that *.so files are copied properly. Then run
 mvn exec:exec
@@ -37,3 +38,12 @@ the arguments should be like that:
         <argument>NameOfMainClass</argument>
     </arguments>
 </configuration>
+
+Running the program:
+
+If the maven file is set up like above, particularly with the exec-maven-plugin part,
+the program should run properly after
+mvn package # compilation and copying native libs
+mvn exec:exec # executing the compiled jar with proper classpath and library path
+
+./run.sh can be used too. It does the above manually, though paths might need to be changed.
