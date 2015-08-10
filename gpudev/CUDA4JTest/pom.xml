@@ -9,21 +9,9 @@
 		<version>1.0</version>
 	</parent>
 
-	<groupId>com.ibm</groupId>
+	<groupId>com.ibm.gpudev</groupId>
 	<artifactId>CUDA4JTest</artifactId>
 	<name>CUDA4JTest</name>
 	<packaging>jar</packaging>
 	<version>1.0</version>
-
-    <!--
-	<build>
-			<plugins>
-				<plugin>
-					<groupId>net.alchim31.maven</groupId>
-					<artifactId>scala-maven-plugin</artifactId>
-					<version>3.2.2</version>
-				</plugin>
-			</plugins>
-	</build>
-    -->
 </project>
