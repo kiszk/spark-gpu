@@ -63,5 +63,6 @@
 		<module>ParallelizeTest</module>
         <module>CUDA4JTest</module>
         <module>JCudaTest</module>
+        <module>StreamBenchmark</module>
 	</modules>
 </project>
