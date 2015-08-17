@@ -1,4 +1,4 @@
-package org.apache.spark.storage
+package org.apache.spark.rdd
 
 abstract class PartitionData[T] {
 }
