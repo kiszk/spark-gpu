@@ -1,4 +1,4 @@
-package org.apache.spark.storage
+package org.apache.spark.rdd
 
 case class ColumnPartitionData[T](
     column: Array[T]
