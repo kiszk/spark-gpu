@@ -17,17 +17,17 @@ object ColumnPartitionSchema {
   // Since we are creating a runtime mirror usign the class loader of current thread,
   // we need to use def at here. So, every time we call mirror, it is using the
   // class loader of the current thread.
-  def mirror: universe.Mirror =
+  private[spark] def mirror: universe.Mirror =
     universe.runtimeMirror(Thread.currentThread().getContextClassLoader)
 
   var onlyLoadableClassesSupported: Boolean = false
 
-  private def localTypeOf[T: TypeTag] = universe.typeTag[T].in(mirror).tpe
+  private[spark] def localTypeOf[T: TypeTag] = universe.typeTag[T].in(mirror).tpe
 
   def schemaFor[T: TypeTag]: ColumnPartitionSchema =
     schemaForType(localTypeOf[T])
 
-  def schemaForType(tpe: Type): ColumnPartitionSchema = {
+  private[spark] def schemaForType(tpe: Type): ColumnPartitionSchema = {
     tpe match {
       // 8-bit signed BE
       case t if t <:< localTypeOf[Byte] => primitiveColumnPartitionSchema(1, BYTE_COLUMN)
@@ -48,13 +48,14 @@ object ColumnPartitionSchema {
       // TODO option
       // TODO protection from cycles
       // TODO caching schemas for classes
+      // TODO make it work with nested classes
       // Generic object
       case t if !onlyLoadableClassesSupported || Utils.classIsLoadable(t.typeSymbol.asClass.fullName) => {
         val valVarMembers = t.erasure.members.view
           .filter(p => !p.isMethod && p.isTerm).map(_.asTerm)
           .filter(p => p.isVar || p.isVal)
 
-        valVarMembers.map { p =>
+        valVarMembers.foreach { p =>
           // TODO more checks
           // is final okay?
           if (p.isStatic) throw new UnsupportedOperationException(s"Column schema with static field ${p.fullName} not supported")
@@ -64,7 +65,6 @@ object ColumnPartitionSchema {
           schemaForType(term.typeSignature).columns.map { schema =>
             new ColumnSchema(
               schema.columnType,
-              schema.bytes,
               term +: schema.terms)
           }
         }
@@ -76,8 +76,8 @@ object ColumnPartitionSchema {
     }
   }
 
-  def primitiveColumnPartitionSchema(bytes: Int, columnType: ColumnType) =
-    new ColumnPartitionSchema(Array(new ColumnSchema(columnType, bytes)), null)
+  private[spark] def primitiveColumnPartitionSchema(bytes: Int, columnType: ColumnType) =
+    new ColumnPartitionSchema(Array(new ColumnSchema(columnType)), null)
 
 }
 
@@ -87,35 +87,38 @@ class ColumnPartitionSchema(
 
   def isPrimitive = columns.size == 1 && columns(0).name.isEmpty
 
-  def serializeObject(obj: Any, columnBuffers: Seq[ByteBuffer]) {
+  def serialize(iter: Iterator[Any], columnBuffers: Seq[ByteBuffer]) {
     val mirror = ColumnPartitionSchema.mirror
-
-    for ((col, buf) <- (columns zip columnBuffers)) {
-      val get = col.terms.foldLeft(identity[Any] _)((r, term) =>
+    val getters = columns.map { col =>
+      col.terms.foldLeft(identity[Any] _)((r, term) =>
           ((obj: Any) => mirror.reflect(obj).reflectField(term).get) compose r)
-      // TODO what should we do if sub-object is null?
+    }
 
-      col.columnType match {
-        case BYTE_COLUMN => buf.put(get(obj).asInstanceOf[Byte])
-        case SHORT_COLUMN => buf.putShort(get(obj).asInstanceOf[Short])
-        case INT_COLUMN => buf.putInt(get(obj).asInstanceOf[Int])
-        case LONG_COLUMN => buf.putLong(get(obj).asInstanceOf[Long])
-        case FLOAT_COLUMN => buf.putFloat(get(obj).asInstanceOf[Float])
-        case DOUBLE_COLUMN => buf.putDouble(get(obj).asInstanceOf[Double])
+    iter.foreach { obj =>
+      for (((col, getter), buf) <- ((columns zip getters) zip columnBuffers)) {
+        // TODO what should we do if sub-object is null?
+        // TODO bulk put/get might be faster
+
+        col.columnType match {
+          case BYTE_COLUMN => buf.put(getter(obj).asInstanceOf[Byte])
+          case SHORT_COLUMN => buf.putShort(getter(obj).asInstanceOf[Short])
+          case INT_COLUMN => buf.putInt(getter(obj).asInstanceOf[Int])
+          case LONG_COLUMN => buf.putLong(getter(obj).asInstanceOf[Long])
+          case FLOAT_COLUMN => buf.putFloat(getter(obj).asInstanceOf[Float])
+          case DOUBLE_COLUMN => buf.putDouble(getter(obj).asInstanceOf[Double])
+        }
       }
     }
   }
-  // TODO method to deserialize Iterator[Any] objects and not repeat creating get function
 
-  def deserializeObject(columnBuffers: Seq[ByteBuffer]): Any = {
+  def deserialize(columnBuffers: Seq[ByteBuffer], count: Int): Iterator[Any] = {
     if (isPrimitive) {
-      deserializeColumnValue(columns(0).columnType, columnBuffers(0))
+      Iterator.continually {
+        deserializeColumnValue(columns(0).columnType, columnBuffers(0))
+      } take count
     } else {
-      val obj = ClosureCleaner.instantiateClass(cls, null)
-
       val mirror = ColumnPartitionSchema.mirror
-
-      for ((col, buf) <- (columns zip columnBuffers)) {
+      val setters = columns.map { col =>
         val get = col.terms.dropRight(1).foldLeft(identity[Any] _)((r, term) => {(obj: Any) =>
               val rf = mirror.reflect(obj).reflectField(term)
               rf.get match {
@@ -129,14 +132,22 @@ class ColumnPartitionSchema(
               }
             } compose r)
 
-        mirror.reflect(get(obj)).reflectField(col.terms.last).set(deserializeColumnValue(col.columnType, buf))
+        (obj: Any, value: Any) => mirror.reflect(get(obj)).reflectField(col.terms.last).set(value)
       }
-      
-      obj
+
+      Iterator.continually {
+        val obj = ClosureCleaner.instantiateClass(cls, null)
+
+        for (((col, setter), buf) <- ((columns zip setters) zip columnBuffers)) {
+          setter(obj, deserializeColumnValue(col.columnType, buf))
+        }
+        
+        obj
+      } take count
     }
   }
 
-  def deserializeColumnValue(columnType: ColumnType, buf: ByteBuffer): Any = {
+  private[spark] def deserializeColumnValue(columnType: ColumnType, buf: ByteBuffer): Any = {
     columnType match {
       case BYTE_COLUMN => buf.get()
       case SHORT_COLUMN => buf.getShort()
@@ -149,13 +160,34 @@ class ColumnPartitionSchema(
 
 }
 
-abstract class ColumnType
-case object BYTE_COLUMN extends ColumnType
-case object SHORT_COLUMN extends ColumnType
-case object INT_COLUMN extends ColumnType
-case object LONG_COLUMN extends ColumnType
-case object FLOAT_COLUMN extends ColumnType
-case object DOUBLE_COLUMN extends ColumnType
+abstract class ColumnType {
+  /** How many bytes does a single property take. */
+  val bytes: Int
+}
+
+case object BYTE_COLUMN extends ColumnType {
+  val bytes = 1
+}
+
+case object SHORT_COLUMN extends ColumnType {
+  val bytes = 2
+}
+
+case object INT_COLUMN extends ColumnType {
+  val bytes = 4
+}
+
+case object LONG_COLUMN extends ColumnType {
+  val bytes = 8
+}
+
+case object FLOAT_COLUMN extends ColumnType {
+  val bytes = 4
+}
+
+case object DOUBLE_COLUMN extends ColumnType {
+  val bytes = 8
+}
 
 /**
  * A column is one basic property (primitive, String, etc.).
@@ -163,8 +195,6 @@ case object DOUBLE_COLUMN extends ColumnType
 class ColumnSchema(
     /** Type of the property. Is null when the whole object is a primitive. */
     val columnType: ColumnType,
-    /** How many bytes does a single property take. */
-    val bytes: Int,
     /** Scala terms with property name and other information */
     val terms: Vector[TermSymbol] = Vector[TermSymbol]()) {
 
