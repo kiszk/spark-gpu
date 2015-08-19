@@ -30,7 +30,8 @@ import tachyon.client.{ReadType, WriteType, TachyonFS, TachyonFile}
 import tachyon.conf.TachyonConf
 import tachyon.TachyonURI
 
-import org.apache.spark.Logging
+import org.apache.spark.PartitionData
+import org.apache.spark.{SparkException, SparkConf, Logging}
 import org.apache.spark.executor.ExecutorExitCode
 import org.apache.spark.util.{ShutdownHookManager, Utils}
 
@@ -113,7 +114,7 @@ private[spark] class TachyonBlockManager() extends ExternalBlockManager with Log
     }
   }
 
-  override def putValues(blockId: BlockId, values: Iterator[_]): Unit = {
+  override def putValues(blockId: BlockId, values: PartitionData[_]): Unit = {
     val file = getFile(blockId)
     val os = file.getOutStream(WriteType.TRY_CACHE)
     try {
@@ -147,7 +148,7 @@ private[spark] class TachyonBlockManager() extends ExternalBlockManager with Log
     }
   }
 
-  override def getValues(blockId: BlockId): Option[Iterator[_]] = {
+  override def getValues(blockId: BlockId): Option[PartitionData[_]] = {
     val file = getFile(blockId)
     if (file == null || file.getLocationHosts().size() == 0) {
       return None

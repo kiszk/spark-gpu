@@ -25,6 +25,10 @@ import org.apache.spark.Logging
 import org.apache.spark.serializer.Serializer
 import org.apache.spark.util.Utils
 
+import org.apache.spark.PartitionData
+import org.apache.spark.ColumnPartitionData
+import org.apache.spark.IteratedPartitionData
+
 /**
  * Stores BlockManager blocks on disk.
  */
@@ -66,6 +70,15 @@ private[spark] class DiskStore(blockManager: BlockManager, diskManager: DiskBloc
     putIterator(blockId, values.toIterator, level, returnValues)
   }
 
+  override def putColumns(
+      blockId: BlockId,
+      values: ColumnPartitionData[Any],
+      level: StorageLevel,
+      returnValues: Boolean): PutResult = {
+    // TODO
+    throw new UnsupportedOperationException("TODO")
+  }
+
   override def putIterator(
       blockId: BlockId,
       values: Iterator[Any],
@@ -78,7 +91,7 @@ private[spark] class DiskStore(blockManager: BlockManager, diskManager: DiskBloc
     val outputStream = new FileOutputStream(file)
     try {
       Utils.tryWithSafeFinally {
-        blockManager.dataSerializeStream(blockId, outputStream, values)
+        blockManager.dataSerializeStream(blockId, outputStream, IteratedPartitionData(values))
       } {
         // Close outputStream here because it should be closed before file is deleted.
         outputStream.close()
@@ -140,7 +153,7 @@ private[spark] class DiskStore(blockManager: BlockManager, diskManager: DiskBloc
     getBytes(segment.file, segment.offset, segment.length)
   }
 
-  override def getValues(blockId: BlockId): Option[Iterator[Any]] = {
+  override def getValues(blockId: BlockId): Option[PartitionData[Any]] = {
     getBytes(blockId).map(buffer => blockManager.dataDeserialize(blockId, buffer))
   }
 
@@ -148,7 +161,7 @@ private[spark] class DiskStore(blockManager: BlockManager, diskManager: DiskBloc
    * A version of getValues that allows a custom serializer. This is used as part of the
    * shuffle short-circuit code.
    */
-  def getValues(blockId: BlockId, serializer: Serializer): Option[Iterator[Any]] = {
+  def getValues(blockId: BlockId, serializer: Serializer): Option[PartitionData[Any]] = {
     // TODO: Should bypass getBytes and use a stream based implementation, so that
     // we won't use a lot of memory during e.g. external sort merge.
     getBytes(blockId).map(bytes => blockManager.dataDeserialize(blockId, bytes, serializer))
