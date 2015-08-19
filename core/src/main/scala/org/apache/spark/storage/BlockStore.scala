@@ -22,13 +22,19 @@ import java.nio.ByteBuffer
 import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.Logging
+import org.apache.spark.ColumnPartitionData
+import org.apache.spark.IteratedPartitionData
+import org.apache.spark.PartitionData
 
 /**
  * Abstract class to store blocks.
  */
 private[spark] abstract class BlockStore(val blockManager: BlockManager) extends Logging {
 
-  def putBytes(blockId: BlockId, bytes: ByteBuffer, level: StorageLevel): PutResult
+  def putBytes(
+      blockId: BlockId,
+      bytes: ByteBuffer,
+      level: StorageLevel): PutResult
 
   /**
    * Put in a block and, possibly, also return its content as either bytes or another Iterator.
@@ -38,16 +44,35 @@ private[spark] abstract class BlockStore(val blockManager: BlockManager) extends
    *         returnValues is true (if not, the result's data field can be null)
    */
   def putIterator(
-    blockId: BlockId,
-    values: Iterator[Any],
-    level: StorageLevel,
-    returnValues: Boolean): PutResult
+      blockId: BlockId,
+      values: Iterator[Any],
+      level: StorageLevel,
+      returnValues: Boolean): PutResult
 
   def putArray(
-    blockId: BlockId,
-    values: Array[Any],
-    level: StorageLevel,
-    returnValues: Boolean): PutResult
+      blockId: BlockId,
+      values: Array[Any],
+      level: StorageLevel,
+      returnValues: Boolean): PutResult
+
+  def putData(
+      blockId: BlockId,
+      values: PartitionData[Any],
+      level: StorageLevel,
+      returnValues: Boolean): PutResult = {
+    values match {
+      case IteratedPartitionData(iterator) =>
+        putIterator(blockId, iterator, level, returnValues)
+      case colValues: ColumnPartitionData[Any] =>
+        putColumns(blockId, colValues, level, returnValues)
+    }
+  }
+
+  def putColumns(
+      blockId: BlockId,
+      values: ColumnPartitionData[Any],
+      level: StorageLevel,
+      returnValues: Boolean): PutResult
 
   /**
    * Return the size of a block in bytes.
@@ -56,7 +81,7 @@ private[spark] abstract class BlockStore(val blockManager: BlockManager) extends
 
   def getBytes(blockId: BlockId): Option[ByteBuffer]
 
-  def getValues(blockId: BlockId): Option[Iterator[Any]]
+  def getValues(blockId: BlockId): Option[PartitionData[Any]]
 
   /**
    * Remove a block, if it exists.
