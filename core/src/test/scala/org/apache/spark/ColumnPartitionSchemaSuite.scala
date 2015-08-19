@@ -1,4 +1,4 @@
-package org.apache.spark.rdd
+package org.apache.spark
 
 import org.apache.spark._
 

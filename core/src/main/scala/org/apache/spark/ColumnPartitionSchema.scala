@@ -1,4 +1,4 @@
-package org.apache.spark.rdd
+package org.apache.spark
 
 import scala.reflect.runtime.universe
 import scala.reflect.runtime.universe.Type
