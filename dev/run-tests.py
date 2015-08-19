@@ -164,14 +164,18 @@ def determine_java_version(java_exe):
     # find raw version string, eg 'java version "1.8.0_25"'
     raw_version_str = next(x for x in raw_output_lines if " version " in x)
 
-    match = re.search('(\d+)\.(\d+)\.(\d+)_(\d+)', raw_version_str)
+    version_str = raw_version_str.split()[-1].strip('"')  # eg '1.8.0_25'
+    verup = version_str.split('_')  # eg ['1.8.0', '25'] for OpenJDK or just ['1.8.0'] for IBM jdk
+    version = verup[0]
+    update = verup[1] if len(verup) > 1 else 0
 
-    major = int(match.group(1))
-    minor = int(match.group(2))
-    patch = int(match.group(3))
-    update = int(match.group(4))
+    # map over the values and convert them to integers
+    version_info = [int(x) for x in version.split('.') + [update]]
 
-    return JavaVersion(major, minor, patch, update)
+    return JavaVersion(major=version_info[0],
+                       minor=version_info[1],
+                       patch=version_info[2],
+                       update=version_info[3])
 
 # -------------------------------------------------------------------------------------------------
 # Functions for running the other build and test scripts
