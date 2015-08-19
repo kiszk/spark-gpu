@@ -19,6 +19,8 @@ package org.apache.spark.storage
 
 import java.nio.ByteBuffer
 
+import org.apache.spark.PartitionData
+
 /**
  * Result of adding a block into a BlockStore. This case class contains a few things:
  *   (1) The estimated size of the put,
@@ -28,5 +30,5 @@ import java.nio.ByteBuffer
  */
 private[spark] case class PutResult(
     size: Long,
-    data: Either[Iterator[_], ByteBuffer],
+    data: Either[PartitionData[_], ByteBuffer],
     droppedBlocks: Seq[(BlockId, BlockStatus)] = Seq.empty)
