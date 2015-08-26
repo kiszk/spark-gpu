@@ -30,6 +30,8 @@ import org.apache.spark.SparkFunSuite
 import org.apache.spark.deploy.SparkSubmitUtils.MavenCoordinate
 import org.apache.spark.util.Utils
 
+import org.apache.sparktest.SlowTest
+
 class SparkSubmitUtilsSuite extends SparkFunSuite with BeforeAndAfterAll {
 
   private var tempIvyPath: String = _
@@ -86,7 +88,7 @@ class SparkSubmitUtilsSuite extends SparkFunSuite with BeforeAndAfterAll {
     }
   }
 
-  test("add dependencies works correctly") {
+  test("add dependencies works correctly", SlowTest) {
     val md = SparkSubmitUtils.getModuleDescriptor
     val artifacts = SparkSubmitUtils.extractMavenCoordinates("com.databricks:spark-csv_2.10:0.1," +
       "com.databricks:spark-avro_2.10:0.1")
@@ -95,7 +97,7 @@ class SparkSubmitUtilsSuite extends SparkFunSuite with BeforeAndAfterAll {
     assert(md.getDependencies.length === 2)
   }
 
-  test("excludes works correctly") {
+  test("excludes works correctly", SlowTest) {
     val md = SparkSubmitUtils.getModuleDescriptor
     val excludes = Seq("a:b", "c:d")
     excludes.foreach { e =>
@@ -114,7 +116,7 @@ class SparkSubmitUtilsSuite extends SparkFunSuite with BeforeAndAfterAll {
     }
   }
 
-  test("ivy path works correctly") {
+  test("ivy path works correctly", SlowTest) {
     val md = SparkSubmitUtils.getModuleDescriptor
     val artifacts = for (i <- 0 until 3) yield new MDArtifact(md, s"jar-$i", "jar", "jar")
     var jPaths = SparkSubmitUtils.resolveDependencyPaths(artifacts.toArray, new File(tempIvyPath))
@@ -132,7 +134,7 @@ class SparkSubmitUtilsSuite extends SparkFunSuite with BeforeAndAfterAll {
     }
   }
 
-  test("search for artifact at local repositories") {
+  test("search for artifact at local repositories", SlowTest) {
     val main = new MavenCoordinate("my.great.lib", "mylib", "0.1")
     val dep = "my.great.dep:mydep:0.5"
     // Local M2 repository
@@ -164,13 +166,13 @@ class SparkSubmitUtilsSuite extends SparkFunSuite with BeforeAndAfterAll {
     }
   }
 
-  test("dependency not found throws RuntimeException") {
+  test("dependency not found throws RuntimeException", SlowTest) {
     intercept[RuntimeException] {
       SparkSubmitUtils.resolveMavenCoordinates("a:b:c", None, None, isTest = true)
     }
   }
 
-  test("neglects Spark and Spark's dependencies") {
+  test("neglects Spark and Spark's dependencies", SlowTest) {
     val components = Seq("bagel_", "catalyst_", "core_", "graphx_", "hive_", "mllib_", "repl_",
       "sql_", "streaming_", "yarn_", "network-common_", "network-shuffle_", "network-yarn_")
 
@@ -188,7 +190,7 @@ class SparkSubmitUtilsSuite extends SparkFunSuite with BeforeAndAfterAll {
     }
   }
 
-  test("exclude dependencies end to end") {
+  test("exclude dependencies end to end", SlowTest) {
     val main = new MavenCoordinate("my.great.lib", "mylib", "0.1")
     val dep = "my.great.dep:mydep:0.5"
     IvyTestUtils.withRepository(main, Some(dep), None) { repo =>

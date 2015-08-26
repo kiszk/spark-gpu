@@ -5,6 +5,8 @@ import org.apache.spark._
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
+import org.apache.sparktest.GPUTest
+
 class TestClass {
   val x: Int = 1
   private val y: Double = 2
@@ -24,7 +26,7 @@ case class Point(x: Int, y: Int)
 case class Rectangle(topLeft: Point, bottomRight: Point)
 
 class ColumnPartitionSchemaSuite extends SparkFunSuite with SharedSparkContext {
-  test("SerializesSingleInt") {
+  test("SerializesSingleInt", GPUTest) {
     val schema = ColumnPartitionSchema.schemaFor[Int]
     val input = Array(42)
     assert(schema.columns.length == 1)
@@ -40,7 +42,7 @@ class ColumnPartitionSchemaSuite extends SparkFunSuite with SharedSparkContext {
     assert(output.sameElements(input))
   }
 
-  test("SerializesManyInts") {
+  test("SerializesManyInts", GPUTest) {
     val schema = ColumnPartitionSchema.schemaFor[Int]
     val input = 1 to 42
     assert(schema.columns.length == 1)
@@ -55,7 +57,7 @@ class ColumnPartitionSchemaSuite extends SparkFunSuite with SharedSparkContext {
     assert(output.sameElements(input))
   }
 
-  test("SerializesObjectWithNoArgConstructor") {
+  test("SerializesObjectWithNoArgConstructor", GPUTest) {
     val schema = ColumnPartitionSchema.schemaFor[TestClass]
     val input = Array(new TestClass)
     assert(schema.columns.length == 4)
@@ -70,7 +72,7 @@ class ColumnPartitionSchemaSuite extends SparkFunSuite with SharedSparkContext {
     assert(output.sameElements(input))
   }
 
-  test("SerializeNestedCaseClassObjects") {
+  test("SerializeNestedCaseClassObjects", GPUTest) {
     val schema = ColumnPartitionSchema.schemaFor[Rectangle]
     val input = Array(
         Rectangle(Point(0, 0), Point(42, 42)),
