@@ -28,8 +28,11 @@ import org.apache.spark.sql.execution.{UnaryNode, SparkPlan, SparkPlanTest}
 import org.apache.spark.sql.hive.test.TestHiveSingleton
 import org.apache.spark.sql.types.StringType
 
+import org.apache.sparktest.PPCIBMJDKFailingTest
+
 class ScriptTransformationSuite extends SparkPlanTest with TestHiveSingleton {
-  import hiveContext.implicits._
+
+  override def sqlContext: SQLContext = TestHive
 
   private val noSerdeIOSchema = HiveScriptIOSchema(
     inputRowFormat = Seq.empty,
@@ -76,7 +79,7 @@ class ScriptTransformationSuite extends SparkPlanTest with TestHiveSingleton {
       rowsDf.collect())
   }
 
-  test("script transformation should not swallow errors from upstream operators (no serde)") {
+  test("script transformation should not swallow errors from upstream operators (no serde)", PPCIBMJDKFailingTest) {
     val rowsDf = Seq("a", "b", "c").map(Tuple1.apply).toDF("a")
     val e = intercept[TestFailedException] {
       checkAnswer(
@@ -93,7 +96,7 @@ class ScriptTransformationSuite extends SparkPlanTest with TestHiveSingleton {
     assert(e.getMessage().contains("intentional exception"))
   }
 
-  test("script transformation should not swallow errors from upstream operators (with serde)") {
+  test("script transformation should not swallow errors from upstream operators (with serde)", PPCIBMJDKFailingTest) {
     val rowsDf = Seq("a", "b", "c").map(Tuple1.apply).toDF("a")
     val e = intercept[TestFailedException] {
       checkAnswer(

@@ -27,6 +27,8 @@ import org.apache.spark.sql.types.IntegerType
 import org.apache.spark.tags.ExtendedHiveTest
 import org.apache.spark.util.Utils
 
+import org.apache.sparktest.PPCIBMJDKFailingTest
+
 /**
  * A simple set of tests that call the methods of a hive ClientInterface, loading different version
  * of hive from maven central.  These tests are simple in that they are mostly just testing to make
@@ -52,7 +54,7 @@ class VersionsSuite extends SparkFunSuite with Logging {
       "hive.metastore.warehouse.dir" -> warehousePath.toString)
   }
 
-  test("success sanity check") {
+  test("success sanity check", PPCIBMJDKFailingTest) {
     val badClient = IsolatedClientLoader.forVersion(HiveContext.hiveExecutionVersion,
       buildConf(),
       ivyPath).createClient()
@@ -96,18 +98,18 @@ class VersionsSuite extends SparkFunSuite with Logging {
   private var client: ClientInterface = null
 
   versions.foreach { version =>
-    test(s"$version: create client") {
+    test(s"$version: create client", PPCIBMJDKFailingTest) {
       client = null
       System.gc() // Hack to avoid SEGV on some JVM versions.
       client = IsolatedClientLoader.forVersion(version, buildConf(), ivyPath).createClient()
     }
 
-    test(s"$version: createDatabase") {
+    test(s"$version: createDatabase", PPCIBMJDKFailingTest) {
       val db = HiveDatabase("default", "")
       client.createDatabase(db)
     }
 
-    test(s"$version: createTable") {
+    test(s"$version: createTable", PPCIBMJDKFailingTest) {
       val table =
         HiveTable(
           specifiedDatabase = Option("default"),
@@ -128,46 +130,46 @@ class VersionsSuite extends SparkFunSuite with Logging {
       client.createTable(table)
     }
 
-    test(s"$version: getTable") {
+    test(s"$version: getTable", PPCIBMJDKFailingTest) {
       client.getTable("default", "src")
     }
 
-    test(s"$version: listTables") {
+    test(s"$version: listTables", PPCIBMJDKFailingTest) {
       assert(client.listTables("default") === Seq("src"))
     }
 
-    test(s"$version: currentDatabase") {
+    test(s"$version: currentDatabase", PPCIBMJDKFailingTest) {
       assert(client.currentDatabase === "default")
     }
 
-    test(s"$version: getDatabase") {
+    test(s"$version: getDatabase", PPCIBMJDKFailingTest) {
       client.getDatabase("default")
     }
 
-    test(s"$version: alterTable") {
+    test(s"$version: alterTable", PPCIBMJDKFailingTest) {
       client.alterTable(client.getTable("default", "src"))
     }
 
-    test(s"$version: set command") {
+    test(s"$version: set command", PPCIBMJDKFailingTest) {
       client.runSqlHive("SET spark.sql.test.key=1")
     }
 
-    test(s"$version: create partitioned table DDL") {
+    test(s"$version: create partitioned table DDL", PPCIBMJDKFailingTest) {
       client.runSqlHive("CREATE TABLE src_part (value INT) PARTITIONED BY (key INT)")
       client.runSqlHive("ALTER TABLE src_part ADD PARTITION (key = '1')")
     }
 
-    test(s"$version: getPartitions") {
+    test(s"$version: getPartitions", PPCIBMJDKFailingTest) {
       client.getAllPartitions(client.getTable("default", "src_part"))
     }
 
-    test(s"$version: getPartitionsByFilter") {
+    test(s"$version: getPartitionsByFilter", PPCIBMJDKFailingTest) {
       client.getPartitionsByFilter(client.getTable("default", "src_part"), Seq(EqualTo(
         AttributeReference("key", IntegerType, false)(NamedExpression.newExprId),
         Literal(1))))
     }
 
-    test(s"$version: loadPartition") {
+    test(s"$version: loadPartition", PPCIBMJDKFailingTest) {
       client.loadPartition(
         emptyDir,
         "default.src_part",
@@ -178,7 +180,7 @@ class VersionsSuite extends SparkFunSuite with Logging {
         false)
     }
 
-    test(s"$version: loadTable") {
+    test(s"$version: loadTable", PPCIBMJDKFailingTest) {
       client.loadTable(
         emptyDir,
         "src",
@@ -186,7 +188,7 @@ class VersionsSuite extends SparkFunSuite with Logging {
         false)
     }
 
-    test(s"$version: loadDynamicPartitions") {
+    test(s"$version: loadDynamicPartitions", PPCIBMJDKFailingTest) {
       client.loadDynamicPartitions(
         emptyDir,
         "default.src_part",
@@ -197,7 +199,7 @@ class VersionsSuite extends SparkFunSuite with Logging {
         false)
     }
 
-    test(s"$version: create index and reset") {
+    test(s"$version: create index and reset", PPCIBMJDKFailingTest) {
       client.runSqlHive("CREATE TABLE indexed_table (key INT)")
       client.runSqlHive("CREATE INDEX index_1 ON TABLE indexed_table(key) " +
         "as 'COMPACT' WITH DEFERRED REBUILD")
