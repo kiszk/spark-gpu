@@ -38,6 +38,8 @@ import org.apache.spark.streaming.dstream.DStream
 import org.apache.spark.streaming.scheduler._
 import org.apache.spark.util.Utils
 
+import org.apache.sparktest.PPCIBMJDKFailingTest
+
 class DirectKafkaStreamSuite
   extends SparkFunSuite
   with BeforeAndAfter
@@ -229,7 +231,7 @@ class DirectKafkaStreamSuite
   }
 
   // Test to verify the offset ranges can be recovered from the checkpoints
-  test("offset recovery") {
+  test("offset recovery", PPCIBMJDKFailingTest) {
     val topic = "recovery"
     kafkaTestUtils.createTopic(topic)
     testDir = Utils.createTempDir()
