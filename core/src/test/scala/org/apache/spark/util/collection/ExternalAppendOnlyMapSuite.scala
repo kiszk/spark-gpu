@@ -22,6 +22,8 @@ import scala.collection.mutable.ArrayBuffer
 import org.apache.spark._
 import org.apache.spark.io.CompressionCodec
 
+import org.apache.sparktest.PPCIBMJDKFailingTest
+
 class ExternalAppendOnlyMapSuite extends SparkFunSuite with LocalSparkContext {
   private val allCompressionCodecs = CompressionCodec.ALL_COMPRESSION_CODECS
   private def createCombiner[T](i: T) = ArrayBuffer[T](i)
@@ -212,11 +214,11 @@ class ExternalAppendOnlyMapSuite extends SparkFunSuite with LocalSparkContext {
     sc.stop()
   }
 
-  test("spilling") {
+  test("spilling", PPCIBMJDKFailingTest) {
     testSimpleSpilling()
   }
 
-  test("spilling with compression") {
+  test("spilling with compression", PPCIBMJDKFailingTest) {
     // Keep track of which compression codec we're using to report in test failure messages
     var lastCompressionCodec: Option[String] = None
     try {
@@ -289,7 +291,7 @@ class ExternalAppendOnlyMapSuite extends SparkFunSuite with LocalSparkContext {
     sc.stop()
   }
 
-  test("spilling with hash collisions") {
+  test("spilling with hash collisions", PPCIBMJDKFailingTest) {
     val conf = createSparkConf(loadDefaults = true)
     conf.set("spark.shuffle.memoryFraction", "0.001")
     sc = new SparkContext("local-cluster[1,1,1024]", "test", conf)
@@ -338,7 +340,7 @@ class ExternalAppendOnlyMapSuite extends SparkFunSuite with LocalSparkContext {
     sc.stop()
   }
 
-  test("spilling with many hash collisions") {
+  test("spilling with many hash collisions", PPCIBMJDKFailingTest) {
     val conf = createSparkConf(loadDefaults = true)
     conf.set("spark.shuffle.memoryFraction", "0.0001")
     sc = new SparkContext("local-cluster[1,1,1024]", "test", conf)
@@ -363,7 +365,7 @@ class ExternalAppendOnlyMapSuite extends SparkFunSuite with LocalSparkContext {
     sc.stop()
   }
 
-  test("spilling with hash collisions using the Int.MaxValue key") {
+  test("spilling with hash collisions using the Int.MaxValue key", PPCIBMJDKFailingTest) {
     val conf = createSparkConf(loadDefaults = true)
     conf.set("spark.shuffle.memoryFraction", "0.001")
     sc = new SparkContext("local-cluster[1,1,1024]", "test", conf)
@@ -380,7 +382,7 @@ class ExternalAppendOnlyMapSuite extends SparkFunSuite with LocalSparkContext {
     sc.stop()
   }
 
-  test("spilling with null keys and values") {
+  test("spilling with null keys and values", PPCIBMJDKFailingTest) {
     val conf = createSparkConf(loadDefaults = true)
     conf.set("spark.shuffle.memoryFraction", "0.001")
     sc = new SparkContext("local-cluster[1,1,1024]", "test", conf)

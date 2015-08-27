@@ -31,6 +31,8 @@ import org.scalatest.mock.MockitoSugar
 import org.apache.spark.{JsonTestUtils, SecurityManager, SparkConf, SparkFunSuite}
 import org.apache.spark.ui.SparkUI
 
+import org.apache.sparktest.PPCIBMJDKFailingTest
+
 /**
  * A collection of tests against the historyserver, including comparing responses from the json
  * metrics api to a set of known "golden files".  If new endpoints / parameters are added,
@@ -130,10 +132,19 @@ class HistoryServerSuite extends SparkFunSuite with BeforeAndAfter with Matchers
     "one rdd storage json" -> "applications/local-1422981780767/storage/rdd/0"
   )
 
+  val casesTags = Map(
+    "application list json" -> Seq(PPCIBMJDKFailingTest),
+    "completed app list json" -> Seq(PPCIBMJDKFailingTest),
+    "running app list json" -> Seq(PPCIBMJDKFailingTest),
+    "minDate app list json" -> Seq(PPCIBMJDKFailingTest),
+    "maxDate app list json" -> Seq(PPCIBMJDKFailingTest),
+    "maxDate2 app list json" -> Seq(PPCIBMJDKFailingTest)
+  )
+
   // run a bunch of characterization tests -- just verify the behavior is the same as what is saved
   // in the test resource folder
   cases.foreach { case (name, path) =>
-    test(name) {
+    test(name, casesTags getOrElse (name, Nil): _*) {
       val (code, jsonOpt, errOpt) = getContentAndCode(path)
       code should be (HttpServletResponse.SC_OK)
       jsonOpt should be ('defined)

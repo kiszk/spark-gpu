@@ -37,6 +37,8 @@ import org.apache.spark.storage.RDDBlockId
 import org.apache.spark.storage.ShuffleBlockId
 import org.apache.spark.storage.ShuffleIndexBlockId
 
+import org.apache.sparktest.PPCIBMJDKFailingTest
+
 /**
  * An abstract base class for context cleaner tests, which sets up a context with a config
  * suitable for cleaner tests and provides some utility functions. Subclasses can use different
@@ -209,7 +211,7 @@ class ContextCleanerSuite extends ContextCleanerSuiteBase {
     postGCTester.assertCleanup()
   }
 
-  test("automatically cleanup normal checkpoint") {
+  test("automatically cleanup normal checkpoint", PPCIBMJDKFailingTest) {
     val checkpointDir = java.io.File.createTempFile("temp", "")
     checkpointDir.deleteOnExit()
     checkpointDir.delete()
@@ -314,7 +316,7 @@ class ContextCleanerSuite extends ContextCleanerSuiteBase {
     }, askSlaves = true).isEmpty)
   }
 
-  test("automatically cleanup RDD + shuffle + broadcast in distributed mode") {
+  test("automatically cleanup RDD + shuffle + broadcast in distributed mode", PPCIBMJDKFailingTest) {
     sc.stop()
 
     val conf2 = new SparkConf()
@@ -392,7 +394,7 @@ class SortShuffleContextCleanerSuite extends ContextCleanerSuiteBase(classOf[Sor
     postGCTester.assertCleanup()
   }
 
-  test("automatically cleanup RDD + shuffle + broadcast in distributed mode") {
+  test("automatically cleanup RDD + shuffle + broadcast in distributed mode", PPCIBMJDKFailingTest) {
     sc.stop()
 
     val conf2 = new SparkConf()

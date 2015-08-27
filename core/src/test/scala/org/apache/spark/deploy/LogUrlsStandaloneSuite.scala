@@ -27,12 +27,14 @@ import org.apache.spark.scheduler.cluster.ExecutorInfo
 import org.apache.spark.scheduler.{SparkListenerExecutorAdded, SparkListener}
 import org.apache.spark.{LocalSparkContext, SparkConf, SparkContext, SparkFunSuite}
 
+import org.apache.sparktest.PPCIBMJDKFailingTest
+
 class LogUrlsStandaloneSuite extends SparkFunSuite with LocalSparkContext {
 
   /** Length of time to wait while draining listener events. */
   private val WAIT_TIMEOUT_MILLIS = 10000
 
-  test("verify that correct log urls get propagated from workers") {
+  test("verify that correct log urls get propagated from workers", PPCIBMJDKFailingTest) {
     sc = new SparkContext("local-cluster[2,1,1024]", "test")
 
     val listener = new SaveExecutorInfo
