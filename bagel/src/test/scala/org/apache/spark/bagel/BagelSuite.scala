@@ -24,7 +24,7 @@ import org.scalatest.time.SpanSugar._
 import org.apache.spark._
 import org.apache.spark.storage.StorageLevel
 
-import org.apache.sparktest.PPCIBMJDKFailingTest
+import org.apache.spark.PPCIBMJDKFailingTest
 
 class TestVertex(val active: Boolean, val age: Int) extends Vertex with Serializable
 class TestMessage(val targetId: String) extends Message[String] with Serializable

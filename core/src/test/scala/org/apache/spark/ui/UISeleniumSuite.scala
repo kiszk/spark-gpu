@@ -41,7 +41,7 @@ import org.apache.spark.deploy.history.HistoryServerSuite
 import org.apache.spark.shuffle.FetchFailedException
 import org.apache.spark.status.api.v1.{JacksonMessageWriter, StageStatus}
 
-import org.apache.sparktest.PPCIBMJDKFailingTest
+import org.apache.spark.PPCIBMJDKFailingTest
 
 private[spark] class SparkUICssErrorHandler extends DefaultCssErrorHandler {
 

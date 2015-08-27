@@ -32,7 +32,7 @@ import org.apache.spark.deploy.SparkSubmit._
 import org.apache.spark.deploy.SparkSubmitUtils.MavenCoordinate
 import org.apache.spark.util.{ResetSystemProperties, Utils}
 
-import org.apache.sparktest.PPCIBMJDKFailingTest
+import org.apache.spark.PPCIBMJDKFailingTest
 
 // Note: this suite mixes in ResetSystemProperties because SparkSubmit.main() sets a bunch
 // of properties that neeed to be cleared after tests.

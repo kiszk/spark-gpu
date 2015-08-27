@@ -22,7 +22,7 @@ import scala.collection.mutable.ArrayBuffer
 import org.apache.spark._
 import org.apache.spark.io.CompressionCodec
 
-import org.apache.sparktest.PPCIBMJDKFailingTest
+import org.apache.spark.PPCIBMJDKFailingTest
 
 class ExternalAppendOnlyMapSuite extends SparkFunSuite with LocalSparkContext {
   private val allCompressionCodecs = CompressionCodec.ALL_COMPRESSION_CODECS

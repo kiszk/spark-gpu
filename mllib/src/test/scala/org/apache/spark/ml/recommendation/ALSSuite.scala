@@ -35,7 +35,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.util.Utils
 
-import org.apache.sparktest.PPCIBMJDKFailingTest
+import org.apache.spark.PPCIBMJDKFailingTest
 
 class ALSSuite extends SparkFunSuite with MLlibTestSparkContext with Logging {
 

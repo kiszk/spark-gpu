@@ -26,7 +26,7 @@ import org.apache.spark.sql.catalyst.util.quietly
 import org.apache.spark.sql.types.IntegerType
 import org.apache.spark.util.Utils
 
-import org.apache.sparktest.PPCIBMJDKFailingTest
+import org.apache.spark.PPCIBMJDKFailingTest
 
 /**
  * A simple set of tests that call the methods of a hive ClientInterface, loading different version

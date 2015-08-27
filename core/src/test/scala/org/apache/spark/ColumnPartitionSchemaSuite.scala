@@ -5,8 +5,6 @@ import org.apache.spark._
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-import org.apache.sparktest.GPUTest
-
 class TestClass {
   val x: Int = 1
   private val y: Double = 2
