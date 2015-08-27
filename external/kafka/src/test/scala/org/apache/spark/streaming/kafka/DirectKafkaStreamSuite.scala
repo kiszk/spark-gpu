@@ -41,7 +41,7 @@ import org.apache.spark.streaming.dstream.DStream
 import org.apache.spark.streaming.scheduler._
 import org.apache.spark.util.Utils
 
-import org.apache.sparktest.PPCIBMJDKFailingTest
+import org.apache.spark.PPCIBMJDKFailingTest
 
 class DirectKafkaStreamSuite
   extends SparkFunSuite

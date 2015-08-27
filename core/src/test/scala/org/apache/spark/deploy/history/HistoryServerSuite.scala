@@ -31,7 +31,7 @@ import org.scalatest.mock.MockitoSugar
 import org.apache.spark.{JsonTestUtils, SecurityManager, SparkConf, SparkFunSuite}
 import org.apache.spark.ui.{SparkUI, UIUtils}
 
-import org.apache.sparktest.PPCIBMJDKFailingTest
+import org.apache.spark.PPCIBMJDKFailingTest
 
 /**
  * A collection of tests against the historyserver, including comparing responses from the json

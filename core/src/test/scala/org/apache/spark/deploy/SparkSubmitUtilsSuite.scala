@@ -30,7 +30,7 @@ import org.apache.spark.SparkFunSuite
 import org.apache.spark.deploy.SparkSubmitUtils.MavenCoordinate
 import org.apache.spark.util.Utils
 
-import org.apache.sparktest.SlowTest
+import org.apache.spark.SlowTest
 
 class SparkSubmitUtilsSuite extends SparkFunSuite with BeforeAndAfterAll {
 

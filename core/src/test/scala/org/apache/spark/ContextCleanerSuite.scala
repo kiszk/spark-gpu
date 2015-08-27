@@ -37,8 +37,6 @@ import org.apache.spark.storage.RDDBlockId
 import org.apache.spark.storage.ShuffleBlockId
 import org.apache.spark.storage.ShuffleIndexBlockId
 
-import org.apache.sparktest.PPCIBMJDKFailingTest
-
 /**
  * An abstract base class for context cleaner tests, which sets up a context with a config
  * suitable for cleaner tests and provides some utility functions. Subclasses can use different

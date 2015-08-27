@@ -27,7 +27,7 @@ import org.apache.spark.scheduler.{SparkListenerExecutorAdded, SparkListener}
 import org.apache.spark.{LocalSparkContext, SparkConf, SparkContext, SparkFunSuite}
 import org.apache.spark.util.SparkConfWithEnv
 
-import org.apache.sparktest.PPCIBMJDKFailingTest
+import org.apache.spark.PPCIBMJDKFailingTest
 
 class LogUrlsStandaloneSuite extends SparkFunSuite with LocalSparkContext {
 
