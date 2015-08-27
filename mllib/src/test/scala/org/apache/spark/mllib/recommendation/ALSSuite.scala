@@ -27,6 +27,8 @@ import org.apache.spark.SparkFunSuite
 import org.apache.spark.mllib.util.MLlibTestSparkContext
 import org.apache.spark.storage.StorageLevel
 
+import org.apache.spark.PPCIBMJDKFailingTest
+
 object ALSSuite {
 
   def generateRatingsAsJavaList(
@@ -86,43 +88,43 @@ object ALSSuite {
 
 class ALSSuite extends SparkFunSuite with MLlibTestSparkContext {
 
-  test("rank-1 matrices") {
+  test("rank-1 matrices", PPCIBMJDKFailingTest) {
     testALS(50, 100, 1, 15, 0.7, 0.3)
   }
 
-  test("rank-1 matrices bulk") {
+  test("rank-1 matrices bulk", PPCIBMJDKFailingTest) {
     testALS(50, 100, 1, 15, 0.7, 0.3, false, true)
   }
 
-  test("rank-2 matrices") {
+  test("rank-2 matrices", PPCIBMJDKFailingTest) {
     testALS(100, 200, 2, 15, 0.7, 0.3)
   }
 
-  test("rank-2 matrices bulk") {
+  test("rank-2 matrices bulk", PPCIBMJDKFailingTest) {
     testALS(100, 200, 2, 15, 0.7, 0.3, false, true)
   }
 
-  test("rank-1 matrices implicit") {
+  test("rank-1 matrices implicit", PPCIBMJDKFailingTest) {
     testALS(80, 160, 1, 15, 0.7, 0.4, true)
   }
 
-  test("rank-1 matrices implicit bulk") {
+  test("rank-1 matrices implicit bulk", PPCIBMJDKFailingTest) {
     testALS(80, 160, 1, 15, 0.7, 0.4, true, true)
   }
 
-  test("rank-2 matrices implicit") {
+  test("rank-2 matrices implicit", PPCIBMJDKFailingTest) {
     testALS(100, 200, 2, 15, 0.7, 0.4, true)
   }
 
-  test("rank-2 matrices implicit bulk") {
+  test("rank-2 matrices implicit bulk", PPCIBMJDKFailingTest) {
     testALS(100, 200, 2, 15, 0.7, 0.4, true, true)
   }
 
-  test("rank-2 matrices implicit negative") {
+  test("rank-2 matrices implicit negative", PPCIBMJDKFailingTest) {
     testALS(100, 200, 2, 15, 0.7, 0.4, true, false, true)
   }
 
-  test("rank-2 matrices with different user and product blocks") {
+  test("rank-2 matrices with different user and product blocks", PPCIBMJDKFailingTest) {
     testALS(100, 200, 2, 15, 0.7, 0.4, numUserBlocks = 4, numProductBlocks = 2)
   }
 
@@ -164,7 +166,7 @@ class ALSSuite extends SparkFunSuite with MLlibTestSparkContext {
     assert(model.userFeatures.getStorageLevel == storageLevel);
   }
 
-  test("negative ids") {
+  test("negative ids", PPCIBMJDKFailingTest) {
     val data = ALSSuite.generateRatings(50, 50, 2, 0.7, false, false)
     val ratings = sc.parallelize(data._1.map { case Rating(u, p, r) =>
       Rating(u - 25, p - 25, r)
@@ -183,7 +185,7 @@ class ALSSuite extends SparkFunSuite with MLlibTestSparkContext {
     }
   }
 
-  test("NNALS, rank 2") {
+  test("NNALS, rank 2", PPCIBMJDKFailingTest) {
     testALS(100, 200, 2, 15, 0.7, 0.4, false, false, false, -1, -1, false)
   }
 
