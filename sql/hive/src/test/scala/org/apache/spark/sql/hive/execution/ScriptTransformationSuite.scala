@@ -28,7 +28,7 @@ import org.apache.spark.sql.execution.{UnaryNode, SparkPlan, SparkPlanTest}
 import org.apache.spark.sql.hive.test.TestHiveSingleton
 import org.apache.spark.sql.types.StringType
 
-import org.apache.sparktest.PPCIBMJDKFailingTest
+import org.apache.spark.PPCIBMJDKFailingTest
 
 class ScriptTransformationSuite extends SparkPlanTest with TestHiveSingleton {
 

@@ -25,8 +25,6 @@ import org.scalatest.PrivateMethodTester
 import org.apache.spark.rdd.RDD
 import org.apache.spark.util.StatCounter
 
-import org.apache.sparktest.PPCIBMJDKFailingTest
-
 class PartitioningSuite extends SparkFunSuite with SharedSparkContext with PrivateMethodTester {
 
   test("HashPartitioner equality") {
