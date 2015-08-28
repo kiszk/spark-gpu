@@ -114,7 +114,7 @@ private[spark] class MemoryStore(blockManager: BlockManager, maxMemory: Long)
       val values = blockManager.dataDeserialize(blockId, bytes)
       putData(blockId, values, level, returnValues = true)
     } else {
-      val putAttempt = tryToPut(blockId, bytes, bytes.limit, deserialized = false)
+      val putAttempt = tryToPut(blockId, bytes, bytes.limit)
       PutResult(bytes.limit(), Right(bytes.duplicate()), putAttempt.droppedBlocks)
     }
   }
@@ -128,7 +128,7 @@ private[spark] class MemoryStore(blockManager: BlockManager, maxMemory: Long)
   def putBytes(blockId: BlockId, size: Long, _bytes: () => ByteBuffer): PutResult = {
     // Work on a duplicate - since the original input might be used elsewhere.
     lazy val bytes = _bytes().duplicate().rewind().asInstanceOf[ByteBuffer]
-    val putAttempt = tryToPut(blockId, () => bytes, size, deserialized = false)
+    val putAttempt = tryToPut(blockId, () => bytes, size)
     val data =
       if (putAttempt.success) {
         assert(bytes.limit == size)
@@ -146,12 +146,12 @@ private[spark] class MemoryStore(blockManager: BlockManager, maxMemory: Long)
       returnValues: Boolean): PutResult = {
     if (level.deserialized) {
       val sizeEstimate = SizeEstimator.estimate(values.asInstanceOf[AnyRef])
-      val putAttempt = tryToPut(blockId, values, sizeEstimate, deserialized = true)
+      val putAttempt = tryToPut(blockId, values, sizeEstimate)
       PutResult(sizeEstimate, Left(IteratedPartitionData(values.iterator)), putAttempt.droppedBlocks)
     } else {
       val bytes = blockManager.dataSerialize(blockId, IteratedPartitionData(values.iterator))
-      val putAttempt = tryToPut(blockId, bytes, bytes.limit, deserialized = false)
-      PutResult(bytes.limit(), Right(bytes.duplicate()), putAttempt.droppedBlocks)
+      val putAttempt = tryToPut(blockId, bytes, bytes.limit)
+      PutResult(bytes.limit(), Right(bytes.duplicate()))
     }
   }
 
@@ -164,11 +164,11 @@ private[spark] class MemoryStore(blockManager: BlockManager, maxMemory: Long)
       val wrapperSizeEstimate = SizeEstimator.estimate(values.asInstanceOf[AnyRef])
       val sizeEstimate = wrapperSizeEstimate + values.memoryUsage
       // TODO should off-heap memory be included here?
-      val putAttempt = tryToPut(blockId, values, sizeEstimate, deserialized = true)
+      val putAttempt = tryToPut(blockId, values, sizeEstimate)
       PutResult(sizeEstimate, Left(values), putAttempt.droppedBlocks)
     } else {
       val bytes = blockManager.dataSerialize(blockId, values)
-      val putAttempt = tryToPut(blockId, bytes, bytes.limit, deserialized = false)
+      val putAttempt = tryToPut(blockId, bytes, bytes.limit)
       PutResult(bytes.limit(), Right(bytes.duplicate()), putAttempt.droppedBlocks)
     }
   }
@@ -384,9 +384,8 @@ private[spark] class MemoryStore(blockManager: BlockManager, maxMemory: Long)
   private def tryToPut(
       blockId: BlockId,
       value: Any,
-      size: Long,
-      deserialized: Boolean): ResultWithDroppedBlocks = {
-    tryToPut(blockId, () => value, size, deserialized)
+      size: Long): ResultWithDroppedBlocks = {
+    tryToPut(blockId, () => value, size)
   }
 
   /**
