@@ -168,11 +168,11 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
       val wrapperSizeEstimate = SizeEstimator.estimate(values.asInstanceOf[AnyRef])
       val sizeEstimate = wrapperSizeEstimate + values.memoryUsage
       // TODO should off-heap memory be included here?
-      val putAttempt = tryToPut(blockId, values, sizeEstimate, deserialized = true)
+      val putAttempt = tryToPut(blockId, values, sizeEstimate)
       PutResult(sizeEstimate, Left(values), putAttempt.droppedBlocks)
     } else {
       val bytes = blockManager.dataSerialize(blockId, values)
-      val putAttempt = tryToPut(blockId, bytes, bytes.limit, deserialized = false)
+      val putAttempt = tryToPut(blockId, bytes, bytes.limit)
       PutResult(bytes.limit(), Right(bytes.duplicate()), putAttempt.droppedBlocks)
     }
   }
