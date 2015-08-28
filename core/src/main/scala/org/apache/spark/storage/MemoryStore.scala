@@ -385,10 +385,15 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
   private def tryToPut(
       blockId: BlockId,
       value: Any,
+<<<<<<< HEAD
       size: Long,
       deserialized: Boolean,
       droppedBlocks: mutable.Buffer[(BlockId, BlockStatus)]): Boolean = {
     tryToPut(blockId, () => value, size, deserialized, droppedBlocks)
+=======
+      size: Long): ResultWithDroppedBlocks = {
+    tryToPut(blockId, () => value, size)
+>>>>>>> Fixed infinite recursion by using wrong MemoryStore.tryToPut.
   }
 
   /**
