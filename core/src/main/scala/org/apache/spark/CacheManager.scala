@@ -48,13 +48,20 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
           .getInputMetricsForReadMethod(blockResult.readMethod)
         existingMetrics.incBytesRead(blockResult.bytes)
 
-        val iter = blockResult.data.asInstanceOf[Iterator[T]]
-        new InterruptibleIterator[T](context, iter) {
-          override def next(): T = {
-            existingMetrics.incRecordsRead(1)
-            delegate.next()
-          }
+        blockResult.data match {
+          // we already know that it must be of type T
+          case IteratedPartitionData(iter: Iterator[T]) =>
+            new InterruptibleIterator[T](context, iter) {
+              override def next(): T = {
+                existingMetrics.incRecordsRead(1)
+                delegate.next()
+              }
+            }
+
+          case ColumnPartitionData(columns) =>
+            throw new UnsupportedOperationException("TODO") // TODO
         }
+
       case None =>
         // Acquire a lock for loading this partition
         // If another thread already holds the lock, wait for it to finish return its results
