@@ -34,6 +34,7 @@ import org.apache.spark.IteratedPartitionData
 private abstract class MemoryEntry {
   val size: Long
   def unitName: String
+  val value: Any
 }
 
 private case class ArrayMemoryEntry(value: Array[Any], size: Long) extends MemoryEntry {
@@ -510,7 +511,7 @@ private[spark] class MemoryStore(blockManager: BlockManager, maxMemory: Long)
           // blocks and removing entries. However the check is still here for
           // future safety.
           if (entry != null) {
-            val data = duplicateIfNeeded(entry)
+            val data = duplicateIfNeeded(entry.value)
             val droppedBlockStatus = blockManager.dropFromMemory(blockId, data)
             droppedBlockStatus.foreach { status => droppedBlocks += ((blockId, status)) }
           }

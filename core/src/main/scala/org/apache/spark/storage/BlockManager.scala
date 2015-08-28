@@ -1068,8 +1068,7 @@ private[spark] class BlockManager(
         // Drop to disk, if storage level requires
         if (level.useDisk && !diskStore.contains(blockId)) {
           logInfo(s"Writing block $blockId to disk")
-          val dataVal = data()
-          dataVal match {
+          data() match {
             case arr: Array[Any] =>
               diskStore.putArray(blockId, arr, level, returnValues = false)
             case cp: ColumnPartitionData[Any] =>
