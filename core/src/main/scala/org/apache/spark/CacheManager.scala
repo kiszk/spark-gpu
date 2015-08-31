@@ -37,7 +37,7 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
       rdd: RDD[T],
       partition: Partition,
       context: TaskContext,
-      storageLevel: StorageLevel): Iterator[T] = {
+      storageLevel: StorageLevel): PartitionData[T] = {
 
     val key = RDDBlockId(rdd.id, partition.index)
     logDebug(s"Looking for partition $key")
@@ -48,18 +48,13 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
           .getInputMetricsForReadMethod(blockResult.readMethod)
         existingMetrics.incBytesRead(blockResult.bytes)
 
-        blockResult.data match {
-          // we already know that it must be of type T
-          case IteratedPartitionData(iter: Iterator[T]) =>
-            new InterruptibleIterator[T](context, iter) {
-              override def next(): T = {
-                existingMetrics.incRecordsRead(1)
-                delegate.next()
-              }
+        blockResult.data.asInstanceOf[PartitionData[T]].wrapIterator { iter: Iterator[T] =>
+          new InterruptibleIterator[T](context, iter) {
+            override def next(): T = {
+              existingMetrics.incRecordsRead(1)
+              delegate.next()
             }
-
-          case ColumnPartitionData(columns) =>
-            throw new UnsupportedOperationException("TODO") // TODO
+          }
         }
 
       case None =>
@@ -67,7 +62,7 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
         // If another thread already holds the lock, wait for it to finish return its results
         val storedValues = acquireLockForPartition[T](key)
         if (storedValues.isDefined) {
-          return new InterruptibleIterator[T](context, storedValues.get)
+          return storedValues.get.wrapIterator(new InterruptibleIterator[T](context, _))
         }
 
         // Otherwise, we have to load the partition ourselves
@@ -86,7 +81,7 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
           val metrics = context.taskMetrics
           val lastUpdatedBlocks = metrics.updatedBlocks.getOrElse(Seq[(BlockId, BlockStatus)]())
           metrics.updatedBlocks = Some(lastUpdatedBlocks ++ updatedBlocks.toSeq)
-          new InterruptibleIterator(context, cachedValues)
+          cachedValues.wrapIterator(new InterruptibleIterator(context, _))
 
         } finally {
           loading.synchronized {
@@ -103,7 +98,7 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
    * If the lock is free, just acquire it and return None. Otherwise, another thread is already
    * loading the partition, so we wait for it to finish and return the values loaded by the thread.
    */
-  private def acquireLockForPartition[T](id: RDDBlockId): Option[Iterator[T]] = {
+  private def acquireLockForPartition[T](id: RDDBlockId): Option[PartitionData[T]] = {
     loading.synchronized {
       if (!loading.contains(id)) {
         // If the partition is free, acquire its lock to compute its value
@@ -129,7 +124,7 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
           logInfo(s"Whoever was loading $id failed; we'll try it ourselves")
           loading.add(id)
         }
-        values.map(_.data.asInstanceOf[Iterator[T]])
+        values.map(_.data.asInstanceOf[PartitionData[T]])
       }
     }
   }
@@ -145,54 +140,70 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
    */
   private def putInBlockManager[T](
       key: BlockId,
-      values: Iterator[T],
+      values: PartitionData[T],
       level: StorageLevel,
       updatedBlocks: ArrayBuffer[(BlockId, BlockStatus)],
-      effectiveStorageLevel: Option[StorageLevel] = None): Iterator[T] = {
+      effectiveStorageLevel: Option[StorageLevel] = None): PartitionData[T] = {
 
     val putLevel = effectiveStorageLevel.getOrElse(level)
-    if (!putLevel.useMemory) {
-      /*
-       * This RDD is not to be cached in memory, so we can just pass the computed values as an
-       * iterator directly to the BlockManager rather than first fully unrolling it in memory.
-       */
-      updatedBlocks ++=
-        blockManager.putIterator(key, values, level, tellMaster = true, effectiveStorageLevel)
-      blockManager.get(key) match {
-        case Some(v) => v.data.asInstanceOf[Iterator[T]]
-        case None =>
-          logInfo(s"Failure to store $key")
-          throw new BlockException(key, s"Block manager failed to return cached value for $key!")
-      }
-    } else {
-      /*
-       * This RDD is to be cached in memory. In this case we cannot pass the computed values
-       * to the BlockManager as an iterator and expect to read it back later. This is because
-       * we may end up dropping a partition from memory store before getting it back.
-       *
-       * In addition, we must be careful to not unroll the entire partition in memory at once.
-       * Otherwise, we may cause an OOM exception if the JVM does not have enough space for this
-       * single partition. Instead, we unroll the values cautiously, potentially aborting and
-       * dropping the partition to disk if applicable.
-       */
-      blockManager.memoryStore.unrollSafely(key, values, updatedBlocks) match {
-        case Left(arr) =>
-          // We have successfully unrolled the entire partition, so cache it in memory
+    values match {
+      case IteratedPartitionData(iter) =>
+        if (!putLevel.useMemory) {
+          /*
+           * This RDD is not to be cached in memory, so we can just pass the computed values as an
+           * iterator directly to the BlockManager rather than first fully unrolling it in memory.
+           */
           updatedBlocks ++=
-            blockManager.putArray(key, arr, level, tellMaster = true, effectiveStorageLevel)
-          arr.iterator.asInstanceOf[Iterator[T]]
-        case Right(it) =>
-          // There is not enough space to cache this partition in memory
-          val returnValues = it.asInstanceOf[Iterator[T]]
-          if (putLevel.useDisk) {
-            logWarning(s"Persisting partition $key to disk instead.")
-            val diskOnlyLevel = StorageLevel(useDisk = true, useMemory = false,
-              useOffHeap = false, deserialized = false, putLevel.replication)
-            putInBlockManager[T](key, returnValues, level, updatedBlocks, Some(diskOnlyLevel))
-          } else {
-            returnValues
+            blockManager.putIterator(key, iter, level, tellMaster = true, effectiveStorageLevel)
+          blockManager.get(key) match {
+            // we know that blockManager will return IteratedPartitionData when we put one there
+            case Some(v) => v.data.asInstanceOf[IteratedPartitionData[T]]
+            case None =>
+              logInfo(s"Failure to store $key")
+              throw new BlockException(key, s"Block manager failed to return cached value for $key!")
           }
-      }
+        } else {
+          /*
+           * This RDD is to be cached in memory. In this case we cannot pass the computed values
+           * to the BlockManager as an iterator and expect to read it back later. This is because
+           * we may end up dropping a partition from memory store before getting it back.
+           *
+           * In addition, we must be careful to not unroll the entire partition in memory at once.
+           * Otherwise, we may cause an OOM exception if the JVM does not have enough space for this
+           * single partition. Instead, we unroll the values cautiously, potentially aborting and
+           * dropping the partition to disk if applicable.
+           */
+          blockManager.memoryStore.unrollSafely(key, iter, updatedBlocks) match {
+            case Left(arr) =>
+              // We have successfully unrolled the entire partition, so cache it in memory
+              updatedBlocks ++=
+                blockManager.putArray(key, arr, level, tellMaster = true, effectiveStorageLevel)
+              IteratedPartitionData(arr.iterator.asInstanceOf[Iterator[T]])
+            case Right(it) =>
+              // There is not enough space to cache this partition in memory
+              val returnValues = it.asInstanceOf[Iterator[T]]
+              if (putLevel.useDisk) {
+                logWarning(s"Persisting partition $key to disk instead.")
+                val diskOnlyLevel = StorageLevel(useDisk = true, useMemory = false,
+                  useOffHeap = false, deserialized = false, putLevel.replication)
+                putInBlockManager[T](key, IteratedPartitionData(returnValues), level, updatedBlocks,
+                  Some(diskOnlyLevel))
+              } else {
+                IteratedPartitionData(returnValues)
+              }
+          }
+        }
+
+      case col: ColumnPartitionData[T] =>
+        updatedBlocks ++=
+          blockManager.putColumns(key, col, level, tellMaster = true, effectiveStorageLevel)
+        blockManager.get(key) match {
+          // we know that blockManager will return ColumnPartitionData when we put one there
+          case Some(v) => v.data.asInstanceOf[ColumnPartitionData[T]]
+          case None =>
+            logInfo(s"Failure to store $key")
+            throw new BlockException(key, s"Block manager failed to return cached value for $key!")
+        }
     }
   }
 

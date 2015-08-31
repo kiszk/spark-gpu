@@ -70,10 +70,13 @@ class CartesianRDD[T: ClassTag, U: ClassTag](
     (rdd1.preferredLocations(currSplit.s1) ++ rdd2.preferredLocations(currSplit.s2)).distinct
   }
 
-  override def compute(split: Partition, context: TaskContext): Iterator[(T, U)] = {
+  override def compute(split: Partition, context: TaskContext): PartitionData[(T, U)] = {
     val currSplit = split.asInstanceOf[CartesianPartition]
-    for (x <- rdd1.iterator(currSplit.s1, context);
-         y <- rdd2.iterator(currSplit.s2, context)) yield (x, y)
+    val iter =
+      for (x <- rdd1.iterator(currSplit.s1, context);
+        y <- rdd2.iterator(currSplit.s2, context)) yield (x, y)
+    // TODO version for ColumnPartitionData
+    IteratedPartitionData(iter)
   }
 
   override def getDependencies: Seq[Dependency[_]] = List(

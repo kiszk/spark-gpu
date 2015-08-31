@@ -250,7 +250,7 @@ private[spark] class SqlNewHadoopRDD[V: ClassTag](
     iter
   }
 
-  override def getPreferredLocations(hsplit: SparkPartition): Seq[String] = {
+  def getPreferredLocations(hsplit: SparkPartition): Seq[String] = {
     val split = hsplit.asInstanceOf[SqlNewHadoopPartition].serializableHadoopSplit.value
     val locs = HadoopRDD.SPLIT_INFO_REFLECTIONS match {
       case Some(c) =>
@@ -290,10 +290,11 @@ private[spark] class SqlNewHadoopRDD[V: ClassTag](
 
     override def getPartitions: Array[SparkPartition] = firstParent[T].partitions
 
-    override def compute(split: SparkPartition, context: TaskContext): Iterator[U] = {
+    override def compute(split: SparkPartition, context: TaskContext): PartitionData[U] = {
       val partition = split.asInstanceOf[SqlNewHadoopPartition]
       val inputSplit = partition.serializableHadoopSplit.value
-      f(inputSplit, firstParent[T].iterator(split, context))
+      // TODO version for ColumnPartitionData
+      IteratedPartitionData(f(inputSplit, firstParent[T].iterator(split, context)))
     }
   }
 }

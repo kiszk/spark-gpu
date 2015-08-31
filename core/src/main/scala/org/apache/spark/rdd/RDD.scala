@@ -107,7 +107,7 @@ abstract class RDD[T: ClassTag](
    * Implemented by subclasses to compute a given partition.
    */
   @DeveloperApi
-  def compute(split: Partition, context: TaskContext): Iterator[T]
+  def compute(split: Partition, context: TaskContext): PartitionData[T]
 
   /**
    * Implemented by subclasses to return the set of partitions in this RDD. This method will only
@@ -253,11 +253,22 @@ abstract class RDD[T: ClassTag](
   }
 
   /**
+   * Internal method returning iterator to values in the Partition. It will fail if the partition
+   * is not of IteratedPartitionData type.
+   */
+  final def iterator(split: Partition, context: TaskContext): Iterator[T] = {
+    partitionData(split, context) match {
+      case IteratedPartitionData(iter) => iter
+      case _ => throw new SparkException("RDD.iterator does not work with non-iterator-type partitions.")
+    }
+  }
+
+  /**
    * Internal method to this RDD; will read from cache if applicable, or otherwise compute it.
    * This should ''not'' be called by users directly, but is available for implementors of custom
    * subclasses of RDD.
    */
-  final def iterator(split: Partition, context: TaskContext): Iterator[T] = {
+  final def partitionData(split: Partition, context: TaskContext): PartitionData[T] = {
     if (storageLevel != StorageLevel.NONE) {
       SparkEnv.get.cacheManager.getOrCompute(this, split, context, storageLevel)
     } else {
@@ -292,7 +303,7 @@ abstract class RDD[T: ClassTag](
   /**
    * Compute an RDD partition or read it from a checkpoint if the RDD is checkpointing.
    */
-  private[spark] def computeOrReadCheckpoint(split: Partition, context: TaskContext): Iterator[T] =
+  private[spark] def computeOrReadCheckpoint(split: Partition, context: TaskContext): PartitionData[T] =
   {
     if (isCheckpointedAndMaterialized) {
       firstParent[T].iterator(split, context)

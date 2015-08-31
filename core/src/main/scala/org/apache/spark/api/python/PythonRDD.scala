@@ -90,7 +90,7 @@ private[spark] class PythonRunner(
   def compute(
       inputIterator: Iterator[_],
       partitionIndex: Int,
-      context: TaskContext): Iterator[Array[Byte]] = {
+      context: TaskContext): PartitionData[Array[Byte]] = {
     val startTime = System.currentTimeMillis
     val env = SparkEnv.get
     val localdir = env.blockManager.diskBlockManager.localDirs.map(f => f.getPath()).mkString(",")
@@ -208,7 +208,8 @@ private[spark] class PythonRunner(
 
       override def hasNext: Boolean = _nextObj != null
     }
-    new InterruptibleIterator(context, stdoutIterator)
+    // TODO version for ColumnPartitionData
+    IteratedPartitionData(new InterruptibleIterator(context, stdoutIterator))
   }
 
   /**
@@ -338,11 +339,13 @@ private class PythonException(msg: String, cause: Exception) extends RuntimeExce
 private class PairwiseRDD(prev: RDD[Array[Byte]]) extends RDD[(Long, Array[Byte])](prev) {
   override def getPartitions: Array[Partition] = prev.partitions
   override val partitioner: Option[Partitioner] = prev.partitioner
-  override def compute(split: Partition, context: TaskContext): Iterator[(Long, Array[Byte])] =
-    prev.iterator(split, context).grouped(2).map {
-      case Seq(a, b) => (Utils.deserializeLongValue(a), b)
-      case x => throw new SparkException("PairwiseRDD: unexpected value: " + x)
-    }
+  override def compute(split: Partition, context: TaskContext): PartitionData[(Long, Array[Byte])] =
+    // TODO version for ColumnPartitionData
+    IteratedPartitionData(
+      prev.iterator(split, context).grouped(2).map {
+        case Seq(a, b) => (Utils.deserializeLongValue(a), b)
+        case x => throw new SparkException("PairwiseRDD: unexpected value: " + x)
+      })
   val asJavaPairRDD : JavaPairRDD[Long, Array[Byte]] = JavaPairRDD.fromRDD(this)
 }
 

@@ -45,18 +45,18 @@ class CacheManagerSuite extends SparkFunSuite with LocalSparkContext with Before
     rdd = new RDD[Int](sc, Nil) {
       override def getPartitions: Array[Partition] = Array(split)
       override val getDependencies = List[Dependency[_]]()
-      override def compute(split: Partition, context: TaskContext): Iterator[Int] =
-        Array(1, 2, 3, 4).iterator
+      override def compute(split: Partition, context: TaskContext): PartitionData[Int] =
+        IteratedPartitionData(Array(1, 2, 3, 4).iterator)
     }
     rdd2 = new RDD[Int](sc, List(new OneToOneDependency(rdd))) {
       override def getPartitions: Array[Partition] = firstParent[Int].partitions
-      override def compute(split: Partition, context: TaskContext): Iterator[Int] =
-        firstParent[Int].iterator(split, context)
+      override def compute(split: Partition, context: TaskContext): PartitionData[Int] =
+        IteratedPartitionData(firstParent[Int].iterator(split, context))
     }.cache()
     rdd3 = new RDD[Int](sc, List(new OneToOneDependency(rdd2))) {
       override def getPartitions: Array[Partition] = firstParent[Int].partitions
-      override def compute(split: Partition, context: TaskContext): Iterator[Int] =
-        firstParent[Int].iterator(split, context)
+      override def compute(split: Partition, context: TaskContext): PartitionData[Int] =
+        IteratedPartitionData(firstParent[Int].iterator(split, context))
     }.cache()
   }
 
@@ -68,7 +68,7 @@ class CacheManagerSuite extends SparkFunSuite with LocalSparkContext with Before
     val context = TaskContext.empty()
     val computeValue = cacheManager.getOrCompute(rdd, split, context, StorageLevel.MEMORY_ONLY)
     val getValue = blockManager.get(RDDBlockId(rdd.id, split.index))
-    assert(computeValue.toList === List(1, 2, 3, 4))
+    assert(computeValue.iterator.toList === List(1, 2, 3, 4))
     assert(getValue.isDefined, "Block cached from getOrCompute is not found!")
     assert(getValue.get.data.asInstanceOf[IteratedPartitionData[Any]].iterator.toList === List(1, 2, 3, 4))
   }
@@ -79,7 +79,7 @@ class CacheManagerSuite extends SparkFunSuite with LocalSparkContext with Before
 
     val context = TaskContext.empty()
     val value = cacheManager.getOrCompute(rdd, split, context, StorageLevel.MEMORY_ONLY)
-    assert(value.toList === List(5, 6, 7))
+    assert(value.iterator.toList === List(5, 6, 7))
   }
 
   test("get uncached local rdd") {
@@ -88,7 +88,7 @@ class CacheManagerSuite extends SparkFunSuite with LocalSparkContext with Before
 
     val context = new TaskContextImpl(0, 0, 0, 0, null, null, Seq.empty, runningLocally = true)
     val value = cacheManager.getOrCompute(rdd, split, context, StorageLevel.MEMORY_ONLY)
-    assert(value.toList === List(1, 2, 3, 4))
+    assert(value.iterator.toList === List(1, 2, 3, 4))
   }
 
   test("verify task metrics updated correctly") {

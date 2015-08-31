@@ -158,6 +158,7 @@ class CoGroupedRDD[K: ClassTag](
       InternalAccumulator.PEAK_EXECUTION_MEMORY).add(map.peakMemoryUsedBytes)
     new InterruptibleIterator(context,
       map.iterator.asInstanceOf[Iterator[(K, Array[Iterable[_]])]])
+      }
   }
 
   private def createExternalMap(numRdds: Int)

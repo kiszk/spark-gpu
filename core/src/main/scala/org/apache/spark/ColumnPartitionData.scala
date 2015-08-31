@@ -8,4 +8,7 @@ case class ColumnPartitionData[+T](
 
   def memoryUsage: Long = columns.map(_.size).sum
 
+  override def iterator: Iterator[T] =
+    throw new UnsupportedOperationException("TODO") // TODO
+
 }
