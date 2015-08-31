@@ -46,7 +46,7 @@ private abstract class BaseRRDD[T: ClassTag, U: ClassTag](
   private var bootTime: Double = _
   override def getPartitions: Array[Partition] = parent.partitions
 
-  override def compute(partition: Partition, context: TaskContext): Iterator[U] = {
+  override def compute(partition: Partition, context: TaskContext): PartitionData[U] = {
 
     // Timing start
     bootTime = System.currentTimeMillis / 1000.0
@@ -79,7 +79,8 @@ private abstract class BaseRRDD[T: ClassTag, U: ClassTag](
 
     try {
 
-      return new Iterator[U] {
+      // TODO version for ColumnPartitionData
+      return IteratedPartitionData(new Iterator[U] {
         def next(): U = {
           val obj = _nextObj
           if (hasNext) {
@@ -97,7 +98,7 @@ private abstract class BaseRRDD[T: ClassTag, U: ClassTag](
           }
           hasMore
         }
-      }
+      })
     } catch {
       case e: Exception =>
         throw new SparkException("R computation failed with\n " + errThread.getLines())

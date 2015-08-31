@@ -19,7 +19,7 @@ package org.apache.spark.rdd
 
 import org.scalatest.BeforeAndAfter
 
-import org.apache.spark.{Partition, SparkContext, SparkFunSuite, TaskContext}
+import org.apache.spark.{Partition, SparkContext, SparkFunSuite, TaskContext, PartitionData, IteratedPartitionData}
 
 /**
  * Tests whether scopes are passed from the RDD operation to the RDDs correctly.
@@ -138,5 +138,5 @@ class RDDOperationScopeSuite extends SparkFunSuite with BeforeAndAfter {
 
 private class MyCoolRDD(sc: SparkContext) extends RDD[Int](sc, Nil) {
   override def getPartitions: Array[Partition] = Array.empty
-  override def compute(p: Partition, context: TaskContext): Iterator[Int] = { Nil.toIterator }
+  override def compute(p: Partition, context: TaskContext): PartitionData[Int] = { IteratedPartitionData(Nil.toIterator) }
 }

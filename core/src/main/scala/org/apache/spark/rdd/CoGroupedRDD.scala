@@ -127,7 +127,7 @@ class CoGroupedRDD[K: ClassTag](
 
   override val partitioner: Some[Partitioner] = Some(part)
 
-  override def compute(s: Partition, context: TaskContext): Iterator[(K, Array[Iterable[_]])] = {
+  override def compute(s: Partition, context: TaskContext): PartitionData[(K, Array[Iterable[_]])] = {
     val split = s.asInstanceOf[CoGroupPartition]
     val numRdds = dependencies.length
 
@@ -156,8 +156,9 @@ class CoGroupedRDD[K: ClassTag](
     context.taskMetrics().incDiskBytesSpilled(map.diskBytesSpilled)
     context.internalMetricsToAccumulators(
       InternalAccumulator.PEAK_EXECUTION_MEMORY).add(map.peakMemoryUsedBytes)
-    new InterruptibleIterator(context,
+    val it = new InterruptibleIterator(context,
       map.iterator.asInstanceOf[Iterator[(K, Array[Iterable[_]])]])
+    IteratedPartitionData(it)
   }
 
   private def createExternalMap(numRdds: Int)

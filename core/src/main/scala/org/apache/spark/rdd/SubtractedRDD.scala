@@ -26,6 +26,7 @@ import scala.reflect.ClassTag
 import org.apache.spark.Dependency
 import org.apache.spark.OneToOneDependency
 import org.apache.spark.Partition
+import org.apache.spark.{PartitionData, IteratedPartitionData}
 import org.apache.spark.Partitioner
 import org.apache.spark.ShuffleDependency
 import org.apache.spark.SparkEnv
@@ -94,7 +95,7 @@ private[spark] class SubtractedRDD[K: ClassTag, V: ClassTag, W: ClassTag](
 
   override val partitioner = Some(part)
 
-  override def compute(p: Partition, context: TaskContext): Iterator[(K, V)] = {
+  override def compute(p: Partition, context: TaskContext): PartitionData[(K, V)] = {
     val partition = p.asInstanceOf[CoGroupPartition]
     val map = new JHashMap[K, ArrayBuffer[V]]
     def getSeq(k: K): ArrayBuffer[V] = {
@@ -127,7 +128,8 @@ private[spark] class SubtractedRDD[K: ClassTag, V: ClassTag, W: ClassTag](
     integrate(0, t => getSeq(t._1) += t._2)
     // the second dep is rdd2; remove all of its keys
     integrate(1, t => map.remove(t._1))
-    map.asScala.iterator.map(t => t._2.iterator.map((t._1, _))).flatten
+    // TODO version for ColumnPartitionData
+    IteratedPartitionData(map.asScala.iterator.map { t => t._2.iterator.map { (t._1, _) } }.flatten)
   }
 
   override def clearDependencies() {
