@@ -29,7 +29,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.io.Source
 import scala.reflect.ClassTag
 
-import org.apache.spark.{Partition, SparkEnv, TaskContext}
+import org.apache.spark.{Partition, SparkEnv, TaskContext, PartitionData, IteratedPartitionData}
 import org.apache.spark.util.Utils
 
 
@@ -71,7 +71,7 @@ private[spark] class PipedRDD[T: ClassTag](
     }
   }
 
-  override def compute(split: Partition, context: TaskContext): Iterator[String] = {
+  override def compute(split: Partition, context: TaskContext): PartitionData[String] = {
     val pb = new ProcessBuilder(command)
     // Add the environmental variables to the process.
     val currentEnvVars = pb.environment()
@@ -155,29 +155,31 @@ private[spark] class PipedRDD[T: ClassTag](
 
     // Return an iterator that read lines from the process's stdout
     val lines = Source.fromInputStream(proc.getInputStream).getLines()
-    new Iterator[String] {
-      def next(): String = lines.next()
-      def hasNext: Boolean = {
-        if (lines.hasNext) {
-          true
-        } else {
-          val exitStatus = proc.waitFor()
-          if (exitStatus != 0) {
-            throw new Exception("Subprocess exited with status " + exitStatus)
-          }
-
-          // cleanup task working directory if used
-          if (workInTaskDirectory) {
-            scala.util.control.Exception.ignoring(classOf[IOException]) {
-              Utils.deleteRecursively(new File(taskDirectory))
+    // TODO version for ColumnPartitionData if possible
+    IteratedPartitionData(
+      new Iterator[String] {
+        def next(): String = lines.next()
+        def hasNext: Boolean = {
+          if (lines.hasNext) {
+            true
+          } else {
+            val exitStatus = proc.waitFor()
+            if (exitStatus != 0) {
+              throw new Exception("Subprocess exited with status " + exitStatus)
             }
-            logDebug("Removed task working directory " + taskDirectory)
-          }
 
-          false
+            // cleanup task working directory if used
+            if (workInTaskDirectory) {
+              scala.util.control.Exception.ignoring(classOf[IOException]) {
+                Utils.deleteRecursively(new File(taskDirectory))
+              }
+              logDebug("Removed task working directory " + taskDirectory)
+            }
+
+            false
+          }
         }
-      }
-    }
+      })
   }
 }
 

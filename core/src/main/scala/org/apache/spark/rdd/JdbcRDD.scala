@@ -25,7 +25,7 @@ import org.apache.spark.api.java.JavaSparkContext.fakeClassTag
 import org.apache.spark.api.java.function.{Function => JFunction}
 import org.apache.spark.api.java.{JavaRDD, JavaSparkContext}
 import org.apache.spark.util.NextIterator
-import org.apache.spark.{Logging, Partition, SparkContext, TaskContext}
+import org.apache.spark.{Logging, Partition, SparkContext, TaskContext, PartitionData, IteratedPartitionData}
 
 private[spark] class JdbcPartition(idx: Int, val lower: Long, val upper: Long) extends Partition {
   override def index: Int = idx
@@ -71,59 +71,60 @@ class JdbcRDD[T: ClassTag](
     }).toArray
   }
 
-  override def compute(thePart: Partition, context: TaskContext): Iterator[T] = new NextIterator[T]
-  {
-    context.addTaskCompletionListener{ context => closeIfNeeded() }
-    val part = thePart.asInstanceOf[JdbcPartition]
-    val conn = getConnection()
-    val stmt = conn.prepareStatement(sql, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
+  override def compute(thePart: Partition, context: TaskContext): PartitionData[T] =
+    // TODO version for ColumnPartitionData
+    IteratedPartitionData(new NextIterator[T] {
+      context.addTaskCompletionListener{ context => closeIfNeeded() }
+      val part = thePart.asInstanceOf[JdbcPartition]
+      val conn = getConnection()
+      val stmt = conn.prepareStatement(sql, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
 
-    // setFetchSize(Integer.MIN_VALUE) is a mysql driver specific way to force streaming results,
-    // rather than pulling entire resultset into memory.
-    // see http://dev.mysql.com/doc/refman/5.0/en/connector-j-reference-implementation-notes.html
-    if (conn.getMetaData.getURL.matches("jdbc:mysql:.*")) {
-      stmt.setFetchSize(Integer.MIN_VALUE)
-      logInfo("statement fetch size set to: " + stmt.getFetchSize + " to force MySQL streaming ")
-    }
-
-    stmt.setLong(1, part.lower)
-    stmt.setLong(2, part.upper)
-    val rs = stmt.executeQuery()
-
-    override def getNext(): T = {
-      if (rs.next()) {
-        mapRow(rs)
-      } else {
-        finished = true
-        null.asInstanceOf[T]
+      // setFetchSize(Integer.MIN_VALUE) is a mysql driver specific way to force streaming results,
+      // rather than pulling entire resultset into memory.
+      // see http://dev.mysql.com/doc/refman/5.0/en/connector-j-reference-implementation-notes.html
+      if (conn.getMetaData.getURL.matches("jdbc:mysql:.*")) {
+        stmt.setFetchSize(Integer.MIN_VALUE)
+        logInfo("statement fetch size set to: " + stmt.getFetchSize + " to force MySQL streaming ")
       }
-    }
 
-    override def close() {
-      try {
-        if (null != rs) {
-          rs.close()
+      stmt.setLong(1, part.lower)
+      stmt.setLong(2, part.upper)
+      val rs = stmt.executeQuery()
+
+      override def getNext(): T = {
+        if (rs.next()) {
+          mapRow(rs)
+        } else {
+          finished = true
+          null.asInstanceOf[T]
         }
-      } catch {
-        case e: Exception => logWarning("Exception closing resultset", e)
       }
-      try {
-        if (null != stmt) {
-          stmt.close()
+
+      override def close() {
+        try {
+          if (null != rs) {
+            rs.close()
+          }
+        } catch {
+          case e: Exception => logWarning("Exception closing resultset", e)
         }
-      } catch {
-        case e: Exception => logWarning("Exception closing statement", e)
-      }
-      try {
-        if (null != conn) {
-          conn.close()
+        try {
+          if (null != stmt) {
+            stmt.close()
+          }
+        } catch {
+          case e: Exception => logWarning("Exception closing statement", e)
         }
-        logInfo("closed connection")
-      } catch {
-        case e: Exception => logWarning("Exception closing connection", e)
+        try {
+          if (null != conn) {
+            conn.close()
+          }
+          logInfo("closed connection")
+        } catch {
+          case e: Exception => logWarning("Exception closing connection", e)
+        }
       }
-    }
-  }
+    })
 }
 
 object JdbcRDD {

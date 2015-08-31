@@ -19,7 +19,7 @@ package org.apache.spark.rdd
 
 import scala.reflect.ClassTag
 
-import org.apache.spark.{Partition, TaskContext}
+import org.apache.spark.{Partition, TaskContext, PartitionData, IteratedPartitionData}
 
 private[spark] class MapPartitionsRDD[U: ClassTag, T: ClassTag](
     prev: RDD[T],
@@ -31,6 +31,7 @@ private[spark] class MapPartitionsRDD[U: ClassTag, T: ClassTag](
 
   override def getPartitions: Array[Partition] = firstParent[T].partitions
 
-  override def compute(split: Partition, context: TaskContext): Iterator[U] =
-    f(context, split.index, firstParent[T].iterator(split, context))
+  override def compute(split: Partition, context: TaskContext): PartitionData[U] =
+    // TODO version for ColumnPartitionData
+    IteratedPartitionData(f(context, split.index, firstParent[T].iterator(split, context)))
 }

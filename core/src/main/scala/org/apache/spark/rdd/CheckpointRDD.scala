@@ -19,7 +19,7 @@ package org.apache.spark.rdd
 
 import scala.reflect.ClassTag
 
-import org.apache.spark.{Partition, SparkContext, TaskContext}
+import org.apache.spark.{Partition, SparkContext, TaskContext, PartitionData, IteratedPartitionData}
 
 /**
  * An RDD partition used to recover checkpointed data.
@@ -41,7 +41,7 @@ private[spark] abstract class CheckpointRDD[T: ClassTag](@transient sc: SparkCon
   // base [[org.apache.spark.rdd.RDD]] class if we do not override the following methods.
   // scalastyle:off
   protected override def getPartitions: Array[Partition] = ???
-  override def compute(p: Partition, tc: TaskContext): Iterator[T] = ???
+  override def compute(p: Partition, tc: TaskContext): PartitionData[T] = ???
   // scalastyle:on
 
 }

@@ -41,12 +41,12 @@ class BlockRDD[T: ClassTag](@transient sc: SparkContext, @transient val blockIds
     }).toArray
   }
 
-  override def compute(split: Partition, context: TaskContext): Iterator[T] = {
+  override def compute(split: Partition, context: TaskContext): PartitionData[T] = {
     assertValid()
     val blockManager = SparkEnv.get.blockManager
     val blockId = split.asInstanceOf[BlockRDDPartition].blockId
     blockManager.get(blockId) match {
-      case Some(block) => block.data.asInstanceOf[Iterator[T]]
+      case Some(block) => block.data.asInstanceOf[PartitionData[T]]
       case None =>
         throw new Exception("Could not compute split, block " + blockId + " not found")
     }
