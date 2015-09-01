@@ -87,6 +87,7 @@ class ColumnPartitionSchema(
 
   def isPrimitive = columns.size == 1 && columns(0).name.isEmpty
 
+  // TODO allow for dropping specific columns if some kind of optimizer detected that they are not needed
   def serialize(iter: Iterator[Any], columnBuffers: Seq[ByteBuffer]) {
     val mirror = ColumnPartitionSchema.mirror
     val getters = columns.map { col =>
