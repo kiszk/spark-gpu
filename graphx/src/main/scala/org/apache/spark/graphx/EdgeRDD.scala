@@ -21,7 +21,9 @@ import scala.language.existentials
 import scala.reflect.ClassTag
 
 import org.apache.spark.Dependency
+import org.apache.spark.IteratedPartitionData
 import org.apache.spark.Partition
+import org.apache.spark.PartitionData
 import org.apache.spark.SparkContext
 import org.apache.spark.TaskContext
 import org.apache.spark.rdd.RDD
@@ -47,13 +49,14 @@ abstract class EdgeRDD[ED](
 
   override protected def getPartitions: Array[Partition] = partitionsRDD.partitions
 
-  override def compute(part: Partition, context: TaskContext): Iterator[Edge[ED]] = {
+  override def compute(part: Partition, context: TaskContext): PartitionData[Edge[ED]] = {
     val p = firstParent[(PartitionID, EdgePartition[ED, _])].iterator(part, context)
-    if (p.hasNext) {
+    val iter = if (p.hasNext) {
       p.next()._2.iterator.map(_.copy())
     } else {
       Iterator.empty
     }
+    IteratedPartitionData(iter)
   }
 
   /**
