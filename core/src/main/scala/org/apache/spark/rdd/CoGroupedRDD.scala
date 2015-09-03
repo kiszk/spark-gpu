@@ -124,7 +124,8 @@ class CoGroupedRDD[K](@transient var rdds: Seq[RDD[_ <: Product2[K, _]]], part: 
 
   override val partitioner: Some[Partitioner] = Some(part)
 
-  override def compute(s: Partition, context: TaskContext): PartitionData[(K, Array[Iterable[_]])] = {
+  override def compute(s: Partition, context: TaskContext):
+      PartitionData[(K, Array[Iterable[_]])] = {
     val sparkConf = SparkEnv.get.conf
     val externalSorting = sparkConf.getBoolean("spark.shuffle.spill", true)
     val split = s.asInstanceOf[CoGroupPartition]

@@ -88,9 +88,8 @@ class ShuffledRDD[K, V, C](
     val dep = dependencies.head.asInstanceOf[ShuffleDependency[K, V, C]]
     // TODO version for ColumnPartitionData
     IteratedPartitionData(
-      SparkEnv.get.shuffleManager.getReader(dep.shuffleHandle, split.index, split.index + 1, context)
-        .read()
-        .asInstanceOf[Iterator[(K, C)]])
+      SparkEnv.get.shuffleManager.getReader(dep.shuffleHandle, split.index, split.index + 1,
+        context).read().asInstanceOf[Iterator[(K, C)]])
   }
 
   override def clearDependencies() {

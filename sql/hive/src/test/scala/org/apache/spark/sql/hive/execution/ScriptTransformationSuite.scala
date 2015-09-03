@@ -78,7 +78,8 @@ class ScriptTransformationSuite extends SparkPlanTest {
       rowsDf.collect())
   }
 
-  test("script transformation should not swallow errors from upstream operators (no serde)", PPCIBMJDKFailingTest) {
+  test("script transformation should not swallow errors from upstream operators (no serde)",
+      PPCIBMJDKFailingTest) {
     val rowsDf = Seq("a", "b", "c").map(Tuple1.apply).toDF("a")
     val e = intercept[TestFailedException] {
       checkAnswer(
@@ -95,7 +96,8 @@ class ScriptTransformationSuite extends SparkPlanTest {
     assert(e.getMessage().contains("intentional exception"))
   }
 
-  test("script transformation should not swallow errors from upstream operators (with serde)", PPCIBMJDKFailingTest) {
+  test("script transformation should not swallow errors from upstream operators (with serde)",
+      PPCIBMJDKFailingTest) {
     val rowsDf = Seq("a", "b", "c").map(Tuple1.apply).toDF("a")
     val e = intercept[TestFailedException] {
       checkAnswer(

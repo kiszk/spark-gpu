@@ -556,7 +556,8 @@ private[spark] class BlockManager(
                     val putResult = memoryStore.putIterator(
                       blockId, iter, level, returnValues = true, allowPersistToDisk = false)
                     // The put may or may not have succeeded, depending on whether there was enough
-                    // space to unroll the block. Either way, the put here should return an iterator.
+                    // space to unroll the block. Either way, the put here should return an
+                    // iterator.
                     putResult.data match {
                       case Left(it: IteratedPartitionData[Any]) =>
                         return Some(new BlockResult(it, DataReadMethod.Disk, info.size))
@@ -1259,7 +1260,9 @@ private[spark] class BlockManager(
       inputStream: InputStream,
       serializer: Serializer = defaultSerializer): PartitionData[Any] = {
     val stream = new BufferedInputStream(inputStream)
-    IteratedPartitionData(serializer.newInstance().deserializeStream(wrapForCompression(blockId, stream)).asIterator) // TODO
+    // TODO deserialize to iterator or columns, depending on meta data
+    IteratedPartitionData(
+      serializer.newInstance().deserializeStream(wrapForCompression(blockId, stream)).asIterator)
   }
 
   def stop(): Unit = {

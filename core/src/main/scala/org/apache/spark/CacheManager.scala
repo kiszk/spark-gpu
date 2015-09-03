@@ -160,7 +160,8 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
             case Some(v) => v.data.asInstanceOf[IteratedPartitionData[T]]
             case None =>
               logInfo(s"Failure to store $key")
-              throw new BlockException(key, s"Block manager failed to return cached value for $key!")
+              throw new BlockException(key,
+                s"Block manager failed to return cached value for $key!")
           }
         } else {
           /*

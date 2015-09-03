@@ -70,11 +70,13 @@ class CacheManagerSuite extends SparkFunSuite with LocalSparkContext with Before
     val getValue = blockManager.get(RDDBlockId(rdd.id, split.index))
     assert(computeValue.iterator.toList === List(1, 2, 3, 4))
     assert(getValue.isDefined, "Block cached from getOrCompute is not found!")
-    assert(getValue.get.data.asInstanceOf[IteratedPartitionData[Any]].iterator.toList === List(1, 2, 3, 4))
+    assert(getValue.get.data.asInstanceOf[IteratedPartitionData[Any]].iterator.toList ===
+      List(1, 2, 3, 4))
   }
 
   test("get cached rdd") {
-    val result = new BlockResult(IteratedPartitionData(Array(5, 6, 7).iterator), DataReadMethod.Memory, 12)
+    val result = new BlockResult(IteratedPartitionData(Array(5, 6, 7).iterator),
+      DataReadMethod.Memory, 12)
     when(blockManager.get(RDDBlockId(0, 0))).thenReturn(Some(result))
 
     val context = TaskContext.empty()

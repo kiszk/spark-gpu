@@ -1,3 +1,20 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.apache.spark
 
 import scala.reflect.runtime.universe
@@ -50,7 +67,8 @@ object ColumnPartitionSchema {
       // TODO caching schemas for classes
       // TODO make it work with nested classes
       // Generic object
-      case t if !onlyLoadableClassesSupported || Utils.classIsLoadable(t.typeSymbol.asClass.fullName) => {
+      case t if !onlyLoadableClassesSupported ||
+          Utils.classIsLoadable(t.typeSymbol.asClass.fullName) => {
         val valVarMembers = t.erasure.members.view
           .filter(p => !p.isMethod && p.isTerm).map(_.asTerm)
           .filter(p => p.isVar || p.isVal)
@@ -58,7 +76,8 @@ object ColumnPartitionSchema {
         valVarMembers.foreach { p =>
           // TODO more checks
           // is final okay?
-          if (p.isStatic) throw new UnsupportedOperationException(s"Column schema with static field ${p.fullName} not supported")
+          if (p.isStatic) throw new UnsupportedOperationException(
+              s"Column schema with static field ${p.fullName} not supported")
         }
 
         val columns = valVarMembers.flatMap { term =>
@@ -85,9 +104,10 @@ class ColumnPartitionSchema(
     val columns: Array[ColumnSchema],
     val cls: Class[_]) {
 
-  def isPrimitive = columns.size == 1 && columns(0).name.isEmpty
+  def isPrimitive: Boolean = columns.size == 1 && columns(0).terms.isEmpty
 
-  // TODO allow for dropping specific columns if some kind of optimizer detected that they are not needed
+  // TODO allow for dropping specific columns if some kind of optimizer detected that they are not
+  // needed
   def serialize(iter: Iterator[Any], columnBuffers: Seq[ByteBuffer]) {
     val mirror = ColumnPartitionSchema.mirror
     val getters = columns.map { col =>
@@ -142,7 +162,7 @@ class ColumnPartitionSchema(
         for (((col, setter), buf) <- ((columns zip setters) zip columnBuffers)) {
           setter(obj, deserializeColumnValue(col.columnType, buf))
         }
-        
+
         obj
       } take count
     }
@@ -199,6 +219,5 @@ class ColumnSchema(
     /** Scala terms with property name and other information */
     val terms: Vector[TermSymbol] = Vector[TermSymbol]()) {
 
-  def name = terms.map(_.name)
-
+//  def name: Array[String] = terms.map(_.name)
 }

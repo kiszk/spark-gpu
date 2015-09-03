@@ -38,16 +38,16 @@ private abstract class MemoryEntry {
 }
 
 private case class ArrayMemoryEntry(value: Array[Any], size: Long) extends MemoryEntry {
-  def unitName = "array values"
+  def unitName: String = "array values"
 }
 
 private case class ColumnPartitionMemoryEntry(value: ColumnPartitionData[Any], size: Long)
   extends MemoryEntry {
-  def unitName = "column-based values"
+  def unitName: String = "column-based values"
 }
 
 private case class SerializedMemoryEntry(value: ByteBuffer, size: Long) extends MemoryEntry {
-  def unitName = "serialized bytes"
+  def unitName: String = "serialized bytes"
 }
 
 /**
@@ -148,7 +148,8 @@ private[spark] class MemoryStore(blockManager: BlockManager, maxMemory: Long)
     if (level.deserialized) {
       val sizeEstimate = SizeEstimator.estimate(values.asInstanceOf[AnyRef])
       val putAttempt = tryToPut(blockId, values, sizeEstimate)
-      PutResult(sizeEstimate, Left(IteratedPartitionData(values.iterator)), putAttempt.droppedBlocks)
+      PutResult(sizeEstimate, Left(IteratedPartitionData(values.iterator)),
+        putAttempt.droppedBlocks)
     } else {
       val bytes = blockManager.dataSerialize(blockId, IteratedPartitionData(values.iterator))
       val putAttempt = tryToPut(blockId, bytes, bytes.limit)
@@ -249,7 +250,8 @@ private[spark] class MemoryStore(blockManager: BlockManager, maxMemory: Long)
       case ColumnPartitionMemoryEntry(value, _) =>
         Some(value)
       case SerializedMemoryEntry(value, _) =>
-        Some(blockManager.dataDeserialize(blockId, value.duplicate())) // Doesn't actually copy the data
+        // Doesn't actually copy the data
+        Some(blockManager.dataDeserialize(blockId, value.duplicate()))
       case _ => {
         assert(entry == null)
         None

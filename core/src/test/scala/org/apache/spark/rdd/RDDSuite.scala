@@ -961,7 +961,8 @@ class RDDSuite extends SparkFunSuite with SharedSparkContext {
   /** A contrived RDD that allows the manual addition of dependencies after creation. */
   private class CyclicalDependencyRDD[T: ClassTag] extends RDD[T](sc, Nil) {
     private val mutableDependencies: ArrayBuffer[Dependency[_]] = ArrayBuffer.empty
-    override def compute(p: Partition, c: TaskContext): PartitionData[T] = IteratedPartitionData(Iterator.empty)
+    override def compute(p: Partition, c: TaskContext): PartitionData[T] =
+      IteratedPartitionData(Iterator.empty)
     override def getPartitions: Array[Partition] = Array.empty
     override def getDependencies: Seq[Dependency[_]] = mutableDependencies
     def addDependency(dep: Dependency[_]) {

@@ -171,7 +171,8 @@ private[spark] class TorrentBroadcast[T: ClassTag](obj: T, id: Long)
           it.next().asInstanceOf[T]
 
         case Some(_) =>
-          throw new SparkException("Expected an iterated partition when receiving a broadcast block")
+          throw new SparkException(
+            "Expected an iterated partition when receiving a broadcast block")
 
         case None =>
           logInfo("Started reading broadcast variable " + id)
