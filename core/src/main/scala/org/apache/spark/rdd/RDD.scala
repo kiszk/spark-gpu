@@ -259,7 +259,8 @@ abstract class RDD[T: ClassTag](
   final def iterator(split: Partition, context: TaskContext): Iterator[T] = {
     partitionData(split, context) match {
       case IteratedPartitionData(iter) => iter
-      case _ => throw new SparkException("RDD.iterator does not work with non-iterator-type partitions.")
+      case _ =>
+        throw new SparkException("RDD.iterator does not work with non-iterator-type partitions.")
     }
   }
 
@@ -303,7 +304,8 @@ abstract class RDD[T: ClassTag](
   /**
    * Compute an RDD partition or read it from a checkpoint if the RDD is checkpointing.
    */
-  private[spark] def computeOrReadCheckpoint(split: Partition, context: TaskContext): PartitionData[T] =
+  private[spark] def computeOrReadCheckpoint(split: Partition, context: TaskContext):
+      PartitionData[T] =
   {
     if (isCheckpointedAndMaterialized) {
       firstParent[T].iterator(split, context)

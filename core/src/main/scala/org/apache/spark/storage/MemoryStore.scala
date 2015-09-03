@@ -39,16 +39,16 @@ private abstract class MemoryEntry {
 }
 
 private case class ArrayMemoryEntry(value: Array[Any], size: Long) extends MemoryEntry {
-  def unitName = "array values"
+  def unitName: String = "array values"
 }
 
 private case class ColumnPartitionMemoryEntry(value: ColumnPartitionData[Any], size: Long)
   extends MemoryEntry {
-  def unitName = "column-based values"
+  def unitName: String = "column-based values"
 }
 
 private case class SerializedMemoryEntry(value: ByteBuffer, size: Long) extends MemoryEntry {
-  def unitName = "serialized bytes"
+  def unitName: String = "serialized bytes"
 }
 
 /**
@@ -254,7 +254,8 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
       case ColumnPartitionMemoryEntry(value, _) =>
         Some(value)
       case SerializedMemoryEntry(value, _) =>
-        Some(blockManager.dataDeserialize(blockId, value.duplicate())) // Doesn't actually copy the data
+        // Doesn't actually copy the data
+        Some(blockManager.dataDeserialize(blockId, value.duplicate()))
       case _ => {
         assert(entry == null)
         None
@@ -386,15 +387,10 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
   private def tryToPut(
       blockId: BlockId,
       value: Any,
-<<<<<<< HEAD
       size: Long,
       deserialized: Boolean,
       droppedBlocks: mutable.Buffer[(BlockId, BlockStatus)]): Boolean = {
     tryToPut(blockId, () => value, size, deserialized, droppedBlocks)
-=======
-      size: Long): ResultWithDroppedBlocks = {
-    tryToPut(blockId, () => value, size)
->>>>>>> Fixed infinite recursion by using wrong MemoryStore.tryToPut.
   }
 
   /**
@@ -417,13 +413,9 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
   private def tryToPut(
       blockId: BlockId,
       value: () => Any,
-<<<<<<< HEAD
       size: Long,
       deserialized: Boolean,
       droppedBlocks: mutable.Buffer[(BlockId, BlockStatus)]): Boolean = {
-=======
-      size: Long): ResultWithDroppedBlocks = {
->>>>>>> Changed column stuff package back to org.apache.spark. Updated BlockManager to use PartitionData, though it broke it.
 
     /* TODO: Its possible to optimize the locking by locking entries only when selecting blocks
      * to be dropped. Once the to-be-dropped blocks have been selected, and lock on entries has
@@ -431,7 +423,6 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
      * for freeing up more space for another block that needs to be put. Only then the actually
      * dropping of blocks (and writing to disk if necessary) can proceed in parallel. */
 
-<<<<<<< HEAD
     memoryManager.synchronized {
       // Note: if we have previously unrolled this block successfully, then pending unroll
       // memory should be non-zero. This is the amount that we already reserved during the
@@ -443,33 +434,16 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
       val enoughMemory = memoryManager.acquireStorageMemory(blockId, size, droppedBlocks)
       if (enoughMemory) {
         // We acquired enough memory for the block, so go ahead and put it
-        val entry = new MemoryEntry(value(), size, deserialized)
-=======
-    var putSuccess = false
-    val droppedBlocks = new ArrayBuffer[(BlockId, BlockStatus)]
-
-    accountingLock.synchronized {
-      val freeSpaceResult = ensureFreeSpace(blockId, size)
-      val enoughFreeSpace = freeSpaceResult.success
-      droppedBlocks ++= freeSpaceResult.droppedBlocks
-
-      if (enoughFreeSpace) {
         val entry = value() match {
           case arr: Array[Any] => ArrayMemoryEntry(arr, size)
           case cp: ColumnPartitionData[Any] => ColumnPartitionMemoryEntry(cp, size)
           case buf: ByteBuffer => SerializedMemoryEntry(buf, size)
         }
->>>>>>> Changed column stuff package back to org.apache.spark. Updated BlockManager to use PartitionData, though it broke it.
         entries.synchronized {
           entries.put(blockId, entry)
         }
         logInfo("Block %s stored as %s in memory (estimated size %s, free %s)".format(
-<<<<<<< HEAD
           blockId, valuesOrBytes, Utils.bytesToString(size), Utils.bytesToString(blocksMemoryUsed)))
-=======
-          blockId, entry.unitName, Utils.bytesToString(size), Utils.bytesToString(freeMemory)))
-        putSuccess = true
->>>>>>> Changed column stuff package back to org.apache.spark. Updated BlockManager to use PartitionData, though it broke it.
       } else {
         // Tell the block manager that we couldn't put it in memory so that it can drop it to
         // disk if the block allows disk storage.

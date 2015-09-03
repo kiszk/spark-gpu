@@ -127,7 +127,8 @@ class CoGroupedRDD[K: ClassTag](
 
   override val partitioner: Some[Partitioner] = Some(part)
 
-  override def compute(s: Partition, context: TaskContext): PartitionData[(K, Array[Iterable[_]])] = {
+  override def compute(s: Partition, context: TaskContext):
+      PartitionData[(K, Array[Iterable[_]])] = {
     val split = s.asInstanceOf[CoGroupPartition]
     val numRdds = dependencies.length
 
