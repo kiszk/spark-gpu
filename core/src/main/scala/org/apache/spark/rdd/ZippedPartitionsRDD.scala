@@ -89,7 +89,8 @@ private[spark] class ZippedPartitionsRDD2[A: ClassTag, B: ClassTag, V: ClassTag]
     val partitions = s.asInstanceOf[ZippedPartitionsPartition].partitions
     // TODO when f is a constructor, it should be possible to make this available and very
     // efficient for column-type partitions
-    IteratedPartitionData(f(rdd1.iterator(partitions(0), context), rdd2.iterator(partitions(1), context)))
+    IteratedPartitionData(f(rdd1.iterator(partitions(0), context), rdd2.iterator(partitions(1),
+      context)))
   }
 
   override def clearDependencies() {

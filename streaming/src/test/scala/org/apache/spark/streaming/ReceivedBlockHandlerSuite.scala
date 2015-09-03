@@ -105,7 +105,8 @@ class ReceivedBlockHandlerSuite
       testBlockStoring(handler) { case (data, blockIds, storeResults) =>
         // Verify the data in block manager is correct
         val storedData = blockIds.flatMap { blockId =>
-          blockManager.getLocal(blockId).map(_.data.iterator.map(_.toString).toList).getOrElse(List.empty)
+          blockManager.getLocal(blockId).map(_.data.iterator.map(_.toString).toList)
+              .getOrElse(List.empty)
         }.toList
         storedData shouldEqual data
 
@@ -129,7 +130,8 @@ class ReceivedBlockHandlerSuite
       testBlockStoring(handler) { case (data, blockIds, storeResults) =>
         // Verify the data in block manager is correct
         val storedData = blockIds.flatMap { blockId =>
-          blockManager.getLocal(blockId).map(_.data.iterator.map(_.toString).toList).getOrElse(List.empty)
+          blockManager.getLocal(blockId).map(_.data.iterator.map(_.toString).toList)
+              .getOrElse(List.empty)
         }.toList
         storedData shouldEqual data
 
@@ -325,7 +327,8 @@ class ReceivedBlockHandlerSuite
       }
     }
 
-    def dataToByteBuffer(b: Seq[String]) = blockManager.dataSerialize(generateBlockId, IteratedPartitionData(b.iterator))
+    def dataToByteBuffer(b: Seq[String]) =
+      blockManager.dataSerialize(generateBlockId, IteratedPartitionData(b.iterator))
 
     val blocks = data.grouped(10).toSeq
 

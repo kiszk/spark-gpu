@@ -39,16 +39,16 @@ private abstract class MemoryEntry {
 }
 
 private case class ArrayMemoryEntry(value: Array[Any], size: Long) extends MemoryEntry {
-  def unitName = "array values"
+  def unitName: String = "array values"
 }
 
 private case class ColumnPartitionMemoryEntry(value: ColumnPartitionData[Any], size: Long)
   extends MemoryEntry {
-  def unitName = "column-based values"
+  def unitName: String = "column-based values"
 }
 
 private case class SerializedMemoryEntry(value: ByteBuffer, size: Long) extends MemoryEntry {
-  def unitName = "serialized bytes"
+  def unitName: String = "serialized bytes"
 }
 
 /**
@@ -253,7 +253,8 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
       case ColumnPartitionMemoryEntry(value, _) =>
         Some(value)
       case SerializedMemoryEntry(value, _) =>
-        Some(blockManager.dataDeserialize(blockId, value.duplicate())) // Doesn't actually copy the data
+        // Doesn't actually copy the data
+        Some(blockManager.dataDeserialize(blockId, value.duplicate()))
       case _ => {
         assert(entry == null)
         None

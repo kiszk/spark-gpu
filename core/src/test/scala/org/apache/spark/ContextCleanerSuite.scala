@@ -314,7 +314,8 @@ class ContextCleanerSuite extends ContextCleanerSuiteBase {
     }, askSlaves = true).isEmpty)
   }
 
-  test("automatically cleanup RDD + shuffle + broadcast in distributed mode", PPCIBMJDKFailingTest) {
+  test("automatically cleanup RDD + shuffle + broadcast in distributed mode",
+      PPCIBMJDKFailingTest) {
     sc.stop()
 
     val conf2 = new SparkConf()
@@ -392,7 +393,8 @@ class SortShuffleContextCleanerSuite extends ContextCleanerSuiteBase(classOf[Sor
     postGCTester.assertCleanup()
   }
 
-  test("automatically cleanup RDD + shuffle + broadcast in distributed mode", PPCIBMJDKFailingTest) {
+  test("automatically cleanup RDD + shuffle + broadcast in distributed mode",
+      PPCIBMJDKFailingTest) {
     sc.stop()
 
     val conf2 = new SparkConf()

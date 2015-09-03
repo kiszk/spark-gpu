@@ -173,7 +173,8 @@ private[streaming] class WriteAheadLogBasedBlockHandler(
         blockManager.dataSerialize(blockId, IteratedPartitionData(arrayBuffer.iterator))
       case IteratorBlock(iterator) =>
         val countIterator = new CountingIterator(iterator)
-        val serializedBlock = blockManager.dataSerialize(blockId, IteratedPartitionData(countIterator))
+        val serializedBlock =
+          blockManager.dataSerialize(blockId, IteratedPartitionData(countIterator))
         numRecords = countIterator.count
         serializedBlock
       case ByteBufferBlock(byteBuffer) =>
