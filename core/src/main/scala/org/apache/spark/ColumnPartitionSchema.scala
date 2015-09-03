@@ -25,7 +25,6 @@ import scala.reflect.runtime.universe.TermSymbol
 import java.nio.ByteBuffer
 
 import org.apache.spark.util.Utils
-import org.apache.spark.util.ClosureCleaner
 
 // Some code taken from org.apache.spark.sql.catalyst.ScalaReflection
 
@@ -146,7 +145,7 @@ class ColumnPartitionSchema(
                 case inner if inner != null => inner
                 case _ => {
                   val propCls = mirror.runtimeClass(term.typeSignature.typeSymbol.asClass)
-                  val propVal = ClosureCleaner.instantiateClass(propCls, null)
+                  val propVal = instantiateClass(propCls, null)
                   rf.set(propVal)
                   propVal
                 }
@@ -157,7 +156,7 @@ class ColumnPartitionSchema(
       }
 
       Iterator.continually {
-        val obj = ClosureCleaner.instantiateClass(cls, null)
+        val obj = instantiateClass(cls, null)
 
         for (((col, setter), buf) <- ((columns zip setters) zip columnBuffers)) {
           setter(obj, deserializeColumnValue(col.columnType, buf))
@@ -177,6 +176,23 @@ class ColumnPartitionSchema(
       case FLOAT_COLUMN => buf.getFloat()
       case DOUBLE_COLUMN => buf.getDouble()
     }
+  }
+
+  // taken from ClosureCleaner
+  private[spark] def instantiateClass(
+      cls: Class[_],
+      enclosingObject: AnyRef): AnyRef = {
+    // Use reflection to instantiate object without calling constructor
+    val rf = sun.reflect.ReflectionFactory.getReflectionFactory()
+    val parentCtor = classOf[java.lang.Object].getDeclaredConstructor()
+    val newCtor = rf.newConstructorForSerialization(cls, parentCtor)
+    val obj = newCtor.newInstance().asInstanceOf[AnyRef]
+    if (enclosingObject != null) {
+      val field = cls.getDeclaredField("$outer")
+      field.setAccessible(true)
+      field.set(obj, enclosingObject)
+    }
+    obj
   }
 
 }

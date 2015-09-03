@@ -305,7 +305,7 @@ private[spark] object ClosureCleaner extends Logging {
     }
   }
 
-  private[spark] def instantiateClass(
+  private def instantiateClass(
       cls: Class[_],
       enclosingObject: AnyRef): AnyRef = {
     // Use reflection to instantiate object without calling constructor
