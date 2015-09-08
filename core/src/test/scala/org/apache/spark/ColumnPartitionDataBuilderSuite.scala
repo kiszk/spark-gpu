@@ -17,27 +17,25 @@
 
 package org.apache.spark
 
-import org.apache.spark.annotation.DeveloperApi
+class ColumnPartitionDataBuilderSuite extends SparkFunSuite with SharedSparkContext {
 
-@DeveloperApi
-class IteratedPartitionData[T](
-    val iter: Iterator[T]
-  ) extends PartitionData[T] {
+  test("Creates ColumnPartitionData for a single Int", GPUTest) {
+    val input = Array(42)
+    val data = ColumnPartitionDataBuilder.build[Int](1)
+    assert(data.schema.columns.length == 1)
+    assert(data.size == 1)
+    data.serialize(input.iterator)
+    val output = data.deserialize().toArray
+    assert(output.sameElements(input))
+  }
 
-  override def wrapIterator(f: (Iterator[T] => Iterator[T])): PartitionData[T] =
-    IteratedPartitionData(f(iter))
-
-  def iterator: Iterator[T] = iter
-
-}
-
-@DeveloperApi
-object IteratedPartitionData {
-
-  def apply[T](iter: Iterator[T]): IteratedPartitionData[T] =
-    new IteratedPartitionData(iter)
-
-  def unapply[T](it: IteratedPartitionData[T]): Option[Iterator[T]] =
-    Some(it.iter)
+  test("Creates ColumnPartitionData from a sequence of case classes") {
+    val input = Array(
+        Rectangle(Point(0, 0), Point(42, 42)),
+        Rectangle(Point(2, 3), Point(8, 5)))
+    val data = ColumnPartitionDataBuilder.build(input)
+    val output = data.deserialize().toArray
+    assert(output.sameElements(input))
+  }
 
 }

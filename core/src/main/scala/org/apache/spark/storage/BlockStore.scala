@@ -57,20 +57,20 @@ private[spark] abstract class BlockStore(val blockManager: BlockManager) extends
 
   def putData(
       blockId: BlockId,
-      values: PartitionData[Any],
+      values: PartitionData[_],
       level: StorageLevel,
       returnValues: Boolean): PutResult = {
     values match {
       case IteratedPartitionData(iterator) =>
         putIterator(blockId, iterator, level, returnValues)
-      case colValues: ColumnPartitionData[Any] =>
+      case colValues: ColumnPartitionData[_] =>
         putColumns(blockId, colValues, level, returnValues)
     }
   }
 
   def putColumns(
       blockId: BlockId,
-      values: ColumnPartitionData[Any],
+      values: ColumnPartitionData[_],
       level: StorageLevel,
       returnValues: Boolean): PutResult
 
@@ -81,7 +81,7 @@ private[spark] abstract class BlockStore(val blockManager: BlockManager) extends
 
   def getBytes(blockId: BlockId): Option[ByteBuffer]
 
-  def getValues(blockId: BlockId): Option[PartitionData[Any]]
+  def getValues(blockId: BlockId): Option[PartitionData[_]]
 
   /**
    * Remove a block, if it exists.

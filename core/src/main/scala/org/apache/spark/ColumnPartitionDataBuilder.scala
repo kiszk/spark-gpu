@@ -17,5 +17,29 @@
 
 package org.apache.spark
 
+import scala.reflect.runtime.universe.Type
+import scala.reflect.runtime.universe.TypeTag
+
+import org.apache.spark.annotation.DeveloperApi
+
+import java.nio.ByteBuffer
+
+@DeveloperApi
 object ColumnPartitionDataBuilder {
+
+  def build[T: TypeTag](n: Int): ColumnPartitionData[T] = {
+    build(ColumnPartitionSchema.localTypeOf[T], n).asInstanceOf[ColumnPartitionData[T]]
+  }
+
+  def build(tpe: Type, n: Int): ColumnPartitionData[_] = {
+    val schema = ColumnPartitionSchema.schemaForType(tpe)
+    new ColumnPartitionData(schema, n)
+  }
+
+  def build[T: TypeTag](seq: Seq[T]): ColumnPartitionData[T] = {
+    val col = build[T](seq.size)
+    col.serialize(seq.iterator)
+    col
+  }
+
 }
