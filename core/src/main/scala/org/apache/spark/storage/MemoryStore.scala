@@ -31,6 +31,8 @@ import org.apache.spark.PartitionData
 import org.apache.spark.ColumnPartitionData
 import org.apache.spark.IteratedPartitionData
 
+import scala.language.existentials
+
 private abstract class MemoryEntry {
   val size: Long
   def unitName: String
@@ -41,7 +43,7 @@ private case class ArrayMemoryEntry(value: Array[Any], size: Long) extends Memor
   def unitName: String = "array values"
 }
 
-private case class ColumnPartitionMemoryEntry(value: ColumnPartitionData[Any], size: Long)
+private case class ColumnPartitionMemoryEntry(value: ColumnPartitionData[_], size: Long)
   extends MemoryEntry {
   def unitName: String = "column-based values"
 }
@@ -159,7 +161,7 @@ private[spark] class MemoryStore(blockManager: BlockManager, maxMemory: Long)
 
   override def putColumns(
       blockId: BlockId,
-      values: ColumnPartitionData[Any],
+      values: ColumnPartitionData[_],
       level: StorageLevel,
       returnValues: Boolean): PutResult = {
     if (level.deserialized) {
@@ -240,7 +242,7 @@ private[spark] class MemoryStore(blockManager: BlockManager, maxMemory: Long)
     }
   }
 
-  override def getValues(blockId: BlockId): Option[PartitionData[Any]] = {
+  override def getValues(blockId: BlockId): Option[PartitionData[_]] = {
     val entry = entries.synchronized {
       entries.get(blockId)
     }
@@ -428,7 +430,7 @@ private[spark] class MemoryStore(blockManager: BlockManager, maxMemory: Long)
       if (enoughFreeSpace) {
         val entry = value() match {
           case arr: Array[Any] => ArrayMemoryEntry(arr, size)
-          case cp: ColumnPartitionData[Any] => ColumnPartitionMemoryEntry(cp, size)
+          case cp: ColumnPartitionData[_] => ColumnPartitionMemoryEntry(cp, size)
           case buf: ByteBuffer => SerializedMemoryEntry(buf, size)
         }
         entries.synchronized {

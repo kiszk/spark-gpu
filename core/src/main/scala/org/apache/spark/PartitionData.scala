@@ -17,12 +17,15 @@
 
 package org.apache.spark
 
-abstract class PartitionData[+T] {
+import org.apache.spark.annotation.DeveloperApi
+
+@DeveloperApi
+abstract class PartitionData[T] {
 
   /**
    * A helper function for wrapping IteratedPartitionData's iterator, if this partition is of that
    * type */
-  def wrapIterator[U >: T](f: (Iterator[T] => Iterator[U])): PartitionData[U] = this
+  def wrapIterator(f: (Iterator[T] => Iterator[T])): PartitionData[T] = this
 
   /**
    * Read the data as normal Java objects

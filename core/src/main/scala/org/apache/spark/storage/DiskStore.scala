@@ -72,7 +72,7 @@ private[spark] class DiskStore(blockManager: BlockManager, diskManager: DiskBloc
 
   override def putColumns(
       blockId: BlockId,
-      values: ColumnPartitionData[Any],
+      values: ColumnPartitionData[_],
       level: StorageLevel,
       returnValues: Boolean): PutResult = {
     // TODO
@@ -151,7 +151,7 @@ private[spark] class DiskStore(blockManager: BlockManager, diskManager: DiskBloc
     getBytes(segment.file, segment.offset, segment.length)
   }
 
-  override def getValues(blockId: BlockId): Option[PartitionData[Any]] = {
+  override def getValues(blockId: BlockId): Option[PartitionData[_]] = {
     getBytes(blockId).map(buffer => blockManager.dataDeserialize(blockId, buffer))
   }
 
@@ -159,7 +159,7 @@ private[spark] class DiskStore(blockManager: BlockManager, diskManager: DiskBloc
    * A version of getValues that allows a custom serializer. This is used as part of the
    * shuffle short-circuit code.
    */
-  def getValues(blockId: BlockId, serializer: Serializer): Option[PartitionData[Any]] = {
+  def getValues(blockId: BlockId, serializer: Serializer): Option[PartitionData[_]] = {
     // TODO: Should bypass getBytes and use a stream based implementation, so that
     // we won't use a lot of memory during e.g. external sort merge.
     getBytes(blockId).map(bytes => blockManager.dataDeserialize(blockId, bytes, serializer))

@@ -23,6 +23,9 @@ import java.util.LinkedList;
 import java.util.Map;
 import javax.annotation.concurrent.GuardedBy;
 
+import jcuda.Pointer;
+import jcuda.runtime.JCuda;
+
 /**
  * Manages memory for an executor. Individual operators / tasks allocate memory through
  * {@link TaskMemoryManager} objects, which obtain their memory from ExecutorMemoryManager.
@@ -70,7 +73,7 @@ public class ExecutorMemoryManager {
    * Allocates a contiguous block of memory. Note that the allocated memory is not guaranteed
    * to be zeroed out (call `zero()` on the result if this is necessary).
    */
-  MemoryBlock allocate(long size) throws OutOfMemoryError {
+  public MemoryBlock allocate(long size) throws OutOfMemoryError {
     if (shouldPool(size)) {
       synchronized (this) {
         final LinkedList<WeakReference<MemoryBlock>> pool = bufferPoolsBySize.get(size);
@@ -92,7 +95,7 @@ public class ExecutorMemoryManager {
     }
   }
 
-  void free(MemoryBlock memory) {
+  public void free(MemoryBlock memory) {
     final long size = memory.size();
     if (shouldPool(size)) {
       synchronized (this) {
@@ -106,6 +109,22 @@ public class ExecutorMemoryManager {
     } else {
       allocator.free(memory);
     }
+  }
+
+  /**
+   * Allocates off-heap memory suitable for CUDA and returns a wrapped native Pointer.
+   */
+  public Pointer allocatePointer(long size) {
+    Pointer ptr = new Pointer();
+    JCuda.cudaMalloc(ptr, size);
+    return ptr;
+  }
+
+  /**
+   * Frees off-heap memory pointer.
+   */
+  public void freePointer(Pointer ptr) {
+    JCuda.cudaFree(ptr);
   }
 
 }

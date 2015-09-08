@@ -17,6 +17,10 @@
 
 package org.apache.spark.unsafe.memory;
 
+import java.lang.reflect.Field;
+import java.nio.Buffer;
+import java.nio.ByteBuffer;
+
 import javax.annotation.Nullable;
 
 import org.apache.spark.unsafe.PlatformDependent;
@@ -44,6 +48,46 @@ public class MemoryBlock extends MemoryLocation {
    */
   public long size() {
     return length;
+  }
+
+  /**
+   * Returns a ByteBuffer backed by this memory. Experimental. Uses some rather private API and
+   * reflection, so beware of issues when trying new JDKs and processors.
+   * Even if memory block is larger, this does not support more than 2GB at once, because of
+   * ByteBuffer limitations. Also, might be a source of problems when deallocating.
+   */
+  public ByteBuffer toByteBuffer() {
+    if (length > Integer.MAX_VALUE) {
+      throw new IllegalArgumentException("Can't make ByteBuffer from MemoryBlock larger than 2GB");
+    }
+
+    if (obj != null) {
+      throw new IllegalArgumentException("On-heap memory not supported");
+    }
+
+    // Off-heap memory
+    // Buffer class is public, though those members are private/package-private
+    Field address, capacity;
+    try {
+      address = Buffer.class.getDeclaredField("address");
+      address.setAccessible(true);
+      capacity = Buffer.class.getDeclaredField("capacity");
+      capacity.setAccessible(true);
+    } catch (NoSuchFieldException ex) {
+      throw new RuntimeException("Could not make Buffer class fields accessible", ex);
+    }
+
+    // This allocates an empty direct buffer, which should not have any off-heap memory allocated
+    ByteBuffer buf = ByteBuffer.allocateDirect(0);
+
+    try {
+      address.setLong(buf, offset);
+      capacity.setInt(buf, (int)length);
+    } catch (IllegalAccessException ex) {
+      throw new RuntimeException("Could not set Buffer class fields", ex);
+    }
+
+    return buf;
   }
 
   /**

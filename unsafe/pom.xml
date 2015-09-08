@@ -46,6 +46,11 @@
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
     </dependency>
+    <dependency>
+      <groupId>org.mystic</groupId>
+      <artifactId>mavenized-jcuda</artifactId>
+      <version>0.1.2</version>
+    </dependency>
 
     <!-- Provided dependencies -->
     <dependency>
