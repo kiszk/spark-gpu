@@ -25,6 +25,9 @@ import java.util.Map;
 
 import org.apache.spark.unsafe.Platform;
 
+import jcuda.Pointer;
+import jcuda.runtime.JCuda;
+
 /**
  * A simple {@link MemoryAllocator} that can allocate up to 16GB using a JVM long primitive array.
  */
@@ -82,5 +85,21 @@ public class HeapMemoryAllocator implements MemoryAllocator {
     } else {
       // Do nothing
     }
+  }
+
+  /**
+   * Allocates off-heap memory suitable for CUDA and returns a wrapped native Pointer.
+   */
+  public Pointer allocatePointer(long size) {
+    Pointer ptr = new Pointer();
+    JCuda.cudaMalloc(ptr, size);
+    return ptr;
+  }
+
+  /**
+   * Frees off-heap memory pointer.
+   */
+  public void freePointer(Pointer ptr) {
+    JCuda.cudaFree(ptr);
   }
 }

@@ -22,8 +22,6 @@ import scala.reflect.runtime.universe.Type
 import scala.reflect.runtime.universe.TypeTag
 import scala.reflect.runtime.universe.TermSymbol
 
-import java.nio.ByteBuffer
-
 import org.apache.spark.util.Utils
 
 // Some code taken from org.apache.spark.sql.catalyst.ScalaReflection
@@ -43,7 +41,7 @@ object ColumnPartitionSchema {
   def schemaFor[T: TypeTag]: ColumnPartitionSchema =
     schemaForType(localTypeOf[T])
 
-  private[spark] def schemaForType(tpe: Type): ColumnPartitionSchema = {
+  def schemaForType(tpe: Type): ColumnPartitionSchema = {
     tpe match {
       // 8-bit signed BE
       case t if t <:< localTypeOf[Byte] => primitiveColumnPartitionSchema(1, BYTE_COLUMN)
@@ -105,94 +103,25 @@ class ColumnPartitionSchema(
 
   def isPrimitive: Boolean = columns.size == 1 && columns(0).terms.isEmpty
 
-  // TODO allow for dropping specific columns if some kind of optimizer detected that they are not
-  // needed
-  def serialize(iter: Iterator[Any], columnBuffers: Seq[ByteBuffer]) {
+  def getters: Array[Any => Any] = {
+    assert(!isPrimitive)
     val mirror = ColumnPartitionSchema.mirror
-    val getters = columns.map { col =>
+    columns.map { col =>
       col.terms.foldLeft(identity[Any] _)((r, term) =>
           ((obj: Any) => mirror.reflect(obj).reflectField(term).get) compose r)
     }
-
-    iter.foreach { obj =>
-      for (((col, getter), buf) <- ((columns zip getters) zip columnBuffers)) {
-        // TODO what should we do if sub-object is null?
-        // TODO bulk put/get might be faster
-
-        col.columnType match {
-          case BYTE_COLUMN => buf.put(getter(obj).asInstanceOf[Byte])
-          case SHORT_COLUMN => buf.putShort(getter(obj).asInstanceOf[Short])
-          case INT_COLUMN => buf.putInt(getter(obj).asInstanceOf[Int])
-          case LONG_COLUMN => buf.putLong(getter(obj).asInstanceOf[Long])
-          case FLOAT_COLUMN => buf.putFloat(getter(obj).asInstanceOf[Float])
-          case DOUBLE_COLUMN => buf.putDouble(getter(obj).asInstanceOf[Double])
-        }
-      }
-    }
   }
 
-  def deserialize(columnBuffers: Seq[ByteBuffer], count: Int): Iterator[Any] = {
-    if (isPrimitive) {
-      Iterator.continually {
-        deserializeColumnValue(columns(0).columnType, columnBuffers(0))
-      } take count
-    } else {
-      val mirror = ColumnPartitionSchema.mirror
-      val setters = columns.map { col =>
-        val get = col.terms.dropRight(1).foldLeft(identity[Any] _)((r, term) => {(obj: Any) =>
-              val rf = mirror.reflect(obj).reflectField(term)
-              rf.get match {
-                case inner if inner != null => inner
-                case _ => {
-                  val propCls = mirror.runtimeClass(term.typeSignature.typeSymbol.asClass)
-                  val propVal = instantiateClass(propCls, null)
-                  rf.set(propVal)
-                  propVal
-                }
-              }
-            } compose r)
+  def setters: Array[(Any, Any) => Unit] = {
+    assert(!isPrimitive)
+    val mirror = ColumnPartitionSchema.mirror
+    columns.map { col =>
+      val getOuter = col.terms.dropRight(1).foldLeft(identity[Any] _)((r, term) =>
+          ((obj: Any) => mirror.reflect(obj).reflectField(term).get) compose r)
 
-        (obj: Any, value: Any) => mirror.reflect(get(obj)).reflectField(col.terms.last).set(value)
-      }
-
-      Iterator.continually {
-        val obj = instantiateClass(cls, null)
-
-        for (((col, setter), buf) <- ((columns zip setters) zip columnBuffers)) {
-          setter(obj, deserializeColumnValue(col.columnType, buf))
-        }
-
-        obj
-      } take count
+      (obj: Any, value: Any) =>
+        mirror.reflect(getOuter(obj)).reflectField(col.terms.last).set(value)
     }
-  }
-
-  private[spark] def deserializeColumnValue(columnType: ColumnType, buf: ByteBuffer): Any = {
-    columnType match {
-      case BYTE_COLUMN => buf.get()
-      case SHORT_COLUMN => buf.getShort()
-      case INT_COLUMN => buf.getInt()
-      case LONG_COLUMN => buf.getLong()
-      case FLOAT_COLUMN => buf.getFloat()
-      case DOUBLE_COLUMN => buf.getDouble()
-    }
-  }
-
-  // taken from ClosureCleaner
-  private[spark] def instantiateClass(
-      cls: Class[_],
-      enclosingObject: AnyRef): AnyRef = {
-    // Use reflection to instantiate object without calling constructor
-    val rf = sun.reflect.ReflectionFactory.getReflectionFactory()
-    val parentCtor = classOf[java.lang.Object].getDeclaredConstructor()
-    val newCtor = rf.newConstructorForSerialization(cls, parentCtor)
-    val obj = newCtor.newInstance().asInstanceOf[AnyRef]
-    if (enclosingObject != null) {
-      val field = cls.getDeclaredField("$outer")
-      field.setAccessible(true)
-      field.set(obj, enclosingObject)
-    }
-    obj
   }
 
 }

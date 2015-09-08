@@ -35,6 +35,11 @@
   <url>http://spark.apache.org/</url>
   <dependencies>
     <dependency>
+      <groupId>org.mystic</groupId>
+      <artifactId>mavenized-jcuda</artifactId>
+      <version>0.1.2</version>
+    </dependency>
+    <dependency>
       <groupId>org.apache.avro</groupId>
       <artifactId>avro-mapred</artifactId>
       <classifier>${avro.mapred.classifier}</classifier>

@@ -28,6 +28,8 @@ import org.apache.spark.PartitionData
 import org.apache.spark.ColumnPartitionData
 import org.apache.spark.IteratedPartitionData
 
+import scala.language.existentials
+
 
 /**
  * Stores BlockManager blocks on ExternalBlockStore.
@@ -65,7 +67,7 @@ private[spark] class ExternalBlockStore(blockManager: BlockManager, executorId: 
 
   override def putColumns(
       blockId: BlockId,
-      values: ColumnPartitionData[Any],
+      values: ColumnPartitionData[_],
       level: StorageLevel,
       returnValues: Boolean): PutResult = {
     // TODO
@@ -155,7 +157,7 @@ private[spark] class ExternalBlockStore(blockManager: BlockManager, executorId: 
     }
   }
 
-  override def getValues(blockId: BlockId): Option[PartitionData[Any]] = {
+  override def getValues(blockId: BlockId): Option[PartitionData[_]] = {
     try {
       externalBlockManager.flatMap(_.getValues(blockId))
     } catch {
