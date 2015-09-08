@@ -20,7 +20,7 @@ package org.apache.spark.mllib.rdd
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
-import org.apache.spark.{TaskContext, Partition}
+import org.apache.spark.{TaskContext, Partition, PartitionData, IteratedPartitionData}
 import org.apache.spark.rdd.RDD
 
 private[mllib]
@@ -53,13 +53,14 @@ class SlidingRDD[T: ClassTag](@transient val parent: RDD[T], val windowSize: Int
     "Window size and step must be greater than 0, " +
       s"and they cannot be both 1, but got windowSize = $windowSize and step = $step.")
 
-  override def compute(split: Partition, context: TaskContext): Iterator[Array[T]] = {
+  override def compute(split: Partition, context: TaskContext): PartitionData[Array[T]] = {
     val part = split.asInstanceOf[SlidingRDDPartition[T]]
+    IteratedPartitionData(
     (firstParent[T].iterator(part.prev, context) ++ part.tail)
       .drop(part.offset)
       .sliding(windowSize, step)
       .withPartial(false)
-      .map(_.toArray)
+      .map(_.toArray))
   }
 
   override def getPreferredLocations(split: Partition): Seq[String] =
