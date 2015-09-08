@@ -21,6 +21,7 @@ import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
+import java.util.Iterator;
 import javax.annotation.concurrent.GuardedBy;
 
 import jcuda.Pointer;
@@ -42,9 +43,24 @@ public class ExecutorMemoryManager {
    */
   final boolean inHeap;
 
+  /**
+   * Maximum allocateable amount of pinned memory or negative if unlimited.
+   */
+  public final long maxPinnedMemory;
+
   @GuardedBy("this")
   private final Map<Long, LinkedList<WeakReference<MemoryBlock>>> bufferPoolsBySize =
     new HashMap<Long, LinkedList<WeakReference<MemoryBlock>>>();
+
+  @GuardedBy("this")
+  private long allocatedPinnedMemory = 0;
+
+  // Pointer content won't release itself, so no need for WeakReference
+  @GuardedBy("this")
+  private final Map<Long, LinkedList<Pointer>> pinnedMemoryBySize =
+    new HashMap<Long, LinkedList<Pointer>>();
+
+  private final Map<Pointer, Long> pinnedMemorySizes = new HashMap<Pointer, Long>();
 
   private static final int POOLING_THRESHOLD_BYTES = 1024 * 1024;
 
@@ -53,9 +69,10 @@ public class ExecutorMemoryManager {
    *
    * @param allocator the allocator that will be used
    */
-  public ExecutorMemoryManager(MemoryAllocator allocator) {
+  public ExecutorMemoryManager(MemoryAllocator allocator, long maxPinnedMemory) {
     this.inHeap = allocator instanceof HeapMemoryAllocator;
     this.allocator = allocator;
+    this.maxPinnedMemory = maxPinnedMemory;
   }
 
   /**
@@ -112,19 +129,78 @@ public class ExecutorMemoryManager {
   }
 
   /**
-   * Allocates off-heap memory suitable for CUDA and returns a wrapped native Pointer.
+   * Allocates pinned memory suitable for CUDA and returns a wrapped native Pointer. Takes the
+   * memory from the pool if available or tries to allocate if not.
    */
-  public Pointer allocatePointer(long size) {
+  public Pointer allocatePinnedMemory(long size) {
+    if (maxPinnedMemory >= 0 && size > maxPinnedMemory) {
+      throw new OutOfMemoryError("Trying to allocate more pinned memory than the total limit");
+    }
+
+    synchronized (this) {
+      final LinkedList<Pointer> pool = pinnedMemoryBySize.get(size);
+      if (pool != null) {
+        assert(!pool.isEmpty());
+        final Pointer ptr = pool.pop();
+        if (pool.isEmpty()) {
+          pinnedMemoryBySize.remove(size);
+        }
+        return ptr;
+      }
+
+      // Collecting and deallocating some pinned memory, so that we have space for the new one.
+      // TODO might be better to start from LRU size, currently freeing in arbitrary order
+      if (maxPinnedMemory >= 0 && allocatedPinnedMemory + size < maxPinnedMemory) {
+        Iterator<Map.Entry<Long, LinkedList<Pointer>>> it =
+          pinnedMemoryBySize.entrySet().iterator();
+        while (allocatedPinnedMemory + size < maxPinnedMemory) {
+          assert(it.hasNext());
+          Map.Entry<Long, LinkedList<Pointer>> sizeAndList = it.next();
+          assert(!sizeAndList.getValue().isEmpty());
+
+          Iterator<Pointer> listIt = sizeAndList.getValue().iterator();
+
+          do {
+            Pointer ptr = listIt.next();
+            int error = JCuda.cudaFreeHost(ptr);
+            if (error != 0) {
+              throw new OutOfMemoryError("Could not free pinned memory (CUDA error " + error + ")");
+            }
+            listIt.remove();
+            pinnedMemorySizes.remove(ptr);
+            allocatedPinnedMemory -= sizeAndList.getKey();
+          } while (allocatedPinnedMemory + size < maxPinnedMemory && listIt.hasNext());
+
+          if (!listIt.hasNext()) {
+            it.remove();
+          }
+        }
+      }
+    }
+
     Pointer ptr = new Pointer();
-    JCuda.cudaMalloc(ptr, size);
+    int error = JCuda.cudaMallocHost(ptr, size);
+    if (error != 0) {
+      throw new OutOfMemoryError("Could not allocate pinned memory (CUDA error " + error + ")");
+    }
+    pinnedMemorySizes.put(ptr, size);
+    allocatedPinnedMemory += size;
     return ptr;
   }
 
   /**
-   * Frees off-heap memory pointer.
+   * Frees pinned memory pointer. In reality, it just returns it to the pool.
    */
-  public void freePointer(Pointer ptr) {
-    JCuda.cudaFree(ptr);
+  public void freePinnedMemory(Pointer ptr) {
+    synchronized (this) {
+      final long size = pinnedMemorySizes.get(ptr);
+      LinkedList<Pointer> pool = pinnedMemoryBySize.get(size);
+      if (pool == null) {
+        pool = new LinkedList<Pointer>();
+        pinnedMemoryBySize.put(size, pool);
+      }
+      pool.add(ptr);
+    }
   }
 
 }

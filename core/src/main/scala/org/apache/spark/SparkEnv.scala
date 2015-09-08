@@ -396,7 +396,8 @@ object SparkEnv extends Logging {
       } else {
         MemoryAllocator.HEAP
       }
-      new ExecutorMemoryManager(allocator)
+      val maxPinnedMemory = conf.getLong("spark.unsafe.maxPinnedMemory", -1)
+      new ExecutorMemoryManager(allocator, maxPinnedMemory)
     }
 
     val envInstance = new SparkEnv(
