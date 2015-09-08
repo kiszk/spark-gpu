@@ -88,24 +88,26 @@ class KinesisBackedBlockRDD(
     }
   }
 
-  override def compute(split: Partition, context: TaskContext): Iterator[Array[Byte]] = {
+  override def compute(split: Partition, context: TaskContext):
+      PartitionData[Array[Byte]] = {
     val blockManager = SparkEnv.get.blockManager
     val partition = split.asInstanceOf[KinesisBackedBlockRDDPartition]
     val blockId = partition.blockId
 
-    def getBlockFromBlockManager(): Option[Iterator[Array[Byte]]] = {
+    def getBlockFromBlockManager(): Option[PartitionData[Array[Byte]]] = {
       logDebug(s"Read partition data of $this from block manager, block $blockId")
-      blockManager.get(blockId).map(_.data.asInstanceOf[Iterator[Array[Byte]]])
+      blockManager.get(blockId).map(_.data.asInstanceOf[PartitionData[Array[Byte]]])
     }
 
-    def getBlockFromKinesis(): Iterator[Array[Byte]] = {
+    def getBlockFromKinesis(): PartitionData[Array[Byte]] = {
       val credenentials = awsCredentialsOption.getOrElse {
         new DefaultAWSCredentialsProviderChain().getCredentials()
       }
-      partition.seqNumberRanges.ranges.iterator.flatMap { range =>
-        new KinesisSequenceRangeIterator(
-          credenentials, endpointUrl, regionId, range, retryTimeoutMs)
-      }
+      IteratedPartitionData(
+        partition.seqNumberRanges.ranges.iterator.flatMap { range =>
+          new KinesisSequenceRangeIterator(
+            credenentials, endpointUrl, regionId, range, retryTimeoutMs)
+        })
     }
     if (partition.isBlockIdValid) {
       getBlockFromBlockManager().getOrElse { getBlockFromKinesis() }
