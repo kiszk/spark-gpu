@@ -34,7 +34,10 @@ org.apache.spark.storage.BlockManagerSuite
 #org.apache.spark.CheckpointSuite,\
 #org.apache.spark.CacheManagerSuite,\
 
-JAVA_TESTS=none
+JAVA_TESTS=\
+org.apache.spark.unsafe.memory.ExecutorMemoryManagerSuite
+
+MODULES=unsafe,core
 
 if [[ "$1" == "compile" ]]; then
     COMPILE=true
@@ -47,8 +50,8 @@ if [[ "$1" == "debug" ]]; then
 fi
 
 if [ $COMPILE ]; then
-    ./compile.sh -pl core $@
+    ./compile.sh -pl $MODULES $@
 fi
 
-killZinc 
-$MVN_CMD $MVN_ARGS -DtagsToExclude=$EXCL_TAGS --fail-at-end test -DwildcardSuites=$SCALA_TESTS -Dtest=$JAVA_TESTS -pl core $DBG_ARGS $@ 2>&1 | tee ~/testlog-dev.txt
+killZinc
+$MVN_CMD $MVN_ARGS -DtagsToExclude=$EXCL_TAGS --fail-at-end test -DwildcardSuites=$SCALA_TESTS -Dtest=$JAVA_TESTS -pl $MODULES $DBG_ARGS $@ 2>&1 | tee ~/testlog-dev.txt
