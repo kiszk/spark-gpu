@@ -61,4 +61,29 @@ class ColumnPartitionSchemaSuite extends SparkFunSuite with SharedSparkContext {
     schema.columns.foreach(col => assert(col.columnType == INT_COLUMN))
     assert(!schema.isPrimitive)
   }
+
+  test("Getters work for Int", GPUTest) {
+    val schema = ColumnPartitionSchema.schemaFor[Int]
+    val getters = schema.getters
+    assert(getters.size == 1)
+    assert(getters(0)(42) == 42)
+  }
+
+  test("Getters work for case class", GPUTest) {
+    val schema = ColumnPartitionSchema.schemaFor[Rectangle]
+    val getters = schema.getters
+    assert(getters.size == 4)
+    val rect = Rectangle(Point(0, 1), Point(2, 3))
+    assert(getters.map(get => get(rect).asInstanceOf[Int]).toSet == Set(0, 1, 2, 3))
+  }
+
+  test("Setters work for case class", GPUTest) {
+    val schema = ColumnPartitionSchema.schemaFor[Rectangle]
+    val setters = schema.setters
+    assert(setters.size == 4)
+    val rect = Rectangle(Point(0, 1), Point(2, 3))
+    setters.foreach(set => set(rect, 42))
+    assert(rect == Rectangle(Point(42, 42), Point(42, 42)))
+  }
+
 }
