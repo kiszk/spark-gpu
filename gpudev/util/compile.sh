@@ -13,7 +13,7 @@ if [[ "$1" == "clean" ]]; then
     shift 1
 fi
 
-if [[ "$1" != "full" ]]; then
+if [[ !("$@" =~ "-pl") && "$1" != "full" ]]; then
     SKIP_MODULES='-pl !examples,!assembly,!extras/kinesis-asl-assembly,!external/flume-assembly,!external/kafka-assembly'
 else
     shift 1
