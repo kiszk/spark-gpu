@@ -1,4 +1,5 @@
 #!/bin/bash
+# should run a test, but doesn't work
 source args.sh
 cd $DIR
 
