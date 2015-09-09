@@ -27,6 +27,10 @@ import org.apache.spark.unsafe.Platform;
 
 import jcuda.Pointer;
 import jcuda.runtime.JCuda;
+import jcuda.CudaException;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A simple {@link MemoryAllocator} that can allocate up to 16GB using a JVM long primitive array.
@@ -36,7 +40,7 @@ public class HeapMemoryAllocator implements MemoryAllocator {
   /**
    * Maximum allocateable amount of pinned memory or negative if unlimited.
    */
-  public final long maxPinnedMemory;
+  final long maxPinnedMemory;
 
   @GuardedBy("this")
   private final Map<Long, LinkedList<WeakReference<MemoryBlock>>> bufferPoolsBySize =
@@ -124,11 +128,11 @@ public class HeapMemoryAllocator implements MemoryAllocator {
 
       // Collecting and deallocating some pinned memory, so that we have space for the new one.
       // TODO might be better to start from LRU size, currently freeing in arbitrary order
-      if (maxPinnedMemory >= 0 && allocatedPinnedMemory + size < maxPinnedMemory) {
+      if (maxPinnedMemory >= 0 && allocatedPinnedMemory + size > maxPinnedMemory) {
         Iterator<Map.Entry<Long, LinkedList<Pointer>>> it =
           pinnedMemoryBySize.entrySet().iterator();
-        while (allocatedPinnedMemory + size < maxPinnedMemory) {
-          assert(it.hasNext());
+
+        while (it.hasNext() && allocatedPinnedMemory + size > maxPinnedMemory) {
           Map.Entry<Long, LinkedList<Pointer>> sizeAndList = it.next();
           assert(!sizeAndList.getValue().isEmpty());
 
@@ -136,9 +140,10 @@ public class HeapMemoryAllocator implements MemoryAllocator {
 
           do {
             Pointer ptr = listIt.next();
-            int error = JCuda.cudaFreeHost(ptr);
-            if (error != 0) {
-              throw new OutOfMemoryError("Could not free pinned memory (CUDA error " + error + ")");
+            try {
+              JCuda.cudaFreeHost(ptr);
+            } catch (CudaException ex) {
+              throw new OutOfMemoryError("Could not free pinned memory: " + ex.getMessage());
             }
             listIt.remove();
             pinnedMemorySizes.remove(ptr);
@@ -149,17 +154,22 @@ public class HeapMemoryAllocator implements MemoryAllocator {
             it.remove();
           }
         }
-      }
-    }
 
-    Pointer ptr = new Pointer();
-    int error = JCuda.cudaMallocHost(ptr, size);
-    if (error != 0) {
-      throw new OutOfMemoryError("Could not allocate pinned memory (CUDA error " + error + ")");
+        if (maxPinnedMemory >= 0 && allocatedPinnedMemory + size > maxPinnedMemory) {
+          throw new OutOfMemoryError("Not enough free pinned memory");
+        }
+      }
+
+      Pointer ptr = new Pointer();
+      try {
+        JCuda.cudaMallocHost(ptr, size);
+      } catch (CudaException ex) {
+        throw new OutOfMemoryError("Could not free pinned memory: " + ex.getMessage());
+      }
+      pinnedMemorySizes.put(ptr, size);
+      allocatedPinnedMemory += size;
+      return ptr;
     }
-    pinnedMemorySizes.put(ptr, size);
-    allocatedPinnedMemory += size;
-    return ptr;
   }
 
   /**
