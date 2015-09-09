@@ -65,9 +65,19 @@ public class ExecutorMemoryManager {
   private static final int POOLING_THRESHOLD_BYTES = 1024 * 1024;
 
   /**
+   * Construct a new ExecutorMemoryManager with unlimited off-heap pinned memory.
+   *
+   * @param allocator the allocator that will be used
+   */
+  public ExecutorMemoryManager(MemoryAllocator allocator) {
+    this(allocator, -1);
+  }
+
+  /**
    * Construct a new ExecutorMemoryManager.
    *
    * @param allocator the allocator that will be used
+   * @param maxPinnedMemory the maximum amount of allocated off-heap pinned memory
    */
   public ExecutorMemoryManager(MemoryAllocator allocator, long maxPinnedMemory) {
     this.inHeap = allocator instanceof HeapMemoryAllocator;
@@ -129,8 +139,8 @@ public class ExecutorMemoryManager {
   }
 
   /**
-   * Allocates pinned memory suitable for CUDA and returns a wrapped native Pointer. Takes the
-   * memory from the pool if available or tries to allocate if not.
+   * Allocates off-heap pinned memory suitable for CUDA and returns a wrapped native Pointer. Takes
+   * the memory from the pool if available or tries to allocate if not.
    */
   public Pointer allocatePinnedMemory(long size) {
     if (maxPinnedMemory >= 0 && size > maxPinnedMemory) {
@@ -189,7 +199,7 @@ public class ExecutorMemoryManager {
   }
 
   /**
-   * Frees pinned memory pointer. In reality, it just returns it to the pool.
+   * Frees off-heap pinned memory pointer. In reality, it just returns it to the pool.
    */
   public void freePinnedMemory(Pointer ptr) {
     synchronized (this) {
