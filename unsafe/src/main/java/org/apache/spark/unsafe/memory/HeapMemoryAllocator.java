@@ -103,8 +103,8 @@ public class HeapMemoryAllocator implements MemoryAllocator {
   }
 
   /**
-   * Allocates pinned memory suitable for CUDA and returns a wrapped native Pointer. Takes the
-   * memory from the pool if available or tries to allocate if not.
+   * Allocates off-heap pinned memory suitable for CUDA and returns a wrapped native Pointer. Takes
+   * the memory from the pool if available or tries to allocate if not.
    */
   public Pointer allocatePinnedMemory(long size) {
     if (maxPinnedMemory >= 0 && size > maxPinnedMemory) {
@@ -163,7 +163,7 @@ public class HeapMemoryAllocator implements MemoryAllocator {
   }
 
   /**
-   * Frees pinned memory pointer. In reality, it just returns it to the pool.
+   * Frees off-heap pinned memory pointer. In reality, it just returns it to the pool.
    */
   public void freePinnedMemory(Pointer ptr) {
     synchronized (this) {
