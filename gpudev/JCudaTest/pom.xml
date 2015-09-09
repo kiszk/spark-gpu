@@ -4,9 +4,9 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<parent>
-		<groupId>com.ibm.gpudev</groupId>
-		<artifactId>gpudev</artifactId>
-		<version>1.0</version>
+            <groupId>com.ibm.gpudev</groupId>
+            <artifactId>gpudev</artifactId>
+            <version>1.0</version>
 	</parent>
 
 	<groupId>com.ibm.gpudev</groupId>
