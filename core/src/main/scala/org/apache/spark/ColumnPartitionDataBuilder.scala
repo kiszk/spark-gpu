@@ -27,19 +27,40 @@ import java.nio.ByteBuffer
 @DeveloperApi
 object ColumnPartitionDataBuilder {
 
-  def build[T: TypeTag](n: Int): ColumnPartitionData[T] = {
+  /**
+   * Creates ColumnPartitionData with uninitialized data for given type and size.
+   */
+  def build[T: TypeTag](n: Long): ColumnPartitionData[T] = {
     build(ColumnPartitionSchema.localTypeOf[T], n).asInstanceOf[ColumnPartitionData[T]]
   }
 
-  def build(tpe: Type, n: Int): ColumnPartitionData[_] = {
+  /**
+   * Creates ColumnPartitionData with uninitialized data for given type and size.
+   */
+  def build(tpe: Type, n: Long): ColumnPartitionData[_] = {
     val schema = ColumnPartitionSchema.schemaForType(tpe)
     new ColumnPartitionData(schema, n)
   }
 
-  def build[T: TypeTag](seq: Seq[T]): ColumnPartitionData[T] = {
-    val col = build[T](seq.size)
-    col.serialize(seq.iterator)
-    col
+  /**
+   * Converts an iterator to ColumnPartitionData.
+   * Knowing the input size is not required, but will prevent materialization of the whole
+   * data before conversion. Passing negative size means that it is to be automatically computed.
+   */
+  def build[T: TypeTag](it: Iterator[T], size: Long = -1): ColumnPartitionData[T] = {
+    if (size >= 0) {
+      val col = build[T](size)
+      col.serialize(it)
+      col
+    } else {
+      build(it.toIndexedSeq)
+    }
   }
+
+  /**
+   * Converts a sequence into ColumnPartitionData.
+   */
+  def build[T: TypeTag](seq: Seq[T]): ColumnPartitionData[T] =
+    build(seq.iterator, seq.size)
 
 }

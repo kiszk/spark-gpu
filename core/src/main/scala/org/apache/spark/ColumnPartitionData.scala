@@ -34,16 +34,17 @@ import scala.language.existentials
 @Experimental
 class ColumnPartitionData[T](
     val schema: ColumnPartitionSchema,
-    val size: Int
+    val size: Long
   ) extends PartitionData[T] {
 
   private val pointers: Array[Pointer] = schema.columns.map { col =>
-    SparkEnv.get.executorMemoryManager.allocatePointer(col.columnType.bytes * size)
+    SparkEnv.get.executorMemoryManager.allocatePinnedMemory(col.columnType.bytes * size)
   }
 
   private var freed = false
 
   val buffers: Array[ByteBuffer] = (pointers zip schema.columns).map { case (ptr, col) =>
+    // TODO have to use multiple buffers when buffer > 2GB
     ptr.getByteBuffer(0, col.columnType.bytes * size)
   }
 
@@ -54,7 +55,7 @@ class ColumnPartitionData[T](
    */
   def free() {
     assert(!freed)
-    pointers.foreach(SparkEnv.get.executorMemoryManager.freePointer(_))
+    pointers.foreach(SparkEnv.get.executorMemoryManager.freePinnedMemory(_))
     freed = true
   }
 
@@ -101,10 +102,22 @@ class ColumnPartitionData[T](
   def deserialize(): Iterator[T] = {
     rewind
 
+    // A version of Iterator[T].take, but with Long argument (since size can be > 2G)
+    def limitedIter(f: () => T): Iterator[T] = new Iterator[T] {
+      private var remaining = size
+
+      override def hasNext: Boolean = remaining > 0
+
+      override def next(): T = {
+        remaining -= 1
+        f()
+      }
+    }
+
     if (schema.isPrimitive) {
-      Iterator.continually {
+      limitedIter { () =>
         deserializeColumnValue(schema.columns(0).columnType, buffers(0)).asInstanceOf[T]
-      } take size
+      }
     } else {
       // version of setters that creates objects that do not exist yet
       val setters: Array[(AnyRef, Any) => Unit] = {
@@ -128,7 +141,7 @@ class ColumnPartitionData[T](
         }
       }
 
-      Iterator.continually {
+      limitedIter { () =>
         val obj = instantiateClass(schema.cls, null)
 
         for (((col, setter), buf) <- ((schema.columns zip setters) zip buffers)) {
@@ -136,7 +149,7 @@ class ColumnPartitionData[T](
         }
 
         obj.asInstanceOf[T]
-      } take size
+      }
     }
   }
 
