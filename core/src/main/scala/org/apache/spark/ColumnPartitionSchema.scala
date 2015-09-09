@@ -104,7 +104,6 @@ class ColumnPartitionSchema(
   def isPrimitive: Boolean = columns.size == 1 && columns(0).terms.isEmpty
 
   def getters: Array[Any => Any] = {
-    assert(!isPrimitive)
     val mirror = ColumnPartitionSchema.mirror
     columns.map { col =>
       col.terms.foldLeft(identity[Any] _)((r, term) =>
@@ -112,6 +111,7 @@ class ColumnPartitionSchema(
     }
   }
 
+  // the first argument is object, the second is value
   def setters: Array[(Any, Any) => Unit] = {
     assert(!isPrimitive)
     val mirror = ColumnPartitionSchema.mirror

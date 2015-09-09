@@ -25,11 +25,12 @@ class ColumnPartitionDataSuite extends SparkFunSuite with SharedSparkContext {
       schema: ColumnPartitionSchema,
       input: Seq[T]): ColumnPartitionData[T] = {
     val data = new ColumnPartitionData[T](schema, input.size)
+    assert(data.size == input.size)
     data.serialize(input.iterator)
     assert(data.buffers.forall(!_.hasRemaining))
     val output = data.deserialize().toArray
-    assert(data.buffers.forall(!_.hasRemaining))
     assert(output.sameElements(input))
+    assert(data.buffers.forall(!_.hasRemaining))
     data
   }
 
@@ -37,8 +38,13 @@ class ColumnPartitionDataSuite extends SparkFunSuite with SharedSparkContext {
     val schema = ColumnPartitionSchema.schemaFor[Int]
     val input = Array(42)
     val data = checkSerializationAndDeserialization(schema, input)
+    data.rewind
     // checking if little endian
-    assert(data.buffers(0).array.sameElements(Array(42, 0, 0, 0)))
+    val internalBuffer = data.buffers(0)
+    assert(internalBuffer.get() == 42)
+    assert(internalBuffer.get() == 0)
+    assert(internalBuffer.get() == 0)
+    assert(internalBuffer.get() == 0)
     data.free()
   }
 

@@ -18,6 +18,7 @@
 package org.apache.spark
 
 import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 import org.apache.spark.unsafe.memory.MemoryBlock
 import org.apache.spark.annotation.{DeveloperApi, Experimental}
@@ -45,7 +46,7 @@ class ColumnPartitionData[T](
 
   val buffers: Array[ByteBuffer] = (pointers zip schema.columns).map { case (ptr, col) =>
     // TODO have to use multiple buffers when buffer > 2GB
-    ptr.getByteBuffer(0, col.columnType.bytes * size)
+    ptr.getByteBuffer(0, col.columnType.bytes * size).order(ByteOrder.LITTLE_ENDIAN)
   }
 
   def memoryUsage: Long = schema.columns.map(_.columnType.bytes * size).sum
@@ -103,14 +104,17 @@ class ColumnPartitionData[T](
     rewind
 
     // A version of Iterator[T].take, but with Long argument (since size can be > 2G)
-    def limitedIter(f: () => T): Iterator[T] = new Iterator[T] {
-      private var remaining = size
+    def limitedIter(f: () => T): Iterator[T] = {
+      val initialRemaining = size
+      new Iterator[T] {
+        private var remaining = initialRemaining
 
-      override def hasNext: Boolean = remaining > 0
+        override def hasNext: Boolean = remaining > 0
 
-      override def next(): T = {
-        remaining -= 1
-        f()
+        override def next(): T = {
+          remaining -= 1
+          f()
+        }
       }
     }
 
@@ -130,7 +134,9 @@ class ColumnPartitionData[T](
                 case inner if inner != null => inner.asInstanceOf[AnyRef]
                 case _ =>
                   val propCls = mirror.runtimeClass(term.typeSignature.typeSymbol.asClass)
-                  val propVal = instantiateClass(propCls, obj)
+                  // we assume we don't instantiate inner class instances, so $outer field is not
+                  // needed
+                  val propVal = instantiateClass(propCls, null)
                   rf.set(propVal)
                   propVal
               } } compose r
