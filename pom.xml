@@ -1976,7 +1976,7 @@
             <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
             <junitxml>.</junitxml>
             <filereports>SparkTestSuite.txt</filereports>
-            <argLine>-ea -Xmx3g -XX:MaxPermSize=${MaxPermGen} -XX:ReservedCodeCacheSize=${CodeCacheSize}</argLine>
+            <argLine>-ea -Xmx3g -XX:MaxPermSize=${MaxPermGen} -XX:ReservedCodeCacheSize=${CodeCacheSize} -Djava.library.path=${project.build.directory}/lib</argLine>
             <stderr/>
             <environmentVariables>
               <!--
@@ -2149,6 +2149,17 @@
         <version>2.10</version>
         <executions>
           <execution>
+            <id>strip-native-lib-version-exec</id>
+            <phase>package</phase>
+            <goals>
+              <goal>copy-dependencies</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/lib</outputDirectory>
+              <stripVersion>true</stripVersion>
+            </configuration>
+          </execution>
+          <execution>
             <phase>test-compile</phase>
             <goals>
               <goal>build-classpath</goal>
@@ -2185,6 +2196,11 @@
               <include>org.eclipse.jetty:jetty-server</include>
               <include>com.google.guava:guava</include>
             </includes>
+            <excludes>
+              <exclude>jcuda:*:so:*</exclude>
+              <exclude>jcuda:*:dll:*</exclude>
+              <exclude>jcuda:*:dylib:*</exclude>
+            </excludes>
           </artifactSet>
           <relocations>
             <relocation>
