@@ -1,4 +1,10 @@
 #!/bin/bash
+# example usages:
+# ./compile.sh - package Spark without assembly modules (much faster)
+# ./compile.sh clean install - package install of Spark without assembly modules
+# ./compile.sh full - package everything ("normal" compilation)
+# ./compile.sh clean full install - package and install everything ("normal" clean install)
+
 source args.sh
 cd $DIR
 

@@ -1,4 +1,7 @@
 #!/bin/bash
+# run only the tests being worked on
+# ./testdev.sh compile also compiles the stuff before
+# ./testdev.sh debug waits for attachment of a scala debugger
 source args.sh
 cd $DIR
 
