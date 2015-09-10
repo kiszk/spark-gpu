@@ -20,8 +20,9 @@ package org.apache.spark
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-import org.apache.spark.unsafe.memory.MemoryBlock
 import org.apache.spark.annotation.{DeveloperApi, Experimental}
+import org.apache.spark.unsafe.memory.MemoryBlock
+import org.apache.spark.util.IteratorFunctions._
 
 import jcuda.Pointer
 
@@ -44,15 +45,22 @@ class ColumnPartitionData[T](
 
   private var freed = false
 
+  /**
+   * Columns kept as ByteBuffers. May be read directly.
+   */
   val buffers: Array[ByteBuffer] = (pointers zip schema.columns).map { case (ptr, col) =>
     // TODO have to use multiple buffers when buffer > 2GB
     ptr.getByteBuffer(0, col.columnType.bytes * size).order(ByteOrder.LITTLE_ENDIAN)
   }
 
+  /**
+   * Total amount of memory allocated in columns. Does not take into account Java objects aggregated
+   * in this PartitionData.
+   */
   def memoryUsage: Long = schema.columns.map(_.columnType.bytes * size).sum
 
   /**
-   * Deallocate internal memory.
+   * Deallocate internal memory. The buffers may not be used after this call.
    */
   def free() {
     assert(!freed)
@@ -61,8 +69,8 @@ class ColumnPartitionData[T](
   }
 
   /**
-   * Finalizer method to free the memory if it was not freed yet for some reason.
-   * Prints a warning
+   * Finalizer method to free the memory if it was not freed yet for some reason. Prints a warning
+   * in such cases.
    */
   override def finalize() {
     if (!freed) {
@@ -73,17 +81,25 @@ class ColumnPartitionData[T](
     }
   }
 
+  /**
+   * Rewinds all column buffers, so that they may be read from the beginning.
+   */
   def rewind {
     buffers.foreach(_.rewind)
   }
 
+  /**
+   * Serializes an iterator of objects into columns. Amount of objects written must not exceed the
+   * size of this ColumnPartitionData. Note that it does not handle any null pointers inside
+   * objects. Memory footprint is that of one object at a time.
+   */
   // TODO allow for dropping specific columns if some kind of optimizer detected that they are not
   // needed
   def serialize(iter: Iterator[T]) {
     val getters = schema.getters
     rewind
 
-    iter.foreach { obj =>
+    iter.takeLong(size).foreach { obj =>
       for (((col, getter), buf) <- ((schema.columns zip getters) zip buffers)) {
         // TODO what should we do if sub-object is null?
         // TODO bulk put/get might be faster
@@ -100,28 +116,16 @@ class ColumnPartitionData[T](
     }
   }
 
+  /**
+   * Deserializes columns into Java objects. Memory footprint is that of one object at a time.
+   */
   def deserialize(): Iterator[T] = {
     rewind
 
-    // A version of Iterator[T].take, but with Long argument (since size can be > 2G)
-    def limitedIter(f: () => T): Iterator[T] = {
-      val initialRemaining = size
-      new Iterator[T] {
-        private var remaining = initialRemaining
-
-        override def hasNext: Boolean = remaining > 0
-
-        override def next(): T = {
-          remaining -= 1
-          f()
-        }
-      }
-    }
-
     if (schema.isPrimitive) {
-      limitedIter { () =>
+      Iterator.continually {
         deserializeColumnValue(schema.columns(0).columnType, buffers(0)).asInstanceOf[T]
-      }
+      } takeLong size
     } else {
       // version of setters that creates objects that do not exist yet
       val setters: Array[(AnyRef, Any) => Unit] = {
@@ -147,7 +151,7 @@ class ColumnPartitionData[T](
         }
       }
 
-      limitedIter { () =>
+      Iterator.continually {
         val obj = instantiateClass(schema.cls, null)
 
         for (((col, setter), buf) <- ((schema.columns zip setters) zip buffers)) {
@@ -155,11 +159,14 @@ class ColumnPartitionData[T](
         }
 
         obj.asInstanceOf[T]
-      }
+      } takeLong size
     }
   }
 
-  private[spark] def deserializeColumnValue(columnType: ColumnType, buf: ByteBuffer): Any = {
+  /**
+   * Reads the buffer in a way specified by its ColumnType.
+   */
+  def deserializeColumnValue(columnType: ColumnType, buf: ByteBuffer): Any = {
     columnType match {
       case BYTE_COLUMN => buf.get()
       case SHORT_COLUMN => buf.getShort()
@@ -170,7 +177,9 @@ class ColumnPartitionData[T](
     }
   }
 
-  // taken from ClosureCleaner
+  /**
+   * Instantiates a class. Also handles inner classes by passing enclosingObject parameter.
+   */
   private[spark] def instantiateClass(
       cls: Class[_],
       enclosingObject: AnyRef): AnyRef = {
@@ -187,8 +196,11 @@ class ColumnPartitionData[T](
     obj
   }
 
-  override def iterator: Iterator[T] =
-    throw new UnsupportedOperationException("TODO") // TODO
+  /**
+   * Iterator for objects inside this PartitionData. Causes deserialization of the data and may be
+   * costly.
+   */
+  override def iterator: Iterator[T] = deserialize()
 
 }
 // scalastyle:on no.finalize

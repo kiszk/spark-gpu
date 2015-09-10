@@ -34,9 +34,24 @@ class IteratedPartitionData[T](
 @DeveloperApi
 object IteratedPartitionData {
 
+  /**
+   * Wraps an iterator in IteratedPartitionData object.
+   */
   def apply[T](iter: Iterator[T]): IteratedPartitionData[T] =
     new IteratedPartitionData(iter)
 
+  /**
+   * Extracts iterator from IteratedPartitionData.
+   * Usage:
+   * {{{
+   * partitionData match {
+   *   case IteratedPartitionData(iter) =>
+   *     do_iterated_stuff_with(iter)
+   *   case col: ColumnPartitionData[_] =>
+   *     do_column_stuff_with(col)
+   * }
+   * }}}
+   */
   def unapply[T](it: IteratedPartitionData[T]): Option[Iterator[T]] =
     Some(it.iter)
 

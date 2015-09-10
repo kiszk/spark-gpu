@@ -15,22 +15,35 @@
  * limitations under the License.
  */
 
-package org.apache.spark
+package org.apache.spark.util
+
+import scala.language.implicitConversions
 
 import org.apache.spark.annotation.DeveloperApi
 
 @DeveloperApi
-abstract class PartitionData[T] {
+object IteratorFunctions {
 
   /**
-   * A helper function for wrapping IteratedPartitionData's iterator, if this partition is of that
-   * type. Can be useful e.g. for wrapping in InterruptibleIterator. */
-  def wrapIterator(f: (Iterator[T] => Iterator[T])): PartitionData[T] = this
-
-  /**
-   * Read the data as normal Java objects. Depending on the subclass used, might need a conversion
-   * and be costly.
+   * Additional functions for Iterator[T].
    */
-  def iterator: Iterator[T]
+  @DeveloperApi
+  implicit class IteratorFunctions[T](self: Iterator[T]) {
+
+    /**
+     * A version of Iterator[T].take, but with Long argument.
+     */
+    def takeLong(n: Long): Iterator[T] = new Iterator[T] {
+      private var remainingIters: Long = n
+
+      override def hasNext: Boolean = remainingIters > 0 && self.hasNext
+
+      override def next: T = {
+        remainingIters -= 1
+        self.next
+      }
+    }
+
+  }
 
 }

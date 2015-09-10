@@ -25,8 +25,8 @@ class ColumnPartitionDataBuilderSuite extends SparkFunSuite with SharedSparkCont
     assert(data.schema.columns.length == 1)
     assert(data.size == 1)
     data.serialize(input.iterator)
-    val output = data.deserialize().toArray
-    assert(output.sameElements(input))
+    val output = data.deserialize().toIndexedSeq
+    assert(output.sameElements(input.toIndexedSeq))
   }
 
   test("Creates ColumnPartitionData from a sequence of case classes") {
@@ -34,8 +34,32 @@ class ColumnPartitionDataBuilderSuite extends SparkFunSuite with SharedSparkCont
         Rectangle(Point(0, 0), Point(42, 42)),
         Rectangle(Point(2, 3), Point(8, 5)))
     val data = ColumnPartitionDataBuilder.build(input)
-    val output = data.deserialize().toArray
+    val output = data.deserialize().toIndexedSeq
+    assert(output.sameElements(input.toIndexedSeq))
+  }
+
+  test("Creates a ColumnPartitionData from an iterator without length information") {
+    val input = Array(
+        Rectangle(Point(1, 2), Point(3, 4)),
+        Rectangle(Point(5, 6), Point(7, 8)),
+        Rectangle(Point(9, 10), Point(11, 12)),
+        Rectangle(Point(13, 14), Point(15, 16)))
+    val inputIter = input.iterator
+    val data = ColumnPartitionDataBuilder.build(inputIter)
+    val output = data.deserialize().toIndexedSeq
     assert(output.sameElements(input))
+  }
+
+  test("Creates a ColumnPartitionData from an iterator with shorter length information") {
+    val input = Array(
+        Rectangle(Point(1, 2), Point(3, 4)),
+        Rectangle(Point(5, 6), Point(7, 8)),
+        Rectangle(Point(9, 10), Point(11, 12)),
+        Rectangle(Point(13, 14), Point(15, 16)))
+    val inputIter = input.iterator
+    val data = ColumnPartitionDataBuilder.build(inputIter, 3)
+    val output = data.deserialize().toIndexedSeq
+    assert(output.sameElements(input.take(3)))
   }
 
 }
