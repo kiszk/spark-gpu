@@ -6,6 +6,7 @@ source args.sh
 cd $DIR
 
 SCALA_TESTS=\
+org.apache.spark.IteratedPartitionDataSuite,\
 org.apache.spark.ColumnPartitionSchemaSuite,\
 org.apache.spark.ColumnPartitionDataSuite,\
 org.apache.spark.ColumnPartitionDataBuilderSuite,\
