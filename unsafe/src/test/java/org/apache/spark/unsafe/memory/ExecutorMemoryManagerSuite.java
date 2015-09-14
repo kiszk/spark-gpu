@@ -40,20 +40,20 @@ public class ExecutorMemoryManagerSuite {
     Assert.assertEquals(3072, manager.getAllocatedPinnedMemorySize());
     Assert.assertEquals(3072, manager.getUsedAllocatedPinnedMemorySize());
 
-    manager.freePinnedMemory(ptr2);
+    Assert.assertEquals(1024, manager.freePinnedMemory(ptr2));
     Assert.assertEquals(3072, manager.getAllocatedPinnedMemorySize());
     Assert.assertEquals(2048, manager.getUsedAllocatedPinnedMemorySize());
 
-    ptr2 = manager.allocatePinnedMemory(1024);
-    Assert.assertEquals(ptr2AddressHash, ptr2.hashCode());
+    Pointer ptr3 = manager.allocatePinnedMemory(1024);
+    Assert.assertEquals(ptr2AddressHash, ptr3.hashCode());
     Assert.assertEquals(3072, manager.getAllocatedPinnedMemorySize());
     Assert.assertEquals(3072, manager.getUsedAllocatedPinnedMemorySize());
 
-    manager.freePinnedMemory(ptr2);
+    Assert.assertEquals(manager.freePinnedMemory(ptr3), 1024);
     Assert.assertEquals(3072, manager.getAllocatedPinnedMemorySize());
     Assert.assertEquals(2048, manager.getUsedAllocatedPinnedMemorySize());
 
-    manager.freePinnedMemory(ptr1);
+    Assert.assertEquals(2048, manager.freePinnedMemory(ptr1));
     Assert.assertEquals(3072, manager.getAllocatedPinnedMemorySize());
     Assert.assertEquals(0, manager.getUsedAllocatedPinnedMemorySize());
   }
@@ -64,10 +64,36 @@ public class ExecutorMemoryManagerSuite {
     Assert.assertEquals(4096, manager.maxPinnedMemory);
     Assert.assertEquals(0, manager.getAllocatedPinnedMemorySize());
     Assert.assertEquals(0, manager.getUsedAllocatedPinnedMemorySize());
+
     Pointer ptr = manager.allocatePinnedMemory(4096);
     Assert.assertEquals(4096, manager.getAllocatedPinnedMemorySize());
     Assert.assertEquals(4096, manager.getUsedAllocatedPinnedMemorySize());
+
     manager.freePinnedMemory(ptr);
+    Assert.assertEquals(4096, manager.getAllocatedPinnedMemorySize());
+    Assert.assertEquals(0, manager.getUsedAllocatedPinnedMemorySize());
+  }
+
+  @Test
+  public void gcToAllocateMemoryWorks() {
+    final ExecutorMemoryManager manager = new ExecutorMemoryManager(MemoryAllocator.HEAP, 4096);
+    Assert.assertEquals(4096, manager.maxPinnedMemory);
+    Assert.assertEquals(0, manager.getAllocatedPinnedMemorySize());
+    Assert.assertEquals(0, manager.getUsedAllocatedPinnedMemorySize());
+
+    Pointer ptr1 = manager.allocatePinnedMemory(1024);
+    Assert.assertEquals(1024, manager.getAllocatedPinnedMemorySize());
+    Assert.assertEquals(1024, manager.getUsedAllocatedPinnedMemorySize());
+
+    manager.freePinnedMemory(ptr1);
+    Assert.assertEquals(1024, manager.getAllocatedPinnedMemorySize());
+    Assert.assertEquals(0, manager.getUsedAllocatedPinnedMemorySize());
+
+    Pointer ptr2 = manager.allocatePinnedMemory(4096);
+    Assert.assertEquals(4096, manager.getAllocatedPinnedMemorySize());
+    Assert.assertEquals(4096, manager.getUsedAllocatedPinnedMemorySize());
+
+    manager.freePinnedMemory(ptr2);
     Assert.assertEquals(4096, manager.getAllocatedPinnedMemorySize());
     Assert.assertEquals(0, manager.getUsedAllocatedPinnedMemorySize());
   }
@@ -87,9 +113,11 @@ public class ExecutorMemoryManagerSuite {
     Assert.assertEquals(4096, manager.maxPinnedMemory);
     Assert.assertEquals(0, manager.getAllocatedPinnedMemorySize());
     Assert.assertEquals(0, manager.getUsedAllocatedPinnedMemorySize());
+
     Pointer ptr = manager.allocatePinnedMemory(3072);
     Assert.assertEquals(3072, manager.getAllocatedPinnedMemorySize());
     Assert.assertEquals(3072, manager.getUsedAllocatedPinnedMemorySize());
+
     try {
       manager.allocatePinnedMemory(2048);
     } catch (Exception ex) {
@@ -97,6 +125,27 @@ public class ExecutorMemoryManagerSuite {
       manager.freePinnedMemory(ptr);
       throw ex;
     }
+  }
+
+  @Test
+  public void registersAllocatedSizesCorrectly() {
+    final ExecutorMemoryManager manager = new ExecutorMemoryManager(MemoryAllocator.HEAP, 4096);
+    Pointer ptr1 = manager.allocatePinnedMemory(1);
+    Pointer ptr2 = manager.allocatePinnedMemory(1);
+    Pointer ptr3 = manager.allocatePinnedMemory(2);
+    Pointer ptr4 = manager.allocatePinnedMemory(1);
+    Assert.assertEquals(1, manager.freePinnedMemory(ptr2));
+    Pointer ptr5 = manager.allocatePinnedMemory(4);
+    Assert.assertEquals(4, manager.freePinnedMemory(ptr5));
+    Pointer ptr6 = manager.allocatePinnedMemory(8);
+    Assert.assertEquals(1, manager.freePinnedMemory(ptr4));
+    Assert.assertEquals(2, manager.freePinnedMemory(ptr3));
+    Pointer ptr7 = manager.allocatePinnedMemory(2);
+    Pointer ptr8 = manager.allocatePinnedMemory(8);
+    Assert.assertEquals(1, manager.freePinnedMemory(ptr1));
+    Assert.assertEquals(8, manager.freePinnedMemory(ptr6));
+    Assert.assertEquals(8, manager.freePinnedMemory(ptr8));
+    Assert.assertEquals(2, manager.freePinnedMemory(ptr7));
   }
 
 }
