@@ -126,7 +126,8 @@ public class HeapMemoryAllocator implements MemoryAllocator {
         return ptr;
       }
 
-      // Collecting and deallocating some pinned memory, so that we have space for the new one.
+      // Garbage collecting and deallocating some pinned memory, so that we have space for the new
+      // one.
       // TODO might be better to start from LRU size, currently freeing in arbitrary order
       if (maxPinnedMemory >= 0 && allocatedPinnedMemory + size > maxPinnedMemory) {
         Iterator<Map.Entry<Long, LinkedList<Pointer>>> it =
@@ -164,7 +165,7 @@ public class HeapMemoryAllocator implements MemoryAllocator {
       try {
         JCuda.cudaMallocHost(ptr, size);
       } catch (CudaException ex) {
-        throw new OutOfMemoryError("Could not free pinned memory: " + ex.getMessage());
+        throw new OutOfMemoryError("Could not alloc pinned memory: " + ex.getMessage());
       }
       pinnedMemorySizes.put(ptr, size);
       allocatedPinnedMemory += size;
@@ -174,8 +175,9 @@ public class HeapMemoryAllocator implements MemoryAllocator {
 
   /**
    * Frees off-heap pinned memory pointer. In reality, it just returns it to the pool.
+   * Returns how much memory was freed.
    */
-  public void freePinnedMemory(Pointer ptr) {
+  public long freePinnedMemory(Pointer ptr) {
     synchronized (this) {
       final long size = pinnedMemorySizes.get(ptr);
       LinkedList<Pointer> pool = pinnedMemoryBySize.get(size);
@@ -184,6 +186,7 @@ public class HeapMemoryAllocator implements MemoryAllocator {
         pinnedMemoryBySize.put(size, pool);
       }
       pool.add(ptr);
+      return size;
     }
   }
 }
