@@ -27,6 +27,8 @@ import java.util.concurrent.atomic.{AtomicReference, AtomicBoolean, AtomicIntege
 import java.util.UUID.randomUUID
 
 import scala.collection.JavaConverters._
+import jcuda.driver.JCudaDriver
+
 import scala.collection.{Map, Set}
 import scala.collection.generic.Growable
 import scala.collection.mutable.HashMap
@@ -77,6 +79,8 @@ import org.apache.spark.util._
  *   this config overrides the default configs as well as system properties.
  */
 class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationClient {
+
+  JCudaDriver.setExceptionsEnabled(true)
 
   // The call site where this SparkContext was constructed.
   private val creationSite: CallSite = Utils.getCallSite()
