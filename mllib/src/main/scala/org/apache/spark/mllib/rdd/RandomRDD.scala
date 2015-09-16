@@ -17,7 +17,7 @@
 
 package org.apache.spark.mllib.rdd
 
-import org.apache.spark.{Partition, SparkContext, TaskContext, PartitionData, IteratedPartitionData}
+import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.mllib.linalg.{DenseVector, Vector}
 import org.apache.spark.mllib.random.RandomDataGenerator
 import org.apache.spark.rdd.RDD
@@ -46,9 +46,9 @@ private[mllib] class RandomRDD[T: ClassTag](sc: SparkContext,
   require(math.ceil(size.toDouble / numPartitions) <= Int.MaxValue,
     "Partition size cannot exceed Int.MaxValue")
 
-  override def compute(splitIn: Partition, context: TaskContext): PartitionData[T] = {
+  override def compute(splitIn: Partition, context: TaskContext): Iterator[T] = {
     val split = splitIn.asInstanceOf[RandomRDDPartition[T]]
-    IteratedPartitionData(RandomRDD.getPointIterator[T](split))
+    RandomRDD.getPointIterator[T](split)
   }
 
   override def getPartitions: Array[Partition] = {
@@ -69,9 +69,9 @@ private[mllib] class RandomVectorRDD(sc: SparkContext,
   require(math.ceil(size.toDouble / numPartitions) <= Int.MaxValue,
     "Partition size cannot exceed Int.MaxValue")
 
-  override def compute(splitIn: Partition, context: TaskContext): PartitionData[Vector] = {
+  override def compute(splitIn: Partition, context: TaskContext): Iterator[Vector] = {
     val split = splitIn.asInstanceOf[RandomRDDPartition[Double]]
-    IteratedPartitionData(RandomRDD.getVectorIterator(split, vectorSize))
+    RandomRDD.getVectorIterator(split, vectorSize)
   }
 
   override protected def getPartitions: Array[Partition] = {

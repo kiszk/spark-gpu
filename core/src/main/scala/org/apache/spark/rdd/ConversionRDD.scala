@@ -34,7 +34,7 @@ private[spark] class ConversionRDD[T: ClassTag](
   override def getPartitions: Array[Partition] =
     firstParent[T].partitions
 
-  override def compute(split: Partition, context: TaskContext): PartitionData[T] = {
+  override def computePartition(split: Partition, context: TaskContext): PartitionData[T] = {
     val data = firstParent[T].partitionData(split, context)
     (data, targetFormat) match {
       // Cases where the format is already good

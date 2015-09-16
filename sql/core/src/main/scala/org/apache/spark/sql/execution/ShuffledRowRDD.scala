@@ -153,20 +153,17 @@ class ShuffledRowRDD(
     tracker.getPreferredLocationsForShuffle(dep, partition.index)
   }
 
-<<<<<<< HEAD
   override def compute(split: Partition, context: TaskContext): PartitionData[InternalRow] = {
     val shuffledRowPartition = split.asInstanceOf[ShuffledRowRDDPartition]
     // The range of pre-shuffle partitions that we are fetching at here is
     // [startPreShufflePartitionIndex, endPreShufflePartitionIndex - 1].
-    val reader = PartionData(
+    val reader =
       SparkEnv.get.shuffleManager.getReader(
         dependency.shuffleHandle,
         shuffledRowPartition.startPreShufflePartitionIndex,
         shuffledRowPartition.endPreShufflePartitionIndex,
-        context))
-        .read()
-        .asInstanceOf[Iterator[Product2[Int, InternalRow]]]
-        .map(_._2))
+        context)
+    PartitionData(reader.read().asInstanceOf[Iterator[Product2[Int, InternalRow]]].map(_._2))
   }
 
   override def clearDependencies() {

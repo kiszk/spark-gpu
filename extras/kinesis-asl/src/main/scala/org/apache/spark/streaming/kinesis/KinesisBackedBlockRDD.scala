@@ -93,7 +93,7 @@ class KinesisBackedBlockRDD[T: ClassTag](
     }
   }
 
-  override def compute(split: Partition, context: TaskContext):
+  override def computePartition(split: Partition, context: TaskContext):
       PartitionData[Array[Byte]] = {
     val blockManager = SparkEnv.get.blockManager
     val partition = split.asInstanceOf[KinesisBackedBlockRDDPartition]

@@ -21,7 +21,6 @@ import scala.collection.mutable.ArrayBuffer
 import scala.reflect.{classTag, ClassTag}
 
 import org.apache.spark.{Logging, Partition, SparkContext, SparkException, TaskContext}
-import org.apache.spark.{PartitionData, IteratedPartitionData}
 import org.apache.spark.partial.{PartialResult, BoundedDouble}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.util.NextIterator
@@ -125,15 +124,15 @@ class KafkaRDD[
     s"for topic ${part.topic} partition ${part.partition} start ${part.fromOffset}." +
     " This should not happen, and indicates a message may have been skipped"
 
-  override def compute(thePart: Partition, context: TaskContext): PartitionData[R] = {
+  override def compute(thePart: Partition, context: TaskContext): Iterator[R] = {
     val part = thePart.asInstanceOf[KafkaRDDPartition]
     assert(part.fromOffset <= part.untilOffset, errBeginAfterEnd(part))
     if (part.fromOffset == part.untilOffset) {
       log.info(s"Beginning offset ${part.fromOffset} is the same as ending offset " +
         s"skipping ${part.topic} ${part.partition}")
-      IteratedPartitionData(Iterator.empty)
+      Iterator.empty
     } else {
-      IteratedPartitionData(new KafkaRDDIterator(part, context))
+      new KafkaRDDIterator(part, context)
     }
   }
 

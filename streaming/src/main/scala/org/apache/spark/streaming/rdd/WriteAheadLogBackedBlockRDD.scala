@@ -110,7 +110,7 @@ class WriteAheadLogBackedBlockRDD[T: ClassTag](
    * If the block does not exist, then the data is read from the corresponding record
    * in write ahead log files.
    */
-  override def compute(split: Partition, context: TaskContext): PartitionData[T] = {
+  override def computePartition(split: Partition, context: TaskContext): PartitionData[T] = {
     assertValid()
     val hadoopConf = broadcastedHadoopConf.value
     val blockManager = SparkEnv.get.blockManager
