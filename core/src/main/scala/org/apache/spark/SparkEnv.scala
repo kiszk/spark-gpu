@@ -20,6 +20,8 @@ package org.apache.spark
 import java.io.File
 import java.net.Socket
 
+import jcuda.driver.JCudaDriver
+
 import akka.actor.ActorSystem
 
 import scala.collection.mutable
@@ -391,6 +393,7 @@ object SparkEnv extends Logging {
     outputCommitCoordinator.coordinatorRef = Some(outputCommitCoordinatorRef)
 
     val executorMemoryManager: ExecutorMemoryManager = {
+      JCudaDriver.setExceptionsEnabled(true)
       val allocator = if (conf.getBoolean("spark.unsafe.offHeap", false)) {
         MemoryAllocator.UNSAFE
       } else {

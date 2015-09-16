@@ -19,6 +19,8 @@ package org.apache.spark
 
 import scala.reflect.ClassTag
 
+import java.io.ByteArrayOutputStream
+
 class ColumnPartitionDataSuite extends SparkFunSuite with SharedSparkContext {
 
   def checkSerializationAndDeserialization[T: ClassTag](
@@ -50,7 +52,7 @@ class ColumnPartitionDataSuite extends SparkFunSuite with SharedSparkContext {
 
   test("Serializes many Ints", GPUTest) {
     val schema = ColumnPartitionSchema.schemaFor[Int]
-    val input = 1 to 42
+    val input = 1 to 1024
     val data = checkSerializationAndDeserialization(schema, input)
     data.free()
   }

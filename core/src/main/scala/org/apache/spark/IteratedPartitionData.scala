@@ -27,7 +27,7 @@ class IteratedPartitionData[T](
   override def wrapIterator(f: (Iterator[T] => Iterator[T])): PartitionData[T] =
     IteratedPartitionData(f(iter))
 
-  def iterator: Iterator[T] = iter
+  override def iterator: Iterator[T] = iter
 
 }
 

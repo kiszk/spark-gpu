@@ -42,7 +42,7 @@ import org.apache.spark.util._
 
 
 class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterEach
-  with PrivateMethodTester with ResetSystemProperties {
+  with PrivateMethodTester with ResetSystemProperties with LocalSparkContext {
 
   private val conf = new SparkConf(false)
   var store: BlockManager = null
@@ -94,6 +94,9 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
   }
 
   override def afterEach(): Unit = {
+    // stopping SparkContext in LocalSparkContext
+    super.afterEach()
+
     if (store != null) {
       store.stop()
       store = null
@@ -1267,4 +1270,55 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     assert(result.data === Right(bytes))
     assert(result.droppedBlocks === Nil)
   }
+
+  test("serialize iterated primitives - IteratedPartitionData[Int]") {
+    store = makeBlockManager(10000)
+    val blockId =  BlockId("rdd_42_42")
+    val inputData = IteratedPartitionData((1 to 1024).iterator)
+    val serBuf = store.dataSerialize(blockId, inputData, serializer)
+    val outputData = store.dataDeserialize(blockId, serBuf, serializer)
+    val it = outputData.asInstanceOf[IteratedPartitionData[Int]]
+    assert(it.iterator.toIndexedSeq.sameElements(1 to 1024))
+  }
+
+  test("serialize primitives - ColumnPartitionData[Int]") {
+    sc = new SparkContext("local", "test", conf)
+    assert(SparkEnv.get != null)
+    assert(SparkEnv.get.executorMemoryManager != null)
+    store = makeBlockManager(10000)
+    val blockId =  BlockId("rdd_42_42")
+    val inputData = ColumnPartitionDataBuilder.build(1 to 1024)
+    val serBuf = store.dataSerialize(blockId, inputData, serializer)
+    assert(serBuf.capacity > 1024 * 4)
+    val outputData = store.dataDeserialize(blockId, serBuf, serializer)
+    val col = outputData.asInstanceOf[ColumnPartitionData[Int]]
+    assert(col.buffers(0).capacity == 4 * 1024)
+    val arr = new Array[Byte](4096)
+    assert(col.size == 1024)
+    assert(col.schema.isPrimitive)
+    assert(col.schema.columns(0).columnType == INT_COLUMN)
+    assert(col.iterator.toIndexedSeq.sameElements(1 to 1024))
+    resetSparkContext()
+  }
+
+  test("serialize case classes - ColumnPartitionData[Rectangle]") {
+    sc = new SparkContext("local", "test", conf)
+    store = makeBlockManager(10000)
+    val blockId =  BlockId("rdd_42_42")
+    val rects = (1 to 256).map(x => Rectangle(Point(x, x * 2), Point(x + 42, 42)))
+    val inputData = ColumnPartitionDataBuilder.build(rects)
+    val serBuf = store.dataSerialize(blockId, inputData, serializer)
+    assert(serBuf.capacity > 256 * 4 * 4)
+    val outputData = store.dataDeserialize(blockId, serBuf, serializer)
+    val col = outputData.asInstanceOf[ColumnPartitionData[Rectangle]]
+    assert(col.buffers.forall(_.capacity == 4 * 256))
+    val arr = new Array[Byte](4096)
+    assert(col.size == 256)
+    assert(!col.schema.isPrimitive)
+    assert(col.schema.columns.size == 4)
+    assert(col.schema.columns.forall(_.columnType == INT_COLUMN))
+    assert(col.iterator.toIndexedSeq.sameElements(rects))
+    resetSparkContext()
+  }
+
 }
