@@ -18,6 +18,8 @@ MVN_CMD="./build/mvn --force"
 
 DBG_PORT=5004
 
+export ZINC_PORT=3032
+
 function killZinc() {
     kill `ps aux | grep zinc | grep java | awk '{print $2}'` &&
 	echo KILLED ZINC ||
