@@ -41,7 +41,6 @@ private[spark] abstract class CheckpointRDD[T: ClassTag](@transient sc: SparkCon
   // base [[org.apache.spark.rdd.RDD]] class if we do not override the following methods.
   // scalastyle:off
   protected override def getPartitions: Array[Partition] = ???
-  override def compute(p: Partition, tc: TaskContext): PartitionData[T] = ???
   // scalastyle:on
 
 }

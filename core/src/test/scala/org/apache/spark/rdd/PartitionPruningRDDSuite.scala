@@ -31,7 +31,7 @@ class PartitionPruningRDDSuite extends SparkFunSuite with SharedSparkContext {
           new TestPartition(2, 1))
       }
 
-      def compute(split: Partition, context: TaskContext) = {
+      override def computePartition(split: Partition, context: TaskContext) = {
         IteratedPartitionData(Iterator())
       }
     }
@@ -53,7 +53,7 @@ class PartitionPruningRDDSuite extends SparkFunSuite with SharedSparkContext {
           new TestPartition(2, 6))
       }
 
-      def compute(split: Partition, context: TaskContext) = {
+      override def computePartition(split: Partition, context: TaskContext) = {
         IteratedPartitionData(List(split.asInstanceOf[TestPartition].testValue).iterator)
       }
     }

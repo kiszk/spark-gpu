@@ -22,7 +22,6 @@ import java.util.Properties
 
 import org.apache.commons.lang3.StringUtils
 
-import org.apache.spark.{PartitionData, IteratedPartitionData}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.SpecificMutableRow
@@ -349,8 +348,8 @@ private[sql] class JDBCRDD(
   /**
    * Runs the SQL query against the JDBC driver.
    */
-  override def compute(thePart: Partition, context: TaskContext): PartitionData[InternalRow] =
-    IteratedPartitionData(new Iterator[InternalRow] {
+  override def compute(thePart: Partition, context: TaskContext): Iterator[InternalRow] =
+    new Iterator[InternalRow] {
     var closed = false
     var finished = false
     var gotNext = false
@@ -487,5 +486,5 @@ private[sql] class JDBCRDD(
       gotNext = false
       nextValue
     }
-  })
+  }
 }

@@ -91,12 +91,10 @@ private[spark] class CoalescedRDD[T: ClassTag](
     }
   }
 
-  override def compute(partition: Partition, context: TaskContext): PartitionData[T] = {
-    // TODO version for ColumnPartitionData
-    IteratedPartitionData(
-      partition.asInstanceOf[CoalescedRDDPartition].parents.iterator.flatMap { parentPartition =>
-        firstParent[T].iterator(parentPartition, context)
-      })
+  override def compute(partition: Partition, context: TaskContext): Iterator[T] = {
+    partition.asInstanceOf[CoalescedRDDPartition].parents.iterator.flatMap { parentPartition =>
+      firstParent[T].iterator(parentPartition, context)
+    }
   }
 
   override def getDependencies: Seq[Dependency[_]] = {

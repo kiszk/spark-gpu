@@ -84,7 +84,7 @@ private[spark] class ReliableCheckpointRDD[T: ClassTag](
   /**
    * Read the content of the checkpoint file associated with the given partition.
    */
-  override def compute(split: Partition, context: TaskContext): PartitionData[T] = {
+  override def compute(split: Partition, context: TaskContext): Iterator[T] = {
     val file = new Path(checkpointPath, ReliableCheckpointRDD.checkpointFileName(split.index))
     ReliableCheckpointRDD.readCheckpointFile(file, broadcastedConf, context)
   }
@@ -155,7 +155,7 @@ private[spark] object ReliableCheckpointRDD extends Logging {
   def readCheckpointFile[T](
       path: Path,
       broadcastedConf: Broadcast[SerializableConfiguration],
-      context: TaskContext): PartitionData[T] = {
+      context: TaskContext): Iterator[T] = {
     val env = SparkEnv.get
     val fs = path.getFileSystem(broadcastedConf.value.value)
     val bufferSize = env.conf.getInt("spark.buffer.size", 65536)
@@ -166,8 +166,7 @@ private[spark] object ReliableCheckpointRDD extends Logging {
     // Register an on-task-completion callback to close the input stream.
     context.addTaskCompletionListener(context => deserializeStream.close())
 
-    // TODO version for ColumnPartitionData
-    IteratedPartitionData(deserializeStream.asIterator.asInstanceOf[Iterator[T]])
+    deserializeStream.asIterator.asInstanceOf[Iterator[T]]
   }
 
 }

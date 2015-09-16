@@ -21,7 +21,7 @@ import java.io.{IOException, ObjectOutputStream}
 
 import scala.reflect.ClassTag
 
-import org.apache.spark.{OneToOneDependency, Partition, SparkContext, TaskContext, PartitionData, IteratedPartitionData}
+import org.apache.spark.{OneToOneDependency, Partition, SparkContext, TaskContext}
 import org.apache.spark.util.Utils
 
 /**
@@ -94,13 +94,11 @@ class PartitionerAwareUnionRDD[T: ClassTag](
     location.toSeq
   }
 
-  override def compute(s: Partition, context: TaskContext): IteratedPartitionData[T] = {
+  override def compute(s: Partition, context: TaskContext): Iterator[T] = {
     val parentPartitions = s.asInstanceOf[PartitionerAwareUnionRDDPartition].parents
-    // TODO version for ColumnPartitionData
-    IteratedPartitionData(
-      rdds.zip(parentPartitions).iterator.flatMap {
-        case (rdd, p) => rdd.iterator(p, context)
-      })
+    rdds.zip(parentPartitions).iterator.flatMap {
+      case (rdd, p) => rdd.iterator(p, context)
+    }
   }
 
   override def clearDependencies() {

@@ -41,7 +41,7 @@ class BlockRDD[T: ClassTag](@transient sc: SparkContext, @transient val blockIds
     }).toArray
   }
 
-  override def compute(split: Partition, context: TaskContext): PartitionData[T] = {
+  override def computePartition(split: Partition, context: TaskContext): PartitionData[T] = {
     assertValid()
     val blockManager = SparkEnv.get.blockManager
     val blockId = split.asInstanceOf[BlockRDDPartition].blockId

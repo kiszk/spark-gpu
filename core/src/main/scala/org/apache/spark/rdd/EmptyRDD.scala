@@ -28,7 +28,7 @@ private[spark] class EmptyRDD[T: ClassTag](sc: SparkContext) extends RDD[T](sc, 
 
   override def getPartitions: Array[Partition] = Array.empty
 
-  override def compute(split: Partition, context: TaskContext): PartitionData[T] = {
+  override def computePartition(split: Partition, context: TaskContext): PartitionData[T] = {
     throw new UnsupportedOperationException("empty RDD")
   }
 }

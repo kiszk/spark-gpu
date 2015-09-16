@@ -124,8 +124,7 @@ class CoGroupedRDD[K](@transient var rdds: Seq[RDD[_ <: Product2[K, _]]], part: 
 
   override val partitioner: Some[Partitioner] = Some(part)
 
-  override def compute(s: Partition, context: TaskContext):
-      PartitionData[(K, Array[Iterable[_]])] = {
+  override def compute(s: Partition, context: TaskContext): Iterator[(K, Array[Iterable[_]])] = {
     val sparkConf = SparkEnv.get.conf
     val externalSorting = sparkConf.getBoolean("spark.shuffle.spill", true)
     val split = s.asInstanceOf[CoGroupPartition]
@@ -148,7 +147,7 @@ class CoGroupedRDD[K](@transient var rdds: Seq[RDD[_ <: Product2[K, _]]], part: 
         rddIterators += ((it, depNum))
     }
 
-    val iter = if (!externalSorting) {
+    if (!externalSorting) {
       val map = new AppendOnlyMap[K, CoGroupCombiner]
       val update: (Boolean, CoGroupCombiner) => CoGroupCombiner = (hadVal, oldVal) => {
         if (hadVal) oldVal else Array.fill(numRdds)(new CoGroup)
@@ -176,8 +175,6 @@ class CoGroupedRDD[K](@transient var rdds: Seq[RDD[_ <: Product2[K, _]]], part: 
       new InterruptibleIterator(context,
         map.iterator.asInstanceOf[Iterator[(K, Array[Iterable[_]])]])
     }
-    // TODO version for ColumnPartitionData
-    IteratedPartitionData(iter)
   }
 
   private def createExternalMap(numRdds: Int)

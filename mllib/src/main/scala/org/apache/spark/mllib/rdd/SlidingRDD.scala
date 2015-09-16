@@ -20,7 +20,7 @@ package org.apache.spark.mllib.rdd
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
-import org.apache.spark.{TaskContext, Partition, PartitionData, IteratedPartitionData}
+import org.apache.spark.{TaskContext, Partition}
 import org.apache.spark.rdd.RDD
 
 private[mllib]
@@ -49,13 +49,12 @@ class SlidingRDD[T: ClassTag](@transient val parent: RDD[T], val windowSize: Int
 
   require(windowSize > 1, s"Window size must be greater than 1, but got $windowSize.")
 
-  override def compute(split: Partition, context: TaskContext): PartitionData[Array[T]] = {
+  override def compute(split: Partition, context: TaskContext): Iterator[Array[T]] = {
     val part = split.asInstanceOf[SlidingRDDPartition[T]]
-    IteratedPartitionData(
-      (firstParent[T].iterator(part.prev, context) ++ part.tail)
-        .sliding(windowSize)
-        .withPartial(false)
-        .map(_.toArray))
+    (firstParent[T].iterator(part.prev, context) ++ part.tail)
+      .sliding(windowSize)
+      .withPartial(false)
+      .map(_.toArray)
   }
 
   override def getPreferredLocations(split: Partition): Seq[String] =
