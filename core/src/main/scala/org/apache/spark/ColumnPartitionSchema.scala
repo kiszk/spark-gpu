@@ -68,7 +68,7 @@ object ColumnPartitionSchema {
       // Generic object
       case t if !onlyLoadableClassesSupported ||
           Utils.classIsLoadable(t.typeSymbol.asClass.fullName) => {
-        val valVarMembers = t.erasure.members.view
+        val valVarMembers = t.members.view
           .filter(p => !p.isMethod && p.isTerm).map(_.asTerm)
           .filter(p => p.isVar || p.isVal)
 
