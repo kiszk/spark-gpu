@@ -21,10 +21,7 @@ DBG_PORT=5004
 export ZINC_PORT=3032
 
 function killZinc() {
-    build/zinc-*/bin/zinc -shutdown || echo DID NOT SHUTDOWN ZINC
-    sleep 3
-    if ps aux | grep zinc | grep java | grep $ZINC_PORT; then
-	echo ZINC IS STILL RUNNING
-	return 1
-    fi
+    kill `ps aux | grep zinc | grep java | grep $ZINC_PORT | awk '{print $2}'` &&
+	echo KILLED ZINC ||
+	echo ZINC WAS NOT RUNNING
 }
