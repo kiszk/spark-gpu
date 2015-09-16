@@ -1888,6 +1888,7 @@
             <scalaVersion>${scala.version}</scalaVersion>
             <recompileMode>incremental</recompileMode>
             <useZincServer>true</useZincServer>
+            <zincPort>${env.ZINC_PORT}</zincPort>
             <args>
               <arg>-unchecked</arg>
               <arg>-deprecation</arg>
@@ -2399,6 +2400,15 @@
           </plugin>
         </plugins>
       </build>
+    </profile>
+
+    <profile>
+      <activation>
+        <activeByDefault>true</activeByDefault>
+        <property>
+          <name>!env.ZINC_PORT</name>
+        </property>
+      </activation>
     </profile>
 
     <!-- A series of build profiles where customizations for particular Hadoop releases can be made -->
