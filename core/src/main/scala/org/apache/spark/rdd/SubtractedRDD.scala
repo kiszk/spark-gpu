@@ -26,7 +26,6 @@ import scala.reflect.ClassTag
 import org.apache.spark.Dependency
 import org.apache.spark.OneToOneDependency
 import org.apache.spark.Partition
-import org.apache.spark.{PartitionData, IteratedPartitionData}
 import org.apache.spark.Partitioner
 import org.apache.spark.ShuffleDependency
 import org.apache.spark.SparkEnv

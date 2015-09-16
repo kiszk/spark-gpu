@@ -22,7 +22,7 @@ import java.io.{IOException, ObjectOutputStream}
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
-import org.apache.spark.{Dependency, Partition, RangeDependency, SparkContext, TaskContext, PartitionData, IteratedPartitionData}
+import org.apache.spark.{Dependency, Partition, RangeDependency, SparkContext, TaskContext}
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.util.Utils
 
@@ -82,10 +82,9 @@ class UnionRDD[T: ClassTag](
     deps
   }
 
-  override def compute(s: Partition, context: TaskContext): PartitionData[T] = {
+  override def compute(s: Partition, context: TaskContext): Iterator[T] = {
     val part = s.asInstanceOf[UnionPartition[T]]
-    // TODO just merge data in case of ColumnPartitionData
-    IteratedPartitionData(parent[T](part.parentRddIndex).iterator(part.parentPartition, context))
+    parent[T](part.parentRddIndex).iterator(part.parentPartition, context)
   }
 
   override def getPreferredLocations(s: Partition): Seq[String] =

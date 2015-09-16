@@ -121,9 +121,15 @@ private[spark] class SqlNewHadoopRDD[V: ClassTag](
   }
 
   override def compute(
+<<<<<<< HEAD:sql/core/src/main/scala/org/apache/spark/sql/execution/datasources/SqlNewHadoopRDD.scala
     theSplit: SparkPartition,
     context: TaskContext): Iterator[V] = {
     val iter = new Iterator[V] {
+=======
+      theSplit: SparkPartition,
+      context: TaskContext): InterruptibleIterator[(K, V)] = {
+    val iter = new Iterator[(K, V)] {
+>>>>>>> 7401505... Made RDD interface backwards-compatibile. Reverted many RDDs.:core/src/main/scala/org/apache/spark/rdd/SqlNewHadoopRDD.scala
       val split = theSplit.asInstanceOf[SqlNewHadoopPartition]
       logInfo("Input split: " + split.serializableHadoopSplit)
       val conf = getConf(isDriverSide = false)
@@ -290,11 +296,10 @@ private[spark] class SqlNewHadoopRDD[V: ClassTag](
 
     override def getPartitions: Array[SparkPartition] = firstParent[T].partitions
 
-    override def compute(split: SparkPartition, context: TaskContext): PartitionData[U] = {
+    override def compute(split: SparkPartition, context: TaskContext): Iterator[U] = {
       val partition = split.asInstanceOf[SqlNewHadoopPartition]
       val inputSplit = partition.serializableHadoopSplit.value
-      // TODO version for ColumnPartitionData
-      IteratedPartitionData(f(inputSplit, firstParent[T].iterator(split, context)))
+      f(inputSplit, firstParent[T].iterator(split, context))
     }
   }
 }

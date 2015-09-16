@@ -118,7 +118,7 @@ class NewHadoopRDD[K, V](
     result
   }
 
-  override def compute(theSplit: Partition, context: TaskContext): PartitionData[(K, V)] = {
+  override def compute(theSplit: Partition, context: TaskContext): InterruptibleIterator[(K, V)] = {
     val iter = new Iterator[(K, V)] {
       val split = theSplit.asInstanceOf[NewHadoopPartition]
       logInfo("Input split: " + split.serializableHadoopSplit)
@@ -213,7 +213,7 @@ class NewHadoopRDD[K, V](
         }
       }
     }
-    IteratedPartitionData(new InterruptibleIterator(context, iter))
+    new InterruptibleIterator(context, iter)
   }
 
   /** Maps over a partition, providing the InputSplit that was used as the base of the partition. */
@@ -273,11 +273,10 @@ private[spark] object NewHadoopRDD {
 
     override def getPartitions: Array[Partition] = firstParent[T].partitions
 
-    override def compute(split: Partition, context: TaskContext): PartitionData[U] = {
+    override def compute(split: Partition, context: TaskContext): Iterator[U] = {
       val partition = split.asInstanceOf[NewHadoopPartition]
       val inputSplit = partition.serializableHadoopSplit.value
-      // TODO version for ColumnPartitionData
-      IteratedPartitionData(f(inputSplit, firstParent[T].iterator(split, context)))
+      f(inputSplit, firstParent[T].iterator(split, context))
     }
   }
 }

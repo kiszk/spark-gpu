@@ -45,17 +45,17 @@ class CacheManagerSuite extends SparkFunSuite with LocalSparkContext with Before
     rdd = new RDD[Int](sc, Nil) {
       override def getPartitions: Array[Partition] = Array(split)
       override val getDependencies = List[Dependency[_]]()
-      override def compute(split: Partition, context: TaskContext): PartitionData[Int] =
+      override def computePartition(split: Partition, context: TaskContext): PartitionData[Int] =
         IteratedPartitionData(Array(1, 2, 3, 4).iterator)
     }
     rdd2 = new RDD[Int](sc, List(new OneToOneDependency(rdd))) {
       override def getPartitions: Array[Partition] = firstParent[Int].partitions
-      override def compute(split: Partition, context: TaskContext): PartitionData[Int] =
+      override def computePartition(split: Partition, context: TaskContext): PartitionData[Int] =
         IteratedPartitionData(firstParent[Int].iterator(split, context))
     }.cache()
     rdd3 = new RDD[Int](sc, List(new OneToOneDependency(rdd2))) {
       override def getPartitions: Array[Partition] = firstParent[Int].partitions
-      override def compute(split: Partition, context: TaskContext): PartitionData[Int] =
+      override def computePartition(split: Partition, context: TaskContext): PartitionData[Int] =
         IteratedPartitionData(firstParent[Int].iterator(split, context))
     }.cache()
   }

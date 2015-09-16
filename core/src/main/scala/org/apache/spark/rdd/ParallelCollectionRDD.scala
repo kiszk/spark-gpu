@@ -98,10 +98,8 @@ private[spark] class ParallelCollectionRDD[T: ClassTag](
     slices.indices.map(i => new ParallelCollectionPartition(id, i, slices(i))).toArray
   }
 
-  override def compute(s: Partition, context: TaskContext): IteratedPartitionData[T] = {
-    // TODO version for ColumnPartitionData
-    IteratedPartitionData(
-      new InterruptibleIterator(context, s.asInstanceOf[ParallelCollectionPartition[T]].iterator))
+  override def compute(s: Partition, context: TaskContext): Iterator[T] = {
+    new InterruptibleIterator(context, s.asInstanceOf[ParallelCollectionPartition[T]].iterator)
   }
 
   override def getPreferredLocations(s: Partition): Seq[String] = {

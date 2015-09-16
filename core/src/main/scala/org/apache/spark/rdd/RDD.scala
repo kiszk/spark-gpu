@@ -104,10 +104,23 @@ abstract class RDD[T: ClassTag](
 
   /**
    * :: DeveloperApi ::
-   * Implemented by subclasses to compute a given partition.
+   * Implemented by subclasses to compute a given partition in iterator form.
    */
   @DeveloperApi
-  def compute(split: Partition, context: TaskContext): PartitionData[T]
+  @deprecated("Use computePartition for new RDDs", "spark-1.5.0-GPU")
+  def compute(split: Partition, context: TaskContext): Iterator[T] = {
+    throw new SparkException("Neither computePartition nor compute were implemented in this RDD.")
+  }
+
+  /**
+   * :: DeveloperApi ::
+   * Implemented by subclasses to compute a given partition. Should be overwritten by all new RDDs.
+   * The default implementation falls back to compute().
+   */
+  @DeveloperApi
+  def computePartition(split: Partition, context: TaskContext): PartitionData[T] = {
+    IteratedPartitionData(compute(split, context))
+  }
 
   /**
    * Implemented by subclasses to return the set of partitions in this RDD. This method will only
@@ -304,12 +317,12 @@ abstract class RDD[T: ClassTag](
   /**
    * Compute an RDD partition or read it from a checkpoint if the RDD is checkpointing.
    */
-  private[spark] def computeOrReadCheckpoint(split: Partition, context: TaskContext): PartitionData[T] =
-  {
+  private[spark] def computeOrReadCheckpoint(split: Partition, context: TaskContext):
+      PartitionData[T] = {
     if (isCheckpointedAndMaterialized) {
-      firstParent[T].iterator(split, context)
+      firstParent[T].partitionData(split, context)
     } else {
-      compute(split, context)
+      computePartition(split, context)
     }
   }
 

@@ -56,7 +56,7 @@ private[spark] class LocalCheckpointRDD[T: ClassTag](
    * is expected to be fully cached and so all partitions should already be computed and
    * available in the block storage.
    */
-  override def compute(partition: Partition, context: TaskContext): PartitionData[T] = {
+  override def computePartition(partition: Partition, context: TaskContext): PartitionData[T] = {
     throw new SparkException(
       s"Checkpoint block ${RDDBlockId(rddId, partition.index)} not found! Either the executor " +
       s"that originally checkpointed this partition is no longer alive, or the original RDD is " +

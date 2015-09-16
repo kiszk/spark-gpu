@@ -19,7 +19,7 @@ package org.apache.spark.rdd
 
 import scala.reflect.ClassTag
 
-import org.apache.spark.{NarrowDependency, Partition, TaskContext, PartitionData, IteratedPartitionData}
+import org.apache.spark.{NarrowDependency, Partition, TaskContext}
 import org.apache.spark.annotation.DeveloperApi
 
 private[spark] class PartitionPruningRDDPartition(idx: Int, val parentSplit: Partition)
@@ -59,11 +59,9 @@ class PartitionPruningRDD[T: ClassTag](
     partitionFilterFunc: Int => Boolean)
   extends RDD[T](prev.context, List(new PruneDependency(prev, partitionFilterFunc))) {
 
-  override def compute(split: Partition, context: TaskContext): PartitionData[T] = {
-    // TODO version for ColumnPartitionData
-    IteratedPartitionData(
-      firstParent[T].iterator(
-        split.asInstanceOf[PartitionPruningRDDPartition].parentSplit, context))
+  override def compute(split: Partition, context: TaskContext): Iterator[T] = {
+    firstParent[T].iterator(
+      split.asInstanceOf[PartitionPruningRDDPartition].parentSplit, context)
   }
 
   override protected def getPartitions: Array[Partition] =
