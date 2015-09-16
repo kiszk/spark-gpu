@@ -19,5 +19,5 @@ else
     shift 1
 fi
 
-killZinc
 $MVN_CMD -T $MVN_COMPILE_PARALLEL_THREADS $MVN_ARGS $SKIP_MODULES -DskipTests $CLEAN_ARGS package $@ 2>&1 | tee ~/compile.txt
+killZinc
