@@ -10,7 +10,8 @@ org.apache.spark.IteratedPartitionDataSuite,\
 org.apache.spark.ColumnPartitionSchemaSuite,\
 org.apache.spark.ColumnPartitionDataSuite,\
 org.apache.spark.ColumnPartitionDataBuilderSuite,\
-org.apache.spark.storage.BlockManagerSuite
+org.apache.spark.storage.BlockManagerSuite,\
+org.apache.spark.CacheManagerSuite
 
 #org.apache.spark.DistributedSuite,\
 #org.apache.spark.rdd.AsyncRDDActionsSuite,\
@@ -33,7 +34,6 @@ org.apache.spark.storage.BlockManagerSuite
 #org.apache.spark.rdd.RDDSuite,\
 #org.apache.spark.scheduler.DAGSchedulerSuite,\
 #org.apache.spark.CheckpointSuite,\
-#org.apache.spark.CacheManagerSuite,\
 
 JAVA_TESTS=\
 org.apache.spark.unsafe.memory.ExecutorMemoryManagerSuite
@@ -54,5 +54,5 @@ if [ $COMPILE ]; then
     ./compile.sh -pl $MODULES $@
 fi
 
-killZinc
 $MVN_CMD $MVN_ARGS -DtagsToExclude=$EXCL_TAGS --fail-at-end test -DwildcardSuites=$SCALA_TESTS -Dtest=$JAVA_TESTS -pl $MODULES $DBG_ARGS $@ 2>&1 | tee ~/testlog-dev.txt
+killZinc
