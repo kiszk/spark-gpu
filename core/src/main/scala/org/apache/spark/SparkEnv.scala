@@ -20,6 +20,13 @@ package org.apache.spark
 import java.io.File
 import java.net.Socket
 
+<<<<<<< HEAD
+=======
+import jcuda.driver.JCudaDriver
+
+import akka.actor.ActorSystem
+
+>>>>>>> Implemented serialization of ColumnPartitionData and ColumnPartitionSchema. Added various tests. Added BlockManager tests that check serialization. Turned on JCuda exceptions when setting up SparkEnv.
 import scala.collection.mutable
 import scala.util.Properties
 

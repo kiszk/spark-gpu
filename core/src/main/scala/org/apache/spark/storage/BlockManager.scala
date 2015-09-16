@@ -27,6 +27,7 @@ import scala.util.Random
 import scala.util.control.NonFatal
 
 import sun.nio.ch.DirectBuffer
+import java.nio.channels.Channels
 
 import org.apache.spark._
 import org.apache.spark.executor.{DataReadMethod, ShuffleWriteMetrics}
@@ -1230,12 +1231,17 @@ private[spark] class BlockManager(
       values: PartitionData[_],
       serializer: Serializer = defaultSerializer): Unit = {
     val byteStream = new BufferedOutputStream(outputStream)
+    val wrappedStream = wrapForCompression(blockId, byteStream)
     val ser = serializer.newInstance()
     values match {
       case col: ColumnPartitionData[_] =>
-        throw new UnsupportedOperationException("TODO") // TODO
-      case IteratedPartitionData(iterator) =>
-        ser.serializeStream(wrapForCompression(blockId, byteStream)).writeAll(iterator).close()
+        // columns are already kind of serialized and on off-heap, so using custom serializer from
+        // ColumnPartitionData
+        ser.serializeStream(wrappedStream).writeObject(col).close()
+
+      case IteratedPartitionData(iter) =>
+        // using standard serialization for a sequence of Java objects
+        ser.serializeStream(wrappedStream).writeAll(iter).close()
     }
   }
 
@@ -1270,9 +1276,18 @@ private[spark] class BlockManager(
       inputStream: InputStream,
       serializer: Serializer = defaultSerializer): PartitionData[_] = {
     val stream = new BufferedInputStream(inputStream)
-    // TODO deserialize to iterator or columns, depending on meta data
-    IteratedPartitionData(
-      serializer.newInstance().deserializeStream(wrapForCompression(blockId, stream)).asIterator)
+    val wrappedStream = wrapForCompression(blockId, stream)
+    val ser = serializer.newInstance()
+    val objIter = ser.deserializeStream(wrappedStream).asIterator
+
+    if (objIter.hasNext) {
+      objIter.next match {
+        case col: ColumnPartitionData[_] => col
+        case obj => IteratedPartitionData(Iterator.single(obj) ++ objIter)
+      }
+    } else {
+      IteratedPartitionData(objIter)
+    }
   }
 
   def stop(): Unit = {

@@ -196,6 +196,10 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
         }
 
       case col: ColumnPartitionData[T] =>
+        /*
+         * Just put the values inside BlockManager. ColumnPartitionData's data is always unrolled,
+         * so the memory usage won't increase.
+         */
         updatedBlocks ++=
           blockManager.putColumns(key, col, level, tellMaster = true, effectiveStorageLevel)
         blockManager.get(key) match {
