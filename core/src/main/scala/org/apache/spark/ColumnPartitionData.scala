@@ -19,10 +19,12 @@ package org.apache.spark
 
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.io.{ObjectInputStream, ObjectOutputStream}
 
 import org.apache.spark.annotation.{DeveloperApi, Experimental}
 import org.apache.spark.unsafe.memory.MemoryBlock
 import org.apache.spark.util.IteratorFunctions._
+import org.apache.spark.util.Utils
 
 import jcuda.Pointer
 
@@ -35,23 +37,38 @@ import scala.language.existentials
 @DeveloperApi
 @Experimental
 class ColumnPartitionData[T](
-    val schema: ColumnPartitionSchema,
-    val size: Long
-  ) extends PartitionData[T] {
+    private var _schema: ColumnPartitionSchema,
+    private var _size: Long
+  ) extends PartitionData[T] with Serializable {
 
-  private val pointers: Array[Pointer] = schema.columns.map { col =>
-    SparkEnv.get.executorMemoryManager.allocatePinnedMemory(col.columnType.bytes * size)
-  }
+  def schema: ColumnPartitionSchema = _schema
+
+  def size: Long = _size
+
+  private var pointers: Array[Pointer] = null
 
   private var freed = false
 
   /**
-   * Columns kept as ByteBuffers. May be read directly.
+   * Columns kept as ByteBuffers. May be read directly. The inherent limitation of 2GB - 1B for
+   * the partition size is present in other places too (e.g. BlockManager's serialized data).
    */
-  val buffers: Array[ByteBuffer] = (pointers zip schema.columns).map { case (ptr, col) =>
-    // TODO have to use multiple buffers when buffer > 2GB
-    ptr.getByteBuffer(0, col.columnType.bytes * size).order(ByteOrder.LITTLE_ENDIAN)
+  lazy val buffers: Array[ByteBuffer] =
+    (pointers zip schema.columns).map { case (ptr, col) =>
+      val columnSize = col.columnType.bytes * size
+      assert(columnSize <= Int.MaxValue)
+      ptr.getByteBuffer(0, columnSize).order(ByteOrder.LITTLE_ENDIAN)
+    }
+
+  // Extracted to a function for use in deserialization
+  private def initialize {
+    pointers = schema.columns.map { col =>
+      SparkEnv.get.executorMemoryManager.allocatePinnedMemory(col.columnType.bytes * size)
+    }
+
+    freed = false
   }
+  initialize
 
   /**
    * Total amount of memory allocated in columns. Does not take into account Java objects aggregated
@@ -99,7 +116,7 @@ class ColumnPartitionData[T](
     val getters = schema.getters
     rewind
 
-    iter.takeLong(size).foreach { obj =>
+    iter.take(size).foreach { obj =>
       for (((col, getter), buf) <- ((schema.columns zip getters) zip buffers)) {
         // TODO what should we do if sub-object is null?
         // TODO bulk put/get might be faster
@@ -125,7 +142,7 @@ class ColumnPartitionData[T](
     if (schema.isPrimitive) {
       Iterator.continually {
         deserializeColumnValue(schema.columns(0).columnType, buffers(0)).asInstanceOf[T]
-      } takeLong size
+      } take size
     } else {
       // version of setters that creates objects that do not exist yet
       val setters: Array[(AnyRef, Any) => Unit] = {
@@ -159,7 +176,7 @@ class ColumnPartitionData[T](
         }
 
         obj.asInstanceOf[T]
-      } takeLong size
+      } take size
     }
   }
 
@@ -201,6 +218,41 @@ class ColumnPartitionData[T](
    * costly.
    */
   override def iterator: Iterator[T] = deserialize()
+
+  /**
+   * Special serialization, since we use off-heap memory.
+   */
+  private def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
+    out.writeObject(_schema)
+    out.writeLong(_size)
+    rewind
+    val bytes = new Array[Byte](buffers.map(_.capacity).max)
+    for (buf <- buffers) {
+      val sizeToWrite = buf.capacity
+      buf.get(bytes, 0, sizeToWrite)
+      out.write(bytes, 0, sizeToWrite)
+    }
+  }
+
+  /**
+   * Special deserialization, since we use off-heap memory.
+   */
+  private def readObject(in: ObjectInputStream): Unit = Utils.tryOrIOException {
+    _schema = in.readObject().asInstanceOf[ColumnPartitionSchema]
+    _size = in.readLong()
+    initialize
+    val bytes = new Array[Byte](buffers.map(_.capacity).max)
+    for (buf <- buffers) {
+      val sizeToRead = buf.capacity
+      var position = 0
+      while (position < sizeToRead) {
+        val readBytes = in.read(bytes, position, sizeToRead - position)
+        assert(readBytes >= 0)
+        position += readBytes
+      }
+      buf.put(bytes, 0, sizeToRead)
+    }
+  }
 
 }
 // scalastyle:on no.finalize

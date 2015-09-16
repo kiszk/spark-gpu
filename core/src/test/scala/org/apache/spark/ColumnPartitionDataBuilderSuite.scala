@@ -23,6 +23,7 @@ class ColumnPartitionDataBuilderSuite extends SparkFunSuite with SharedSparkCont
     val input = Array(42)
     val data = ColumnPartitionDataBuilder.build[Int](1)
     assert(data.schema.columns.length == 1)
+    assert(data.schema.cls == null)
     assert(data.size == 1)
     data.serialize(input.iterator)
     val output = data.deserialize().toIndexedSeq
@@ -34,6 +35,7 @@ class ColumnPartitionDataBuilderSuite extends SparkFunSuite with SharedSparkCont
         Rectangle(Point(0, 0), Point(42, 42)),
         Rectangle(Point(2, 3), Point(8, 5)))
     val data = ColumnPartitionDataBuilder.build(input)
+    assert(data.schema.cls != null)
     val output = data.deserialize().toIndexedSeq
     assert(output.sameElements(input.toIndexedSeq))
   }
@@ -46,6 +48,7 @@ class ColumnPartitionDataBuilderSuite extends SparkFunSuite with SharedSparkCont
         Rectangle(Point(13, 14), Point(15, 16)))
     val inputIter = input.iterator
     val data = ColumnPartitionDataBuilder.build(inputIter)
+    assert(data.schema.cls != null)
     val output = data.deserialize().toIndexedSeq
     assert(output.sameElements(input))
   }
@@ -58,6 +61,7 @@ class ColumnPartitionDataBuilderSuite extends SparkFunSuite with SharedSparkCont
         Rectangle(Point(13, 14), Point(15, 16)))
     val inputIter = input.iterator
     val data = ColumnPartitionDataBuilder.build(inputIter, 3)
+    assert(data.schema.cls != null)
     val output = data.deserialize().toIndexedSeq
     assert(output.sameElements(input.take(3)))
   }

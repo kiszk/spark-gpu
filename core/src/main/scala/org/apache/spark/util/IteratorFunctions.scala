@@ -33,7 +33,7 @@ object IteratorFunctions {
     /**
      * A version of Iterator[T].take, but with Long argument.
      */
-    def takeLong(n: Long): Iterator[T] = new Iterator[T] {
+    def take(n: Long): Iterator[T] = new Iterator[T] {
       private var remainingIters: Long = n
 
       override def hasNext: Boolean = remainingIters > 0 && self.hasNext

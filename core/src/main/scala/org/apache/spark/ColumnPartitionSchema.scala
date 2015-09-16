@@ -24,6 +24,8 @@ import scala.reflect.runtime.universe.TermSymbol
 
 import org.apache.spark.util.Utils
 
+import java.io.{ObjectInputStream, ObjectOutputStream}
+
 // Some code taken from org.apache.spark.sql.catalyst.ScalaReflection
 
 object ColumnPartitionSchema {
@@ -92,14 +94,23 @@ object ColumnPartitionSchema {
     }
   }
 
-  private[spark] def primitiveColumnPartitionSchema(bytes: Int, columnType: ColumnType) =
+  private[spark] def primitiveColumnPartitionSchema(bytes: Int, columnType: ColumnType) = {
     new ColumnPartitionSchema(Array(new ColumnSchema(columnType)), null)
+  }
 
 }
 
+/**
+ * A schema of a ColumnPartitionData. columns contains information about columns and cls is the
+ * class of the serialized type, unless it is primitive - then it is null.
+ */
 class ColumnPartitionSchema(
-    val columns: Array[ColumnSchema],
-    val cls: Class[_]) {
+    private var _columns: Array[ColumnSchema],
+    private var _cls: Class[_]) extends Serializable {
+
+  def columns: Array[ColumnSchema] = _columns
+
+  def cls: Class[_] = _cls
 
   def isPrimitive: Boolean = columns.size == 1 && columns(0).terms.isEmpty
 
@@ -122,6 +133,63 @@ class ColumnPartitionSchema(
       (obj: Any, value: Any) =>
         mirror.reflect(getOuter(obj)).reflectField(col.terms.last).set(value)
     }
+  }
+
+  private def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
+    out.writeObject(_columns)
+    if (!isPrimitive) {
+      out.writeUTF(_cls.getName())
+    }
+  }
+
+  private def readObject(in: ObjectInputStream): Unit = Utils.tryOrIOException {
+    _columns = in.readObject().asInstanceOf[Array[ColumnSchema]]
+    if (!isPrimitive) {
+      _cls = Utils.classForName(in.readUTF())
+    }
+  }
+
+}
+
+/**
+ * A column is one basic property (primitive, String, etc.).
+ */
+class ColumnSchema(
+    /** Type of the property. Is null when the whole object is a primitive. */
+    private var _columnType: ColumnType,
+    /** Scala terms with property name and other information */
+    private var _terms: Vector[TermSymbol] = Vector[TermSymbol]()) extends Serializable {
+
+  /**
+   * Chain of properties accessed starting from the original object. The first tuple argument is
+   * the full name of the class containing the property and the second is property's name.
+   */
+  def propertyChain: Vector[(String, String)] = {
+    val mirror = ColumnPartitionSchema.mirror
+    _terms.map { term =>
+      (mirror.runtimeClass(term.owner.asClass).getName, term.name.toString)
+    }
+  }
+
+  def columnType: ColumnType = _columnType
+
+  def terms: Vector[TermSymbol] = _terms
+
+  private def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
+    // TODO make it handle generic owner objects by passing full type information somehow
+    out.writeObject(_columnType)
+    out.writeObject(propertyChain)
+  }
+
+  private def readObject(in: ObjectInputStream): Unit = Utils.tryOrIOException {
+    val mirror = ColumnPartitionSchema.mirror
+    _columnType = in.readObject().asInstanceOf[ColumnType]
+    _terms =
+      in.readObject().asInstanceOf[Vector[(String, String)]].map { case (clsName, propName) =>
+        val cls = Utils.classForName(clsName)
+        val typeSig = mirror.classSymbol(cls).typeSignature
+        typeSig.declaration(universe.stringToTermName(propName)).asTerm
+      }
   }
 
 }
@@ -153,16 +221,4 @@ case object FLOAT_COLUMN extends ColumnType {
 
 case object DOUBLE_COLUMN extends ColumnType {
   val bytes = 8
-}
-
-/**
- * A column is one basic property (primitive, String, etc.).
- */
-class ColumnSchema(
-    /** Type of the property. Is null when the whole object is a primitive. */
-    val columnType: ColumnType,
-    /** Scala terms with property name and other information */
-    val terms: Vector[TermSymbol] = Vector[TermSymbol]()) {
-
-//  def name: Array[String] = terms.map(_.name)
 }
