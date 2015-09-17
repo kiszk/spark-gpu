@@ -11,6 +11,7 @@ org.apache.spark.ColumnPartitionSchemaSuite,\
 org.apache.spark.ColumnPartitionDataSuite,\
 org.apache.spark.ColumnPartitionDataBuilderSuite,\
 org.apache.spark.storage.BlockManagerSuite,\
+org.apache.spark.rdd.RDDSuite,\
 org.apache.spark.CacheManagerSuite
 
 #org.apache.spark.DistributedSuite,\
