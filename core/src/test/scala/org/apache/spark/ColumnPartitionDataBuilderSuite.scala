@@ -19,6 +19,13 @@ package org.apache.spark
 
 class ColumnPartitionDataBuilderSuite extends SparkFunSuite with SharedSparkContext {
 
+  test("Creates uninitialized ColumnPartitionData") {
+    val data = ColumnPartitionDataBuilder.build[Byte](10000)
+    assert(data.schema.columns.length == 1)
+    assert(data.size == 10000)
+    data.free()
+  }
+
   test("Creates ColumnPartitionData for a single Int", GPUTest) {
     val input = Array(42)
     val data = ColumnPartitionDataBuilder.build[Int](1)
@@ -27,6 +34,7 @@ class ColumnPartitionDataBuilderSuite extends SparkFunSuite with SharedSparkCont
     data.serialize(input.iterator)
     val output = data.deserialize().toIndexedSeq
     assert(output.sameElements(input.toIndexedSeq))
+    data.free()
   }
 
   test("Creates ColumnPartitionData from a sequence of case classes") {
@@ -37,6 +45,7 @@ class ColumnPartitionDataBuilderSuite extends SparkFunSuite with SharedSparkCont
     assert(data.schema.cls != null)
     val output = data.deserialize().toIndexedSeq
     assert(output.sameElements(input.toIndexedSeq))
+    data.free()
   }
 
   test("Creates a ColumnPartitionData from an iterator without length information") {
@@ -50,6 +59,7 @@ class ColumnPartitionDataBuilderSuite extends SparkFunSuite with SharedSparkCont
     assert(data.schema.cls != null)
     val output = data.deserialize().toIndexedSeq
     assert(output.sameElements(input))
+    data.free()
   }
 
   test("Creates a ColumnPartitionData from an iterator with shorter length information") {
@@ -63,6 +73,7 @@ class ColumnPartitionDataBuilderSuite extends SparkFunSuite with SharedSparkCont
     assert(data.schema.cls != null)
     val output = data.deserialize().toIndexedSeq
     assert(output.sameElements(input.take(3)))
+    data.free()
   }
 
 }

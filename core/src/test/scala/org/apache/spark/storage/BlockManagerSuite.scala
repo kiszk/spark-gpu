@@ -457,7 +457,7 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     assert(list2DiskGet.get.readMethod === DataReadMethod.Disk)
   }
 
-  test("in-memory LRU storage") {
+  test("in-memory LRU storage - iterator-based") {
     store = makeBlockManager(12000)
     val a1 = new Array[Byte](4000)
     val a2 = new Array[Byte](4000)
@@ -476,7 +476,29 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     assert(store.getSingle("a3") === None, "a3 was in store")
   }
 
-  test("in-memory LRU storage with serialization") {
+  test("in-memory LRU storage - column-based") {
+    sc = new SparkContext("local", "test", conf)
+    assert(SparkEnv.get != null)
+    assert(SparkEnv.get.executorMemoryManager != null)
+    store = makeBlockManager(12000)
+    val c1 = ColumnPartitionDataBuilder.build[Byte](4000)
+    val c2 = ColumnPartitionDataBuilder.build[Byte](4000)
+    val c3 = ColumnPartitionDataBuilder.build[Byte](4000)
+    store.putColumns("c1", c1, StorageLevel.MEMORY_ONLY)
+    store.putColumns("c2", c2, StorageLevel.MEMORY_ONLY)
+    store.putColumns("c3", c3, StorageLevel.MEMORY_ONLY)
+    assert(store.get("c2").isDefined, "c2 was not in store")
+    assert(store.get("c3").isDefined, "c3 was not in store")
+    assert(store.get("c1") === None, "c1 was in store")
+    assert(store.get("c2").isDefined, "c2 was not in store")
+    // At this point c2 was gotten last, so LRU will getSingle rid of c3
+    store.putColumns("c1", c1, StorageLevel.MEMORY_ONLY)
+    assert(store.get("c1").isDefined, "c1 was not in store")
+    assert(store.get("c2").isDefined, "c2 was not in store")
+    assert(store.get("c3") === None, "c3 was in store")
+  }
+
+  test("in-memory LRU storage with serialization - iterator-based") {
     store = makeBlockManager(12000)
     val a1 = new Array[Byte](4000)
     val a2 = new Array[Byte](4000)
@@ -493,6 +515,28 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     assert(store.getSingle("a1").isDefined, "a1 was not in store")
     assert(store.getSingle("a2").isDefined, "a2 was not in store")
     assert(store.getSingle("a3") === None, "a3 was in store")
+  }
+
+  test("in-memory LRU storage with serialization - column-based") {
+    sc = new SparkContext("local", "test", conf)
+    assert(SparkEnv.get != null)
+    assert(SparkEnv.get.executorMemoryManager != null)
+    store = makeBlockManager(12000)
+    val c1 = ColumnPartitionDataBuilder.build[Byte](4000)
+    val c2 = ColumnPartitionDataBuilder.build[Byte](4000)
+    val c3 = ColumnPartitionDataBuilder.build[Byte](4000)
+    store.putColumns("c1", c1, StorageLevel.MEMORY_ONLY_SER)
+    store.putColumns("c2", c2, StorageLevel.MEMORY_ONLY_SER)
+    store.putColumns("c3", c3, StorageLevel.MEMORY_ONLY_SER)
+    assert(store.get("c2").isDefined, "c2 was not in store")
+    assert(store.get("c3").isDefined, "c3 was not in store")
+    assert(store.get("c1") === None, "c1 was in store")
+    assert(store.get("c2").isDefined, "c2 was not in store")
+    // At this point c2 was gotten last, so LRU will getSingle rid of c3
+    store.putSingle("c1", c1, StorageLevel.MEMORY_ONLY_SER)
+    assert(store.get("c1").isDefined, "c1 was not in store")
+    assert(store.get("c2").isDefined, "c2 was not in store")
+    assert(store.get("c3") === None, "c3 was in store")
   }
 
   test("in-memory LRU for partitions of same RDD") {
@@ -537,7 +581,7 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     assert(store.memoryStore.contains(rdd(0, 3)), "rdd_0_3 was not in store")
   }
 
-  test("tachyon storage") {
+  test("tachyon storage - iterator-based") {
     // TODO Make the spark.test.tachyon.enable true after using tachyon 0.5.0 testing jar.
     val tachyonUnitTestEnabled = conf.getBoolean("spark.test.tachyon.enable", false)
     conf.set(ExternalBlockStore.BLOCK_MANAGER_NAME, ExternalBlockStore.DEFAULT_BLOCK_MANAGER_NAME)
@@ -557,7 +601,31 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     }
   }
 
-  test("on-disk storage") {
+  test("tachyon storage - column-based") {
+    sc = new SparkContext("local", "test", conf)
+    assert(SparkEnv.get != null)
+    assert(SparkEnv.get.executorMemoryManager != null)
+    // TODO Make the spark.test.tachyon.enable true after using tachyon 0.5.0 testing jar.
+    val tachyonUnitTestEnabled = conf.getBoolean("spark.test.tachyon.enable", false)
+    conf.set(ExternalBlockStore.BLOCK_MANAGER_NAME, ExternalBlockStore.DEFAULT_BLOCK_MANAGER_NAME)
+    if (tachyonUnitTestEnabled) {
+      // some space has to be reserved for schema serialization
+      store = makeBlockManager(2000)
+      val c1 = ColumnPartitionDataBuilder.build[Byte](400)
+      val c2 = ColumnPartitionDataBuilder.build[Byte](400)
+      val c3 = ColumnPartitionDataBuilder.build[Byte](400)
+      store.putColumns("c1", c1, StorageLevel.OFF_HEAP)
+      store.putColumns("c2", c2, StorageLevel.OFF_HEAP)
+      store.putColumns("c3", c3, StorageLevel.OFF_HEAP)
+      assert(store.get("c3").isDefined, "c3 was in store")
+      assert(store.get("c2").isDefined, "c2 was in store")
+      assert(store.get("c1").isDefined, "c1 was in store")
+    } else {
+      info("tachyon storage test disabled.")
+    }
+  }
+
+  test("on-disk storage - iterator-based") {
     store = makeBlockManager(1200)
     val a1 = new Array[Byte](400)
     val a2 = new Array[Byte](400)
@@ -568,6 +636,23 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     assert(store.getSingle("a2").isDefined, "a2 was in store")
     assert(store.getSingle("a3").isDefined, "a3 was in store")
     assert(store.getSingle("a1").isDefined, "a1 was in store")
+  }
+
+  test("on-disk storage - column-based") {
+    sc = new SparkContext("local", "test", conf)
+    assert(SparkEnv.get != null)
+    assert(SparkEnv.get.executorMemoryManager != null)
+    // some space has to be reserved for schema serialization
+    store = makeBlockManager(2000)
+    val c1 = ColumnPartitionDataBuilder.build[Byte](400)
+    val c2 = ColumnPartitionDataBuilder.build[Byte](400)
+    val c3 = ColumnPartitionDataBuilder.build[Byte](400)
+    store.putColumns("c1", c1, StorageLevel.DISK_ONLY)
+    store.putColumns("c2", c2, StorageLevel.DISK_ONLY)
+    store.putColumns("c3", c3, StorageLevel.DISK_ONLY)
+    assert(store.get("c2").isDefined, "c2 was in store")
+    assert(store.get("c3").isDefined, "c3 was in store")
+    assert(store.get("c1").isDefined, "c1 was in store")
   }
 
   test("disk and memory storage") {
