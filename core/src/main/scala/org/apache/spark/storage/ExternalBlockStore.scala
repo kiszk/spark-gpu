@@ -70,8 +70,7 @@ private[spark] class ExternalBlockStore(blockManager: BlockManager, executorId: 
       values: ColumnPartitionData[_],
       level: StorageLevel,
       returnValues: Boolean): PutResult = {
-    // TODO
-    throw new UnsupportedOperationException("TODO")
+    putIntoExternalBlockStore(blockId, values, returnValues)
   }
 
   override def putIterator(

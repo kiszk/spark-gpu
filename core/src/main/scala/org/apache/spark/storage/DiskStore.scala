@@ -70,18 +70,25 @@ private[spark] class DiskStore(blockManager: BlockManager, diskManager: DiskBloc
     putIterator(blockId, values.toIterator, level, returnValues)
   }
 
+  override def putIterator(
+      blockId: BlockId,
+      values: Iterator[Any],
+      level: StorageLevel,
+      returnValues: Boolean): PutResult = {
+    putData(blockId, IteratedPartitionData(values), level, returnValues)
+  }
+
   override def putColumns(
       blockId: BlockId,
       values: ColumnPartitionData[_],
       level: StorageLevel,
       returnValues: Boolean): PutResult = {
-    // TODO
-    throw new UnsupportedOperationException("TODO")
+    putData(blockId, values, level, returnValues)
   }
 
-  override def putIterator(
+  override def putData(
       blockId: BlockId,
-      values: Iterator[Any],
+      values: PartitionData[_],
       level: StorageLevel,
       returnValues: Boolean): PutResult = {
 
@@ -91,7 +98,7 @@ private[spark] class DiskStore(blockManager: BlockManager, diskManager: DiskBloc
     val outputStream = new FileOutputStream(file)
     try {
       Utils.tryWithSafeFinally {
-        blockManager.dataSerializeStream(blockId, outputStream, IteratedPartitionData(values))
+        blockManager.dataSerializeStream(blockId, outputStream, values)
       } {
         // Close outputStream here because it should be closed before file is deleted.
         outputStream.close()

@@ -95,7 +95,7 @@ private[spark] abstract class ExternalBlockManager {
 
   /**
    * Retrieve the block data.
-   * @return Some(PartitionData[Any]) if the block data is successfully retrieved
+   * @return Some(PartitionData[_]) if the block data is successfully retrieved
    *         None if the block does not exist in the external block store.
    *
    * @throws java.io.IOException if there is any file system failure in getting the block.
