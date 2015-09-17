@@ -23,7 +23,6 @@ class ColumnPartitionDataBuilderSuite extends SparkFunSuite with SharedSparkCont
     val input = Array(42)
     val data = ColumnPartitionDataBuilder.build[Int](1)
     assert(data.schema.columns.length == 1)
-    assert(data.schema.cls == null)
     assert(data.size == 1)
     data.serialize(input.iterator)
     val output = data.deserialize().toIndexedSeq
