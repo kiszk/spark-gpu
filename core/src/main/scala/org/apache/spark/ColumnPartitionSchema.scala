@@ -17,10 +17,9 @@
 
 package org.apache.spark
 
+import scala.reflect.ClassTag
 import scala.reflect.runtime.universe
-import scala.reflect.runtime.universe.Type
-import scala.reflect.runtime.universe.TypeTag
-import scala.reflect.runtime.universe.TermSymbol
+import scala.reflect.runtime.universe.{typeOf, weakTypeOf, Type, TermSymbol, WeakTypeTag}
 
 import org.apache.spark.util.Utils
 
@@ -38,64 +37,74 @@ object ColumnPartitionSchema {
 
   var onlyLoadableClassesSupported: Boolean = false
 
-  private[spark] def localTypeOf[T: TypeTag] = universe.typeTag[T].in(mirror).tpe
+  def schemaFor[T: ClassTag]: ColumnPartitionSchema = {
 
-  def schemaFor[T: TypeTag]: ColumnPartitionSchema =
-    schemaForType(localTypeOf[T])
+    def columnsFor(tpe: Type): IndexedSeq[ColumnSchema] = {
+      tpe match {
+        // 8-bit signed BE
+        case t if t <:< typeOf[Byte] => Vector(new ColumnSchema(BYTE_COLUMN))
+        // 16-bit signed BE
+        case t if t <:< typeOf[Short] => Vector(new ColumnSchema(SHORT_COLUMN))
+        // 32-bit signed BE
+        case t if t <:< typeOf[Int] => Vector(new ColumnSchema(INT_COLUMN))
+        // 64-bit signed BE
+        case t if t <:< typeOf[Long] => Vector(new ColumnSchema(LONG_COLUMN))
+        // 32-bit single-precision IEEE 754 floating point
+        case t if t <:< typeOf[Float] => Vector(new ColumnSchema(FLOAT_COLUMN))
+        // 64-bit double-precision IEEE 754 floating point
+        case t if t <:< typeOf[Double] => Vector(new ColumnSchema(DOUBLE_COLUMN))
+        // TODO boolean - it does not have specified size
+        // TODO char
+        // TODO string - along with special storage space
+        // TODO array (especially constant size)
+        // TODO option
+        // TODO protection from cycles
+        // TODO caching schemas for classes
+        // TODO make it work with nested classes
+        // TODO objects that contains null object property
+        // Generic object
+        case t if !onlyLoadableClassesSupported ||
+            Utils.classIsLoadable(t.typeSymbol.asClass.fullName) => {
+          val valVarMembers = t.members.view
+            .filter(p => !p.isMethod && p.isTerm).map(_.asTerm)
+            .filter(p => p.isVar || p.isVal)
 
-  def schemaForType(tpe: Type): ColumnPartitionSchema = {
-    tpe match {
-      // 8-bit signed BE
-      case t if t <:< localTypeOf[Byte] => primitiveColumnPartitionSchema(1, BYTE_COLUMN)
-      // 16-bit signed BE
-      case t if t <:< localTypeOf[Short] => primitiveColumnPartitionSchema(2, SHORT_COLUMN)
-      // 32-bit signed BE
-      case t if t <:< localTypeOf[Int] => primitiveColumnPartitionSchema(4, INT_COLUMN)
-      // 64-bit signed BE
-      case t if t <:< localTypeOf[Long] => primitiveColumnPartitionSchema(8, LONG_COLUMN)
-      // 32-bit single-precision IEEE 754 floating point
-      case t if t <:< localTypeOf[Float] => primitiveColumnPartitionSchema(4, FLOAT_COLUMN)
-      // 64-bit double-precision IEEE 754 floating point
-      case t if t <:< localTypeOf[Double] => primitiveColumnPartitionSchema(8, DOUBLE_COLUMN)
-      // TODO boolean - it does not have specified size
-      // TODO char
-      // TODO string - along with special storage space
-      // TODO array
-      // TODO option
-      // TODO protection from cycles
-      // TODO caching schemas for classes
-      // TODO make it work with nested classes
-      // Generic object
-      case t if !onlyLoadableClassesSupported ||
-          Utils.classIsLoadable(t.typeSymbol.asClass.fullName) => {
-        val valVarMembers = t.members.view
-          .filter(p => !p.isMethod && p.isTerm).map(_.asTerm)
-          .filter(p => p.isVar || p.isVal)
-
-        valVarMembers.foreach { p =>
-          // TODO more checks
-          // is final okay?
-          if (p.isStatic) throw new UnsupportedOperationException(
-              s"Column schema with static field ${p.fullName} not supported")
-        }
-
-        val columns = valVarMembers.flatMap { term =>
-          schemaForType(term.typeSignature).columns.map { schema =>
-            new ColumnSchema(
-              schema.columnType,
-              term +: schema.terms)
+          valVarMembers.foreach { p =>
+            // TODO more checks
+            // is final okay?
+            if (p.isStatic) throw new UnsupportedOperationException(
+                s"Column schema with static field ${p.fullName} not supported")
           }
+
+          valVarMembers.flatMap { term =>
+            columnsFor(term.typeSignature).map { schema =>
+              new ColumnSchema(
+                schema.columnType,
+                term +: schema.terms)
+            }
+          } .toIndexedSeq
         }
-
-        new ColumnPartitionSchema(columns.toArray, mirror.runtimeClass(tpe.typeSymbol.asClass))
+        case other =>
+          throw new UnsupportedOperationException(s"Column schema for type $other not supported")
       }
-      case other =>
-        throw new UnsupportedOperationException(s"Column schema for type $other not supported")
     }
-  }
 
-  private[spark] def primitiveColumnPartitionSchema(bytes: Int, columnType: ColumnType) = {
-    new ColumnPartitionSchema(Array(new ColumnSchema(columnType)), null)
+    val runtimeCls = implicitly[ClassTag[T]].runtimeClass
+    val columns = runtimeCls match {
+      // special case for primitives, since their type signature shows up as AnyVal instead
+      case c if c == classOf[Byte] => Vector(new ColumnSchema(BYTE_COLUMN))
+      case c if c == classOf[Short] => Vector(new ColumnSchema(SHORT_COLUMN))
+      case c if c == classOf[Int] => Vector(new ColumnSchema(INT_COLUMN))
+      case c if c == classOf[Long] => Vector(new ColumnSchema(LONG_COLUMN))
+      case c if c == classOf[Float] => Vector(new ColumnSchema(FLOAT_COLUMN))
+      case c if c == classOf[Double] => Vector(new ColumnSchema(DOUBLE_COLUMN))
+      // generic case for other objects
+      case _ =>
+        val clsSymbol = mirror.classSymbol(runtimeCls)
+        columnsFor(clsSymbol.typeSignature)
+    }
+
+    new ColumnPartitionSchema(columns.toArray, runtimeCls)
   }
 
 }

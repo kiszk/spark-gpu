@@ -19,8 +19,8 @@ package org.apache.spark.rdd
 
 import scala.reflect.ClassTag
 
-import org.apache.spark.{Partition, TaskContext}
-import org.apache.spark.{PartitionData, IteratedPartitionData, ColumnPartitionData}
+import org.apache.spark.{Partition, TaskContext, PartitionData}
+import org.apache.spark.{IteratedPartitionData, ColumnPartitionData, ColumnPartitionDataBuilder}
 
 abstract class RDDFormat
 case object IteratorRDDFormat extends RDDFormat
@@ -37,15 +37,18 @@ private[spark] class ConversionRDD[T: ClassTag](
   override def computePartition(split: Partition, context: TaskContext): PartitionData[T] = {
     val data = firstParent[T].partitionData(split, context)
     (data, targetFormat) match {
-      // Cases where the format is already good
+      // We already have iterator format. Note that we do not need to iterate over elements, so this
+      // is a no-op
       case (it: IteratedPartitionData[T], IteratorRDDFormat) => it
+
+      // We already have column format.
       case (col: ColumnPartitionData[T], ColumnRDDFormat) => col
 
-      // Converting from iterator-based format to column-based format
+      // Converting from iterator-based format to column-based format.
       case (IteratedPartitionData(iter), ColumnRDDFormat) =>
-        throw new UnsupportedOperationException("TOOD") // TODO
+        ColumnPartitionDataBuilder.build(iter)
 
-      // Converting from column-based format to iterator-based format
+      // Converting from column-based format to iterator-based format.
       case (col: ColumnPartitionData[T], IteratorRDDFormat) =>
         IteratedPartitionData(col.iterator)
     }
