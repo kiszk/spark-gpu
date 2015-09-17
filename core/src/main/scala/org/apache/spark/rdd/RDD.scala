@@ -115,7 +115,7 @@ abstract class RDD[T: ClassTag](
   /**
    * :: DeveloperApi ::
    * Implemented by subclasses to compute a given partition. Should be overwritten by all new RDDs.
-   * The default implementation falls back to compute().
+   * The default implementation falls back to `.compute()`.
    */
   @DeveloperApi
   def computePartition(split: Partition, context: TaskContext): PartitionData[T] = {
@@ -1589,6 +1589,15 @@ abstract class RDD[T: ClassTag](
       case Some(reliable: ReliableRDDCheckpointData[T]) => reliable.getCheckpointDir
       case _ => None
     }
+  }
+
+  /**
+   * Converts the RDD to iterator-based or column-based format.
+   *
+   * @param format the target format
+   */
+  def convert(format: RDDFormat): RDD[T] = {
+    new ConversionRDD(this, format)
   }
 
   // =======================================================================

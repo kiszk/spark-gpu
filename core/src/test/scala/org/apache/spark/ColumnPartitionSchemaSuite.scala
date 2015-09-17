@@ -45,7 +45,6 @@ class ColumnPartitionSchemaSuite extends SparkFunSuite with SharedSparkContext {
     assert(schema.columns.length == 1)
     assert(schema.isPrimitive)
     assert(schema.columns(0).columnType == INT_COLUMN)
-    assert(schema.cls == null)
   }
 
   test("Schema for class with no-arg constructor", GPUTest) {
