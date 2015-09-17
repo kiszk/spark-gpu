@@ -1333,6 +1333,9 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
   }
 
   test("serialize primitives - ColumnPartitionData[Int]") {
+    // This test loads external library, so it needs correct architecture
+    System.setProperty("os.arch", arch)
+
     sc = new SparkContext("local", "test", conf)
     assert(SparkEnv.get != null)
     assert(SparkEnv.get.executorMemoryManager != null)
@@ -1353,6 +1356,9 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
   }
 
   test("serialize case classes - ColumnPartitionData[Rectangle]") {
+    // This test loads external library, so it needs correct architecture
+    System.setProperty("os.arch", arch)
+
     sc = new SparkContext("local", "test", conf)
     store = makeBlockManager(10000)
     val blockId =  BlockId("rdd_42_42")
