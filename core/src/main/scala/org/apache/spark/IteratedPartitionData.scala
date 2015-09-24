@@ -17,7 +17,11 @@
 
 package org.apache.spark
 
+import scala.reflect.ClassTag
+
 import org.apache.spark.annotation.DeveloperApi
+
+case object IteratorFormat extends PartitionFormat
 
 @DeveloperApi
 class IteratedPartitionData[T](
@@ -28,6 +32,17 @@ class IteratedPartitionData[T](
     IteratedPartitionData(f(iter))
 
   override def iterator: Iterator[T] = iter
+
+  override def convert(format: PartitionFormat)(implicit ct: ClassTag[T]): PartitionData[T] = {
+    format match {
+      // We already have iterator format. Note that we do not need to iterate over elements, so this
+      // is a no-op.
+      case IteratorFormat => this
+
+      // Converting from iterator-based format to column-based format.
+      case ColumnFormat => ColumnPartitionDataBuilder.build(iter)
+    }
+  }
 
 }
 
