@@ -28,7 +28,7 @@ public class ExecutorMemoryManagerSuite {
 
   @BeforeClass
   public static void setUp() {
-    // normally it's set by SparkEnv
+    // normally it's set by CUDAManager
     JCudaDriver.setExceptionsEnabled(true);
   }
 

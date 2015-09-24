@@ -19,7 +19,10 @@ package org.apache.spark.rdd
 
 import scala.reflect.ClassTag
 
-import org.apache.spark.{Partition, TaskContext}
+import org.apache.spark.{Partition, TaskContext, PartitionData, IteratedPartitionData,
+  ColumnPartitionData, PartitionFormat, IteratorFormat}
+
+import org.apache.spark.cuda.CUDAKernel
 
 /**
  * An RDD that applies the provided function to every partition of the parent RDD.
@@ -27,13 +30,23 @@ import org.apache.spark.{Partition, TaskContext}
 private[spark] class MapPartitionsRDD[U: ClassTag, T: ClassTag](
     prev: RDD[T],
     f: (TaskContext, Int, Iterator[T]) => Iterator[U],  // (TaskContext, partition index, iterator)
-    preservesPartitioning: Boolean = false)
+    preservesPartitioning: Boolean = false,
+    kernel: Option[CUDAKernel] = None)
   extends RDD[U](prev) {
 
   override val partitioner = if (preservesPartitioning) firstParent[T].partitioner else None
 
   override def getPartitions: Array[Partition] = firstParent[T].partitions
 
-  override def compute(split: Partition, context: TaskContext): Iterator[U] =
-    f(context, split.index, firstParent[T].iterator(split, context))
+  override def computePartition(split: Partition, context: TaskContext): PartitionData[U] = {
+    (firstParent[T].partitionData(split, context), kernel) match {
+      // computing column-based partition on GPU
+      case (col: ColumnPartitionData[T], Some(kern)) =>
+        kern.run(col)
+
+      // computing  iterator-based partition on CPU
+      case (data, _) =>
+        IteratedPartitionData(f(context, split.index, data.iterator))
+    }
+  }
 }

@@ -26,12 +26,7 @@ import java.util.{Arrays, Properties, UUID}
 import java.util.concurrent.atomic.{AtomicReference, AtomicBoolean, AtomicInteger}
 import java.util.UUID.randomUUID
 
-<<<<<<< HEAD
 import scala.collection.JavaConverters._
-=======
-import jcuda.driver.JCudaDriver
-
->>>>>>> No idea why, but with this weird behavior of ExternalSorterSuite is fixed. Now it does not hang on tests. This shouldn't really change anything, it's just a library code that sets a variable, which is not used in the test at all - the test does not touch JCuda at all. But somehow it does not like the code in SparkEnv.
 import scala.collection.{Map, Set}
 import scala.collection.generic.Growable
 import scala.collection.mutable.HashMap
@@ -82,8 +77,6 @@ import org.apache.spark.util._
  *   this config overrides the default configs as well as system properties.
  */
 class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationClient {
-
-  JCudaDriver.setExceptionsEnabled(true)
 
   // The call site where this SparkContext was constructed.
   private val creationSite: CallSite = Utils.getCallSite()

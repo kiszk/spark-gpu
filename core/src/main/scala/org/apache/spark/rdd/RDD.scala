@@ -42,6 +42,7 @@ import org.apache.spark.util.{BoundedPriorityQueue, Utils}
 import org.apache.spark.util.collection.OpenHashMap
 import org.apache.spark.util.random.{BernoulliSampler, PoissonSampler, BernoulliCellSampler,
   SamplingUtils}
+import org.apache.spark.cuda.CUDAKernel
 
 /**
  * A Resilient Distributed Dataset (RDD), the basic abstraction in Spark. Represents an immutable,
@@ -340,9 +341,41 @@ abstract class RDD[T: ClassTag](
   /**
    * Return a new RDD by applying a function to all elements of this RDD.
    */
-  def map[U: ClassTag](f: T => U): RDD[U] = withScope {
+  // TODO the interface is a bit clunky, but when mapUsingKernel was also named map, Scala had
+  // problems with inferring the type of f in some cases, e.g. in intersection(other: RDD[T]) in
+  // .cogroup(other.map(v: <could not infer that> => ...)) and also in CheckpointSuite in code like
+  // the one user might write
+  def map[U: ClassTag](f: T => U, kernel: Option[Either[String, CUDAKernel]] = None): RDD[U] =
+    withScope {
+      kernel match {
+        case None =>
+          val cleanF = sc.clean(f)
+          new MapPartitionsRDD[U, T](this, (context, pid, iter) => iter.map(cleanF))
+        case Some(Left(kernelName)) =>
+          mapUsingKernel(f, kernelName = kernelName)
+        case Some(Right(kernel)) =>
+          mapUsingKernel(f, kernel = kernel)
+      }
+    }
+
+  /**
+   * Return a new RDD by applying a function to all elements of this RDD.
+   * Uses supplied lambda function for iterator-based partitions and kernel with given name for
+   * column-based partitions.
+   */
+  def mapUsingKernel[U: ClassTag](f: T => U, kernelName: String): RDD[U] = {
+    mapUsingKernel(f, SparkEnv.get.cudaManager.getKernel(kernelName))
+  }
+
+  /**
+   * Return a new RDD by applying a function to all elements of this RDD.
+   * Uses supplied lambda function for iterator-based partitions and kernel for column-based
+   * partitions.
+   */
+  def mapUsingKernel[U: ClassTag](f: T => U, kernel: CUDAKernel): RDD[U] = withScope {
     val cleanF = sc.clean(f)
-    new MapPartitionsRDD[U, T](this, (context, pid, iter) => iter.map(cleanF))
+    new MapPartitionsRDD[U, T](this, (context, pid, iter) => iter.map(cleanF),
+      kernel = Some(kernel))
   }
 
   /**
@@ -579,7 +612,7 @@ abstract class RDD[T: ClassTag](
    * Note that this method performs a shuffle internally.
    */
   def intersection(other: RDD[T]): RDD[T] = withScope {
-    this.map(v => (v, null)).cogroup(other.map(v => (v, null)))
+    this.map(v => (v, null)).cogroup(other.map((v: T) => (v, null)))
         .filter { case (_, (leftGroup, rightGroup)) => leftGroup.nonEmpty && rightGroup.nonEmpty }
         .keys
   }
@@ -1620,7 +1653,7 @@ abstract class RDD[T: ClassTag](
    *
    * @param format the target format
    */
-  def convert(format: RDDFormat): RDD[T] = {
+  def convert(format: PartitionFormat): RDD[T] = {
     new ConversionRDD(this, format)
   }
 

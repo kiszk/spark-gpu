@@ -29,6 +29,7 @@ import com.google.common.collect.MapMaker
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.api.python.PythonWorkerFactory
 import org.apache.spark.broadcast.BroadcastManager
+import org.apache.spark.cuda.CUDAManager
 import org.apache.spark.metrics.MetricsSystem
 import org.apache.spark.memory.{MemoryManager, StaticMemoryManager, UnifiedMemoryManager}
 import org.apache.spark.network.BlockTransferService
@@ -70,6 +71,7 @@ class SparkEnv (
     val metricsSystem: MetricsSystem,
     val memoryManager: MemoryManager,
     val outputCommitCoordinator: OutputCommitCoordinator,
+    val cudaManager: CUDAManager,
     val conf: SparkConf) extends Logging {
 
   // TODO Remove actorSystem
@@ -396,6 +398,12 @@ object SparkEnv extends Logging {
       new OutputCommitCoordinatorEndpoint(rpcEnv, outputCommitCoordinator))
     outputCommitCoordinator.coordinatorRef = Some(outputCommitCoordinatorRef)
 
+    val cudaManager: CUDAManager = if (isDriver && !isLocal) {
+      null
+    } else {
+      new CUDAManager
+    }
+
     val envInstance = new SparkEnv(
       executorId,
       rpcEnv,
@@ -413,6 +421,7 @@ object SparkEnv extends Logging {
       metricsSystem,
       memoryManager,
       outputCommitCoordinator,
+      cudaManager,
       conf)
 
     // Add a reference to tmp dir created by driver, we will delete this tmp dir when stop() is

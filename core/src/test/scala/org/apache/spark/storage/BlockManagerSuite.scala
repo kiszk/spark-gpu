@@ -1437,7 +1437,6 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     assert(col.schema.isPrimitive)
     assert(col.schema.columns(0).columnType == INT_COLUMN)
     assert(col.iterator.toIndexedSeq.sameElements(1 to 1024))
-    resetSparkContext()
   }
 
   test("serialize case classes - ColumnPartitionData[Rectangle]") {
@@ -1460,7 +1459,6 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     assert(col.schema.columns.size == 4)
     assert(col.schema.columns.forall(_.columnType == INT_COLUMN))
     assert(col.iterator.toIndexedSeq.sameElements(rects))
-    resetSparkContext()
   }
 
 }
