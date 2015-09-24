@@ -10,6 +10,9 @@ org.apache.spark.IteratedPartitionDataSuite,\
 org.apache.spark.ColumnPartitionSchemaSuite,\
 org.apache.spark.ColumnPartitionDataSuite,\
 org.apache.spark.ColumnPartitionDataBuilderSuite,\
+org.apache.spark.cuda.CUDAManagerSuite,\
+org.apache.spark.cuda.CUDAKernelSuite,\
+org.apache.spark.ConversionRDDSuite,\
 org.apache.spark.storage.BlockManagerSuite,\
 org.apache.spark.rdd.RDDSuite,\
 org.apache.spark.CacheManagerSuite
