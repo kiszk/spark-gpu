@@ -6,8 +6,8 @@ import jcuda.driver.CUstream
 import jcuda.driver.CUdevice
 import jcuda.driver.CUcontext
 import jcuda.runtime.JCuda
-import jcuda.runtime.cudaStream_t
 import jcuda.runtime.cudaMemcpyKind
+import jcuda.runtime.cudaStream_t
 
 class StreamThread(
     dataSize: Long,
@@ -147,7 +147,7 @@ object StreamBenchmark {
     JCuda.cudaMemGetInfo(memInfo(0), memInfo(1))
     val freeMem = memInfo(0)(0)
     val totalMem = memInfo(1)(0)
-    
+
     val dataSize = 1024 * 1024 / 4 * args(0).toLong
     val iters = args(1).toInt
     val streams = args(2).toInt
