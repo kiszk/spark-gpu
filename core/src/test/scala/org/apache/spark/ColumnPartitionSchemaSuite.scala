@@ -45,6 +45,7 @@ class ColumnPartitionSchemaSuite extends SparkFunSuite with SharedSparkContext {
     assert(schema.columns.length == 1)
     assert(schema.isPrimitive)
     assert(schema.columns(0).columnType == INT_COLUMN)
+    assert(schema.columns(0).prettyAccessor == "this")
   }
 
   test("Schema for class with no-arg constructor", GPUTest) {
@@ -54,6 +55,8 @@ class ColumnPartitionSchemaSuite extends SparkFunSuite with SharedSparkContext {
         Set(INT_COLUMN, DOUBLE_COLUMN, SHORT_COLUMN, LONG_COLUMN))
     assert(!schema.isPrimitive)
     assert(schema.cls != null)
+    assert(schema.columns.map(_.prettyAccessor).toSet ==
+      Set("this.x", "this.y", "this.p", "this.q"))
   }
 
   test("Schema for case class", GPUTest) {
@@ -62,6 +65,8 @@ class ColumnPartitionSchemaSuite extends SparkFunSuite with SharedSparkContext {
     schema.columns.foreach(col => assert(col.columnType == INT_COLUMN))
     assert(!schema.isPrimitive)
     assert(schema.cls != null)
+    assert(schema.columns.map(_.prettyAccessor).toSet ==
+      Set("this.topLeft.x", "this.topLeft.y", "this.bottomRight.x", "this.bottomRight.y"))
   }
 
   test("Getters work for Int", GPUTest) {

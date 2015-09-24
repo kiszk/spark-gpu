@@ -17,7 +17,11 @@
 
 package org.apache.spark
 
+import scala.reflect.ClassTag
+
 import org.apache.spark.annotation.DeveloperApi
+
+abstract class PartitionFormat
 
 @DeveloperApi
 abstract class PartitionData[T] {
@@ -32,5 +36,10 @@ abstract class PartitionData[T] {
    * and be costly.
    */
   def iterator: Iterator[T]
+
+  /**
+   * Convert the partition data type to specific format.
+   */
+  def convert(format: PartitionFormat)(implicit ct: ClassTag[T]): PartitionData[T]
 
 }

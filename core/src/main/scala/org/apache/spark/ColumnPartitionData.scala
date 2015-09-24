@@ -17,6 +17,9 @@
 
 package org.apache.spark
 
+import scala.reflect.ClassTag
+import scala.language.existentials
+
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.io.{ObjectInputStream, ObjectOutputStream}
@@ -31,7 +34,7 @@ import jcuda.Pointer
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
-import scala.language.existentials
+case object ColumnFormat extends PartitionFormat
 
 // scalastyle:off no.finalize
 @DeveloperApi
@@ -45,7 +48,7 @@ class ColumnPartitionData[T](
 
   def size: Long = _size
 
-  private var pointers: Array[Pointer] = null
+  private[spark] var pointers: Array[Pointer] = null
 
   private var freed = false
 
@@ -74,7 +77,7 @@ class ColumnPartitionData[T](
    * Total amount of memory allocated in columns. Does not take into account Java objects aggregated
    * in this PartitionData.
    */
-  def memoryUsage: Long = schema.columns.map(_.columnType.bytes * size).sum
+  def memoryUsage: Long = schema.memoryUsage(size)
 
   /**
    * Deallocate internal memory. The buffers may not be used after this call.
@@ -217,7 +220,17 @@ class ColumnPartitionData[T](
    * Iterator for objects inside this PartitionData. Causes deserialization of the data and may be
    * costly.
    */
-  override def iterator: Iterator[T] = deserialize()
+  override def iterator: Iterator[T] = deserialize
+
+  override def convert(format: PartitionFormat)(implicit ct: ClassTag[T]): PartitionData[T] = {
+    format match {
+      // Converting from column-based format to iterator-based format.
+      case IteratorFormat => IteratedPartitionData(deserialize)
+
+      // We already have column format.
+      case ColumnFormat => this
+    }
+  }
 
   /**
    * Special serialization, since we use off-heap memory.

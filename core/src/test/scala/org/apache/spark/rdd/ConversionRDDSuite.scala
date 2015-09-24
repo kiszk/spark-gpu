@@ -17,21 +17,35 @@
 
 package org.apache.spark.rdd
 
-import scala.reflect.ClassTag
+import org.apache.spark._
 
-import org.apache.spark.{Partition, TaskContext, PartitionFormat, PartitionData,
-  IteratedPartitionData, ColumnPartitionData, ColumnPartitionDataBuilder}
+class ConversionRDDSuite extends SparkFunSuite with SharedSparkContext {
 
-private[spark] class ConversionRDD[T: ClassTag](
-    prev: RDD[T],
-    targetFormat: PartitionFormat
-  ) extends RDD[T](prev) {
+  test("convert iterator->column->iterator", GPUTest) {
+    val input = 1 to 999
+    val output = sc.makeRDD(input, 2)
+      .convert(ColumnFormat)
+      .convert(IteratorFormat)
+      .collect()
+    assert(output.sameElements(input))
+  }
 
-  override def getPartitions: Array[Partition] =
-    firstParent[T].partitions
+  test("convert iterator->iterator", GPUTest) {
+    val input = 1 to 100
+    val output = sc.makeRDD(input, 3)
+      .convert(IteratorFormat)
+      .collect()
+    assert(output.sameElements(input))
+  }
 
-  override def computePartition(split: Partition, context: TaskContext): PartitionData[T] = {
-    firstParent[T].partitionData(split, context).convert(targetFormat)
+  test("convert iterator->column->column->iterator", GPUTest) {
+    val input = 1 to 91
+    val output = sc.makeRDD(input, 5)
+      .convert(ColumnFormat)
+      .convert(ColumnFormat)
+      .convert(IteratorFormat)
+      .collect()
+    assert(output.sameElements(input))
   }
 
 }

@@ -970,33 +970,6 @@ class RDDSuite extends SparkFunSuite with SharedSparkContext {
     }
   }
 
-  test("convert iterator->column->iterator") {
-    val input = 1 to 999
-    val output = sc.makeRDD(input, 2)
-      .convert(ColumnRDDFormat)
-      .convert(IteratorRDDFormat)
-      .collect()
-    assert(output.sameElements(input))
-  }
-
-  test("convert iterator->iterator") {
-    val input = 1 to 100
-    val output = sc.makeRDD(input, 3)
-      .convert(IteratorRDDFormat)
-      .collect()
-    assert(output.sameElements(input))
-  }
-
-  test("convert iterator->column->column->iterator") {
-    val input = 1 to 91
-    val output = sc.makeRDD(input, 5)
-      .convert(ColumnRDDFormat)
-      .convert(ColumnRDDFormat)
-      .convert(IteratorRDDFormat)
-      .collect()
-    assert(output.sameElements(input))
-  }
-
   test("nested RDDs are not supported (SPARK-5063)") {
     val rdd: RDD[Int] = sc.parallelize(1 to 100)
     val rdd2: RDD[Int] = sc.parallelize(1 to 100)

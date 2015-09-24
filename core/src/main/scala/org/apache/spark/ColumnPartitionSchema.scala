@@ -17,6 +17,8 @@
 
 package org.apache.spark
 
+import scala.collection.immutable.HashMap
+
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe
 import scala.reflect.runtime.universe.{typeOf, weakTypeOf, Type, TermSymbol, WeakTypeTag}
@@ -121,7 +123,22 @@ class ColumnPartitionSchema(
 
   def cls: Class[_] = _cls
 
+  /**
+   * Whether the schema is for a primitive value.
+   */
   def isPrimitive: Boolean = columns.size == 1 && columns(0).terms.isEmpty
+
+  /**
+   * Amount of bytes used for storage of specified number of records using this schema.
+   */
+  def memoryUsage(size: Long): Long = {
+    columns.map(_.memoryUsage(size)).sum
+  }
+
+  def orderedColumns(order: Seq[String]): Seq[ColumnSchema] = {
+    val columnsByAccessors = HashMap(columns.map(col => col.prettyAccessor -> col): _*)
+    order.map(columnsByAccessors(_))
+  }
 
   def getters: Array[Any => Any] = {
     val mirror = ColumnPartitionSchema.mirror
@@ -169,20 +186,29 @@ class ColumnSchema(
     /** Scala terms with property name and other information */
     private var _terms: Vector[TermSymbol] = Vector[TermSymbol]()) extends Serializable {
 
+  def columnType: ColumnType = _columnType
+
+  def terms: Vector[TermSymbol] = _terms
+
   /**
    * Chain of properties accessed starting from the original object. The first tuple argument is
    * the full name of the class containing the property and the second is property's name.
    */
   def propertyChain: Vector[(String, String)] = {
     val mirror = ColumnPartitionSchema.mirror
-    _terms.map { term =>
+    terms.map { term =>
       (mirror.runtimeClass(term.owner.asClass).getName, term.name.toString)
     }
   }
 
-  def columnType: ColumnType = _columnType
+  def prettyAccessor: String = {
+    val mirror = ColumnPartitionSchema.mirror
+    "this" + terms.map("." + _.name.toString.trim).mkString
+  }
 
-  def terms: Vector[TermSymbol] = _terms
+  def memoryUsage(size: Long): Long = {
+    columnType.bytes * size
+  }
 
   private def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
     // TODO make it handle generic owner objects by passing full type information somehow

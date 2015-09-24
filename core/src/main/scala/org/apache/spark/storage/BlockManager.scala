@@ -562,7 +562,7 @@ private[spark] class BlockManager(
                     }
 
                   case col: ColumnPartitionData[_] =>
-                    throw new UnsupportedOperationException("TODO") // TODO
+                    return Some(new BlockResult(values, DataReadMethod.Disk, info.size))
                 }
               } else {
                 return Some(new BlockResult(values, DataReadMethod.Disk, info.size))
