@@ -17,7 +17,14 @@
 
 package org.apache.spark.cuda
 
+import java.nio.ByteBuffer
+
+import jcuda.Pointer
+import jcuda.runtime.cudaMemcpyKind
+import jcuda.runtime.JCuda
+
 import org.apache.spark._
+import org.apache.spark.util.Utils
 
 class CUDAManagerSuite extends SparkFunSuite with LocalSparkContext {
 
@@ -29,11 +36,13 @@ class CUDAManagerSuite extends SparkFunSuite with LocalSparkContext {
     if (manager.deviceCount > 0) {
       val kernel = manager.registerCUDAKernelFromResource(
         "identity",
-        "_Z8identitylPiS_",
+        "_Z8identityPKiPil",
         Array("this"),
         Array("this"),
-        "identity.ptx")
+        "testCUDAKernels.ptx")
       assert(manager.getKernel("identity") == kernel)
+    } else {
+      info("No CUDA devices, so skipping the test.")
     }
   }
 
@@ -41,18 +50,22 @@ class CUDAManagerSuite extends SparkFunSuite with LocalSparkContext {
     sc = new SparkContext("local", "test", conf)
     val manager = SparkEnv.get.cudaManager
     if (manager.deviceCount > 0) {
-      val context = manager.acquireContext(1024)
+      val stream = manager.getStream(1024)
 
       val gpuPtr = manager.allocateGPUMemory(1024)
-      JCuda.cudaMemcpy(gpuPtr, Pointer.to(Array.fill[Byte](1024)(42)), 1024,
-        cudaMemcpyKind.cudaMemcpyHostToDevice)
-      val arr = new Array[Byte](1024)
-      JCuda.cudaMemcpy(Pointer.to(ByteBuffer.wrap(arr)), gpuPtr, 1024,
-        cudaMemcpyKind.cudaMemcpyHostToDevice)
+      Utils.tryWithSafeFinally {
+        JCuda.cudaMemcpy(gpuPtr, Pointer.to(Array.fill[Byte](1024)(42)), 1024,
+          cudaMemcpyKind.cudaMemcpyHostToDevice)
+        val arr = new Array[Byte](1024)
+        JCuda.cudaMemcpy(Pointer.to(ByteBuffer.wrap(arr)), gpuPtr, 1024,
+          cudaMemcpyKind.cudaMemcpyDeviceToHost)
 
-      assert(arr.forall(_ == 42))
-
-      manager.releaseContext(context)
+        assert(arr.forall(_ == 42))
+      } {
+        JCuda.cudaFree(gpuPtr)
+      }
+    } else {
+      info("No CUDA devices, so skipping the test.")
     }
   }
 
