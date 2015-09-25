@@ -50,6 +50,13 @@ class ColumnPartitionDataSuite extends SparkFunSuite with SharedSparkContext {
     data.free()
   }
 
+  test("Serializes single Double", GPUTest) {
+    val schema = ColumnPartitionSchema.schemaFor[Double]
+    val input = Array(1234.5678)
+    val data = checkSerializationAndDeserialization(schema, input)
+    data.free()
+  }
+
   test("Serializes many Ints", GPUTest) {
     val schema = ColumnPartitionSchema.schemaFor[Int]
     val input = 1 to 1024
