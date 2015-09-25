@@ -18,6 +18,7 @@
 package org.apache.spark.cuda
 
 import scala.collection.mutable.{Map, HashMap}
+import scala.util.Random
 
 import java.nio.file.{Files, Paths}
 
@@ -28,6 +29,7 @@ import jcuda.driver.CUdevice_attribute
 import jcuda.driver.CUfunction
 import jcuda.driver.CUmodule
 import jcuda.driver.JCudaDriver
+import jcuda.runtime.cudaStream_t
 import jcuda.runtime.JCuda
 
 import org.apache.commons.io.IOUtils
@@ -44,39 +46,69 @@ class CUDAManager {
   JCudaDriver.setExceptionsEnabled(true)
 
   val deviceCount = {
-    // TODO check only those devices with compute capability 2.0+ for streams support
+    // TODO check only those devices with compute capability 2.0+ for streams support and save them
+    // in an array
     val cnt = new Array[Int](1)
     JCudaDriver.cuDeviceGetCount(cnt)
     cnt(0)
   }
 
-  /**
-   * The device we'll be using next. To split the work evenly we increment this value each time.
-   */
-  private var currentDevice = 0
-
-  private[spark] def acquireContext(memoryUsage: Long): CUcontext = {
-    if (deviceCount == 0) {
-      throw new SparkException("Trying to acquire CUDA context when no CUDA devices are available")
-    }
-
-    // TODO pool contexts per device, since threads can share context
-    // TODO make sure only specified amount of tasks at once uses GPU
-    // TODO make sure that amount of conversions is minimized by giving GPU to appropriate tasks
-    val device = synchronized {
-      val dev = new CUdevice
-      JCudaDriver.cuDeviceGet(dev, currentDevice)
-      currentDevice = (currentDevice + 1) % deviceCount
-      dev
-    }
-
-    val context = new CUcontext
-    JCudaDriver.cuCtxCreate(context, 0, device)
-    context
+  private val context: Option[CUcontext] = if (deviceCount > 0) {
+    val dev = new CUdevice
+    JCudaDriver.cuDeviceGet(dev, 0)
+    val ctx = new CUcontext
+    JCudaDriver.cuCtxCreate(ctx, 0, dev)
+    Some(ctx)
+  } else {
+    None
   }
 
-  private[spark] def releaseContext(context: CUcontext) {
-    JCudaDriver.cuCtxDestroy(context)
+  private val streams: ThreadLocal[Array[cudaStream_t]] = new ThreadLocal[Array[cudaStream_t]] {
+    override def initialValue(): Array[cudaStream_t] = {
+      context match {
+        case Some(ctx) =>
+          (1 to deviceCount).map { devIx =>
+            JCuda.cudaSetDevice(devIx)
+            val stream = new cudaStream_t
+            JCuda.cudaStreamCreate(stream)
+            stream
+          } .toArray
+        case None => new Array[cudaStream_t](0)
+      }
+    }
+  }
+
+  /**
+   * Chooses a device to work on and returns a stream for it.
+   */
+  // TODO make sure only specified amount of tasks at once uses GPU
+  // TODO make sure that amount of conversions is minimized by giving GPU to appropriate tasks,
+  // task context might be required for that
+  private[spark] def getStream(memoryUsage: Long): cudaStream_t = {
+    if (deviceCount == 0) {
+      throw new SparkException("No available CUDA devices to create a stream")
+    }
+
+    // TODO balance the load (ideally equal amount of streams everywhere but without
+    // synchronization) better than just picking at random - this will have standard deviation
+    // around sqrt(num_of_threads)
+    val startDev = Random.nextInt(deviceCount)
+    (startDev to (startDev + deviceCount - 1)).map(_ % deviceCount).map { devIx =>
+      JCuda.cudaSetDevice(devIx)
+      val memInfo = Array.fill(2)(new Array[Long](1))
+      JCuda.cudaMemGetInfo(memInfo(0), memInfo(1))
+      val freeMem = memInfo(0)(0)
+      if (freeMem >= memoryUsage) {
+        // TODO ensure that there will be enough memory available at allocation time (maybe by
+        // allocating it now?)
+        // TODO GPU memory pooling - no need to reallocate, since usually exact same sizes of memory
+        // chunks will be required
+        return streams.get.apply(devIx)
+      }
+    }
+
+    throw new SparkException("No available CUDA devices with enough free memory " +
+      s"($memoryUsage bytes needed)")
   }
 
   /**
@@ -88,10 +120,11 @@ class CUDAManager {
       inputColumnsOrder: Seq[String],
       outputColumnsOrder: Seq[String],
       moduleFilePath: String,
+      constArgs: Seq[AnyVal] = Seq(),
       dimensions: Option[Long => (Int, Int)] = None): CUDAKernel = {
     val moduleBinaryData = Files.readAllBytes(Paths.get(moduleFilePath))
     registerCUDAKernel(name, kernelSignature, inputColumnsOrder, outputColumnsOrder,
-      moduleBinaryData, dimensions)
+      moduleBinaryData, constArgs, dimensions)
   }
 
   /**
@@ -103,11 +136,12 @@ class CUDAManager {
       inputColumnsOrder: Seq[String],
       outputColumnsOrder: Seq[String],
       resourcePath: String,
+      constArgs: Seq[AnyVal] = Seq(),
       dimensions: Option[Long => (Int, Int)] = None): CUDAKernel = {
     val resource = getClass.getClassLoader.getResourceAsStream(resourcePath)
     val moduleBinaryData = IOUtils.toByteArray(resource)
     registerCUDAKernel(name, kernelSignature, inputColumnsOrder, outputColumnsOrder,
-      moduleBinaryData, dimensions)
+      moduleBinaryData, constArgs, dimensions)
   }
 
   /**
@@ -120,9 +154,10 @@ class CUDAManager {
       inputColumnsOrder: Seq[String],
       outputColumnsOrder: Seq[String],
       moduleBinaryData: Array[Byte],
+      constArgs: Seq[AnyVal] = Seq(),
       dimensions: Option[Long => (Int, Int)] = None): CUDAKernel = {
     val kernel = new CUDAKernel(kernelSignature, inputColumnsOrder, outputColumnsOrder,
-      moduleBinaryData, dimensions)
+      moduleBinaryData, constArgs, dimensions)
     registerCUDAKernel(name, kernel)
     kernel
   }
@@ -141,19 +176,30 @@ class CUDAManager {
   }
 
   /**
-   * Gets the kernel registered with given name
+   * Gets the kernel registered with given name. Must not be called when `registerCUDAKernel` might
+   * be called at the same time from another thread.
    */
   def getKernel(name: String): CUDAKernel = {
-    synchronized {
-      registeredKernels.applyOrElse(name,
-        (n: String) => throw new SparkException(s"Kernel with name $n was not registered"))
-    }
+    registeredKernels.applyOrElse(name,
+      (n: String) => throw new SparkException(s"Kernel with name $n was not registered"))
+  }
+
+  private val cachedModules = new ThreadLocal[HashMap[Array[Byte], CUmodule]] {
+    override def initialValue() = new HashMap[Array[Byte], CUmodule]
+  }
+
+  private[spark] def cachedLoadModule(moduleBinaryData: Array[Byte]): CUmodule = {
+    cachedModules.get.getOrElseUpdate(moduleBinaryData, {
+      // TODO maybe unload the module if it won't be needed later
+      val module = new CUmodule
+      JCudaDriver.cuModuleLoadData(module, moduleBinaryData)
+      module
+    })
   }
 
   private[spark] def allocateGPUMemory(size: Long): Pointer = {
     val ptr = new Pointer
     JCuda.cudaMalloc(ptr, size)
-    assert(ptr != new Pointer)
     ptr
   }
 

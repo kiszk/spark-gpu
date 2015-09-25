@@ -64,6 +64,7 @@ object ColumnPartitionSchema {
         // TODO caching schemas for classes
         // TODO make it work with nested classes
         // TODO objects that contains null object property
+        // TODO objects with internal objects without vals/vars will end up with null fields here
         // Generic object
         case t if !onlyLoadableClassesSupported ||
             Utils.classIsLoadable(t.typeSymbol.asClass.fullName) => {
@@ -135,6 +136,9 @@ class ColumnPartitionSchema(
     columns.map(_.memoryUsage(size)).sum
   }
 
+  /**
+   * Returns column schemas ordered by given pretty accessor names.
+   */
   def orderedColumns(order: Seq[String]): Seq[ColumnSchema] = {
     val columnsByAccessors = HashMap(columns.map(col => col.prettyAccessor -> col): _*)
     order.map(columnsByAccessors(_))

@@ -19,9 +19,9 @@ package org.apache.spark
 
 import scala.reflect.ClassTag
 import scala.language.existentials
+import scala.collection.immutable.HashMap
 
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
+import java.nio.{ByteBuffer, ByteOrder}
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
 import org.apache.spark.annotation.{DeveloperApi, Experimental}
@@ -50,7 +50,7 @@ class ColumnPartitionData[T](
 
   private[spark] var pointers: Array[Pointer] = null
 
-  private var freed = false
+  private var refCounter = 1
 
   /**
    * Columns kept as ByteBuffers. May be read directly. The inherent limitation of 2GB - 1B for
@@ -69,7 +69,7 @@ class ColumnPartitionData[T](
       SparkEnv.get.executorMemoryManager.allocatePinnedMemory(col.columnType.bytes * size)
     }
 
-    freed = false
+    refCounter = 1
   }
   initialize
 
@@ -80,12 +80,23 @@ class ColumnPartitionData[T](
   def memoryUsage: Long = schema.memoryUsage(size)
 
   /**
-   * Deallocate internal memory. The buffers may not be used after this call.
+   * Increment reference counter. Should be used each time this object is to be kept.
+   */
+  def acquire() {
+    assert(refCounter > 0)
+    refCounter += 1
+  }
+
+  /**
+   * Decrement reference counter and if it reaches zero, deallocate internal memory. The buffers may
+   * not be used by the object owner after this call.
    */
   def free() {
-    assert(!freed)
-    pointers.foreach(SparkEnv.get.executorMemoryManager.freePinnedMemory(_))
-    freed = true
+    assert(refCounter > 0)
+    refCounter -= 1
+    if (refCounter == 0) {
+      pointers.foreach(SparkEnv.get.executorMemoryManager.freePinnedMemory(_))
+    }
   }
 
   /**
@@ -93,7 +104,8 @@ class ColumnPartitionData[T](
    * in such cases.
    */
   override def finalize() {
-    if (!freed) {
+    if (refCounter > 0) {
+      refCounter = 1
       free()
       if (ColumnPartitionData.logger.isWarnEnabled()) {
         ColumnPartitionData.logger.warn("{}B of memory still not freed in finalizer.", memoryUsage);
@@ -109,6 +121,15 @@ class ColumnPartitionData[T](
   }
 
   /**
+   * Returns pointers ordered by given pretty accessor column names.
+   */
+  private[spark] def orderedPointers(order: Seq[String]): Seq[Pointer] = {
+    val kvs = (schema.columns zip pointers).map { case (col, ptr) => col.prettyAccessor -> ptr }
+    val columnsByAccessors = HashMap(kvs: _*)
+    order.map(columnsByAccessors(_))
+  }
+
+  /**
    * Serializes an iterator of objects into columns. Amount of objects written must not exceed the
    * size of this ColumnPartitionData. Note that it does not handle any null pointers inside
    * objects. Memory footprint is that of one object at a time.
@@ -116,6 +137,7 @@ class ColumnPartitionData[T](
   // TODO allow for dropping specific columns if some kind of optimizer detected that they are not
   // needed
   def serialize(iter: Iterator[T]) {
+    assert(refCounter > 0)
     val getters = schema.getters
     rewind
 
@@ -140,6 +162,7 @@ class ColumnPartitionData[T](
    * Deserializes columns into Java objects. Memory footprint is that of one object at a time.
    */
   def deserialize(): Iterator[T] = {
+    assert(refCounter > 0)
     rewind
 
     if (schema.isPrimitive) {
@@ -236,6 +259,7 @@ class ColumnPartitionData[T](
    * Special serialization, since we use off-heap memory.
    */
   private def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
+    assert(refCounter > 0)
     out.writeObject(_schema)
     out.writeLong(_size)
     rewind
