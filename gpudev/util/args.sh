@@ -1,4 +1,5 @@
 DIR=../..
+ABSOLUTE_DIR=`realpath $DIR`
 # might need to use -Dos.arch=ppc64le on OpenJDK in MAVEN_OPTS and JAVA_OPTS because of a bug
 export MAVEN_OPTS="$MAVEN_OPTS -Xmx32G -XX:MaxPermSize=8G -XX:ReservedCodeCacheSize=2G"
 MVN_ARGS="-Pyarn -Phadoop-2.4 -Dhadoop.version=2.4.0 -Pkinesis-asl -Phive-thriftserver -Phive"
@@ -19,6 +20,8 @@ MVN_CMD="./build/mvn --force"
 DBG_PORT=5004
 
 export ZINC_PORT=3032
+
+export LD_LIBRARY_PATH="$ABSOLUTE_DIR/core/target/lib:$LD_LIBRARY_PATH"
 
 function killZinc() {
     kill `ps aux | grep zinc | grep java | grep $ZINC_PORT | awk '{print $2}'` &&
