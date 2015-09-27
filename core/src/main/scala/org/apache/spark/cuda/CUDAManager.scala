@@ -41,9 +41,20 @@ class CUDAManager {
   private val registeredKernels: Map[String, CUDAKernel] = new HashMap[String, CUDAKernel]()
 
   // Initialization
-  JCudaDriver.cuInit(0)
+  // This is supposed to be called before ANY other JCuda* call to ensure we have properly loaded
+  // native jCuda library and cuda context
+  try {
+    JCudaDriver.setExceptionsEnabled(true)
 
-  JCudaDriver.setExceptionsEnabled(true)
+    JCudaDriver.cuInit(0)
+  } catch {
+    case ex: UnsatisfiedLinkError =>
+      throw new SparkException("Could not initialize CUDA, because native jCuda libraries were " +
+        "not detected - make sure Driver and Executors are able to load them", ex)
+
+    case ex: Exception =>
+      throw new SparkException("Could not initialize CUDA because of unknown reason", ex)
+  }
 
   val deviceCount = {
     // TODO check only those devices with compute capability 2.0+ for streams support and save them
@@ -218,6 +229,13 @@ class CUDAManager {
     }
     assert(size <= maxBlockDim * Int.MaxValue.toLong)
     (((size + maxBlockDim - 1) / maxBlockDim).toInt, maxBlockDim)
+  }
+
+  /**
+   * Release resources connected to CUDA. After this call, this object should not be used again.
+   */
+  private[spark] def stop() {
+    context.foreach(JCudaDriver.cuCtxDestroy(_))
   }
 
 }
