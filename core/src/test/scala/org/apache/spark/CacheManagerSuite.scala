@@ -46,17 +46,17 @@ class CacheManagerSuite extends SparkFunSuite with LocalSparkContext with Before
       override def getPartitions: Array[Partition] = Array(split)
       override val getDependencies = List[Dependency[_]]()
       override def computePartition(split: Partition, context: TaskContext): PartitionData[Int] =
-        IteratedPartitionData(Array(1, 2, 3, 4).iterator)
+        IteratorPartitionData(Array(1, 2, 3, 4).iterator)
     }
     rdd2 = new RDD[Int](sc, List(new OneToOneDependency(rdd))) {
       override def getPartitions: Array[Partition] = firstParent[Int].partitions
       override def computePartition(split: Partition, context: TaskContext): PartitionData[Int] =
-        IteratedPartitionData(firstParent[Int].iterator(split, context))
+        IteratorPartitionData(firstParent[Int].iterator(split, context))
     }.cache()
     rdd3 = new RDD[Int](sc, List(new OneToOneDependency(rdd2))) {
       override def getPartitions: Array[Partition] = firstParent[Int].partitions
       override def computePartition(split: Partition, context: TaskContext): PartitionData[Int] =
-        IteratedPartitionData(firstParent[Int].iterator(split, context))
+        IteratorPartitionData(firstParent[Int].iterator(split, context))
     }.cache()
   }
 
@@ -70,12 +70,12 @@ class CacheManagerSuite extends SparkFunSuite with LocalSparkContext with Before
     val getValue = blockManager.get(RDDBlockId(rdd.id, split.index))
     assert(computeValue.iterator.toList === List(1, 2, 3, 4))
     assert(getValue.isDefined, "Block cached from getOrCompute is not found!")
-    assert(getValue.get.data.asInstanceOf[IteratedPartitionData[Any]].iterator.toList ===
+    assert(getValue.get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.toList ===
       List(1, 2, 3, 4))
   }
 
   test("get cached rdd") {
-    val result = new BlockResult(IteratedPartitionData(Array(5, 6, 7).iterator),
+    val result = new BlockResult(IteratorPartitionData(Array(5, 6, 7).iterator),
       DataReadMethod.Memory, 12)
     when(blockManager.get(RDDBlockId(0, 0))).thenReturn(Some(result))
 

@@ -23,7 +23,7 @@ import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.Logging
 import org.apache.spark.ColumnPartitionData
-import org.apache.spark.IteratedPartitionData
+import org.apache.spark.IteratorPartitionData
 import org.apache.spark.PartitionData
 
 /**
@@ -61,7 +61,7 @@ private[spark] abstract class BlockStore(val blockManager: BlockManager) extends
       level: StorageLevel,
       returnValues: Boolean): PutResult = {
     values match {
-      case IteratedPartitionData(iterator) =>
+      case IteratorPartitionData(iterator) =>
         putIterator(blockId, iterator, level, returnValues)
       case colValues: ColumnPartitionData[_] =>
         putColumns(blockId, colValues, level, returnValues)

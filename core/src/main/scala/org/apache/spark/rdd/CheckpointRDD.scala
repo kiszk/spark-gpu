@@ -19,7 +19,7 @@ package org.apache.spark.rdd
 
 import scala.reflect.ClassTag
 
-import org.apache.spark.{Partition, SparkContext, TaskContext, PartitionData, IteratedPartitionData}
+import org.apache.spark.{Partition, SparkContext, TaskContext}
 
 /**
  * An RDD partition used to recover checkpointed data.

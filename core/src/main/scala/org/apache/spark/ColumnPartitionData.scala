@@ -248,7 +248,7 @@ class ColumnPartitionData[T](
   override def convert(format: PartitionFormat)(implicit ct: ClassTag[T]): PartitionData[T] = {
     format match {
       // Converting from column-based format to iterator-based format.
-      case IteratorFormat => IteratedPartitionData(deserialize)
+      case IteratorFormat => IteratorPartitionData(deserialize)
 
       // We already have column format.
       case ColumnFormat => this

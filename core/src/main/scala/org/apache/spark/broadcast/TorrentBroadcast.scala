@@ -24,7 +24,7 @@ import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 import scala.util.Random
 
-import org.apache.spark.{IteratedPartitionData, Logging, SparkConf, SparkEnv, SparkException}
+import org.apache.spark.{IteratorPartitionData, Logging, SparkConf, SparkEnv, SparkException}
 import org.apache.spark.io.CompressionCodec
 import org.apache.spark.serializer.Serializer
 import org.apache.spark.storage.{BroadcastBlockId, StorageLevel}
@@ -166,7 +166,7 @@ private[spark] class TorrentBroadcast[T: ClassTag](obj: T, id: Long)
     TorrentBroadcast.synchronized {
       setConf(SparkEnv.get.conf)
       SparkEnv.get.blockManager.getLocal(broadcastId).map(_.data) match {
-        case Some(IteratedPartitionData(it)) =>
+        case Some(IteratorPartitionData(it)) =>
           // Since we used putSingle before, we expect an interated partition
           it.next().asInstanceOf[T]
 

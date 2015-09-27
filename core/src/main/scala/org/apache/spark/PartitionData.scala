@@ -27,7 +27,7 @@ abstract class PartitionFormat
 abstract class PartitionData[T] {
 
   /**
-   * A helper function for wrapping IteratedPartitionData's iterator, if this partition is of that
+   * A helper function for wrapping IteratorPartitionData's iterator, if this partition is of that
    * type. Can be useful e.g. for wrapping in InterruptibleIterator. */
   def wrapIterator(f: (Iterator[T] => Iterator[T])): PartitionData[T] = this
 

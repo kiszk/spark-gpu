@@ -328,7 +328,7 @@ class ReceivedBlockHandlerSuite
     }
 
     def dataToByteBuffer(b: Seq[String]) =
-      blockManager.dataSerialize(generateBlockId, IteratedPartitionData(b.iterator))
+      blockManager.dataSerialize(generateBlockId, IteratorPartitionData(b.iterator))
 
     val blocks = data.grouped(10).toSeq
 

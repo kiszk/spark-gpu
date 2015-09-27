@@ -40,7 +40,7 @@ import org.apache.spark.network.shuffle.ExternalShuffleClient
 import org.apache.spark.network.shuffle.protocol.ExecutorShuffleInfo
 import org.apache.spark.PartitionData
 import org.apache.spark.ColumnPartitionData
-import org.apache.spark.IteratedPartitionData
+import org.apache.spark.IteratorPartitionData
 import org.apache.spark.rpc.RpcEnv
 import org.apache.spark.serializer.{Serializer, SerializerInstance}
 import org.apache.spark.shuffle.ShuffleManager
@@ -545,7 +545,7 @@ private[spark] class BlockManager(
               val values = dataDeserialize(blockId, bytes)
               if (level.deserialized) {
                 values match {
-                  case IteratedPartitionData(iter) =>
+                  case IteratorPartitionData(iter) =>
                     // Cache the values before returning them
                     val putResult = memoryStore.putIterator(
                       blockId, iter, level, returnValues = true, allowPersistToDisk = false)
@@ -553,7 +553,7 @@ private[spark] class BlockManager(
                     // space to unroll the block. Either way, the put here should return an
                     // iterator.
                     putResult.data match {
-                      case Left(it: IteratedPartitionData[_]) =>
+                      case Left(it: IteratorPartitionData[_]) =>
                         return Some(new BlockResult(it, DataReadMethod.Disk, info.size))
                       case _ =>
                         // This never happens, since nothing should be dropped to disk nor
@@ -1021,7 +1021,7 @@ private[spark] class BlockManager(
    */
   def getSingle(blockId: BlockId): Option[Any] = {
     get(blockId).map(_.data match {
-      case IteratedPartitionData(it) =>
+      case IteratorPartitionData(it) =>
         it.next()
       case col: ColumnPartitionData[_] =>
         throw new SparkException("Unexpected read of a single object from a column-based partition")
@@ -1239,7 +1239,7 @@ private[spark] class BlockManager(
         // ColumnPartitionData
         ser.serializeStream(wrappedStream).writeObject(col).close()
 
-      case IteratedPartitionData(iter) =>
+      case IteratorPartitionData(iter) =>
         // using standard serialization for a sequence of Java objects
         ser.serializeStream(wrappedStream).writeAll(iter).close()
     }
@@ -1283,10 +1283,10 @@ private[spark] class BlockManager(
     if (objIter.hasNext) {
       objIter.next match {
         case col: ColumnPartitionData[_] => col
-        case obj => IteratedPartitionData(Iterator.single(obj) ++ objIter)
+        case obj => IteratorPartitionData(Iterator.single(obj) ++ objIter)
       }
     } else {
-      IteratedPartitionData(objIter)
+      IteratorPartitionData(objIter)
     }
   }
 
