@@ -34,6 +34,8 @@ object ColumnPartitionSchema {
   // Since we are creating a runtime mirror usign the class loader of current thread,
   // we need to use def at here. So, every time we call mirror, it is using the
   // class loader of the current thread.
+  // TODO check out bug https://issues.scala-lang.org/browse/SI-6240 about reflection not being
+  // thread-safe before 2.11 http://docs.scala-lang.org/overviews/reflection/thread-safety.html
   private[spark] def mirror: universe.Mirror =
     universe.runtimeMirror(Thread.currentThread().getContextClassLoader)
 

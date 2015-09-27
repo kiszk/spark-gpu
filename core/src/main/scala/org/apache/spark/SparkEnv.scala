@@ -104,6 +104,7 @@ class SparkEnv (
       metricsSystem.stop()
       outputCommitCoordinator.stop()
       rpcEnv.shutdown()
+      cudaManager.stop()
 
       // Unfortunately Akka's awaitTermination doesn't actually wait for the Netty server to shut
       // down, but let's call it anyway in case it gets fixed in a later release
@@ -392,6 +393,8 @@ object SparkEnv extends Logging {
       new OutputCommitCoordinatorEndpoint(rpcEnv, outputCommitCoordinator))
     outputCommitCoordinator.coordinatorRef = Some(outputCommitCoordinatorRef)
 
+    val cudaManager: CUDAManager = new CUDAManager
+
     val executorMemoryManager: ExecutorMemoryManager = {
       val allocator = if (conf.getBoolean("spark.unsafe.offHeap", false)) {
         MemoryAllocator.UNSAFE
@@ -401,8 +404,6 @@ object SparkEnv extends Logging {
       val maxPinnedMemory = conf.getLong("spark.unsafe.maxPinnedMemory", -1)
       new ExecutorMemoryManager(allocator, maxPinnedMemory)
     }
-
-    val cudaManager: CUDAManager = new CUDAManager
 
     val envInstance = new SparkEnv(
       executorId,

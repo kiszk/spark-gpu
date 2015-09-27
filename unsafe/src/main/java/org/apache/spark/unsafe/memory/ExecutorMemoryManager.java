@@ -56,6 +56,9 @@ public class ExecutorMemoryManager {
   private final Map<Long, LinkedList<WeakReference<MemoryBlock>>> bufferPoolsBySize =
     new HashMap<Long, LinkedList<WeakReference<MemoryBlock>>>();
 
+  // TODO instead of allocating pinned memory allocate normal page-aligned memory (valloc with
+  // JNI?) and pin it in CUDAManager
+  // This way this page-aligned memory might be used on CPU too without needless costly pinning
   @GuardedBy("this")
   private long allocatedPinnedMemory = 0;
 
