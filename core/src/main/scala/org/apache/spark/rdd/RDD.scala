@@ -364,7 +364,7 @@ abstract class RDD[T: ClassTag](
    * column-based partitions.
    */
   def mapUsingKernel[U: ClassTag](f: T => U, kernelName: String): RDD[U] = {
-    mapUsingKernel(f, SparkEnv.get.cudaManager.getKernel(kernelName))
+    mapUsingKernel(f, sc.cudaManager.getKernel(kernelName))
   }
 
   /**
