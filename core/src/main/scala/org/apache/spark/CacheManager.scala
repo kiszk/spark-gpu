@@ -147,7 +147,7 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
 
     val putLevel = effectiveStorageLevel.getOrElse(level)
     values match {
-      case IteratedPartitionData(iter) =>
+      case IteratorPartitionData(iter) =>
         if (!putLevel.useMemory) {
           /*
            * This RDD is not to be cached in memory, so we can just pass the computed values as an
@@ -156,8 +156,8 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
           updatedBlocks ++=
             blockManager.putIterator(key, iter, level, tellMaster = true, effectiveStorageLevel)
           blockManager.get(key) match {
-            // we know that blockManager will return IteratedPartitionData when we put one there
-            case Some(v) => v.data.asInstanceOf[IteratedPartitionData[T]]
+            // we know that blockManager will return IteratorPartitionData when we put one there
+            case Some(v) => v.data.asInstanceOf[IteratorPartitionData[T]]
             case None =>
               logInfo(s"Failure to store $key")
               throw new BlockException(key,
@@ -179,7 +179,7 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
               // We have successfully unrolled the entire partition, so cache it in memory
               updatedBlocks ++=
                 blockManager.putArray(key, arr, level, tellMaster = true, effectiveStorageLevel)
-              IteratedPartitionData(arr.iterator.asInstanceOf[Iterator[T]])
+              IteratorPartitionData(arr.iterator.asInstanceOf[Iterator[T]])
             case Right(it) =>
               // There is not enough space to cache this partition in memory
               val returnValues = it.asInstanceOf[Iterator[T]]
@@ -187,10 +187,10 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
                 logWarning(s"Persisting partition $key to disk instead.")
                 val diskOnlyLevel = StorageLevel(useDisk = true, useMemory = false,
                   useOffHeap = false, deserialized = false, putLevel.replication)
-                putInBlockManager[T](key, IteratedPartitionData(returnValues), level, updatedBlocks,
+                putInBlockManager[T](key, IteratorPartitionData(returnValues), level, updatedBlocks,
                   Some(diskOnlyLevel))
               } else {
-                IteratedPartitionData(returnValues)
+                IteratorPartitionData(returnValues)
               }
           }
         }

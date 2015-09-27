@@ -20,8 +20,7 @@ package org.apache.spark.rdd
 import scala.reflect.ClassTag
 import scala.math._
 
-import org.apache.spark.{Partition, TaskContext, PartitionFormat, PartitionData,
-  IteratedPartitionData, ColumnPartitionData, ColumnPartitionDataBuilder}
+import org.apache.spark.{Partition, TaskContext, PartitionFormat, PartitionData}
 
 private[spark] class ConvertRDD[T: ClassTag](
     prev: RDD[T],

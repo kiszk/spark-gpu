@@ -19,7 +19,7 @@ package org.apache.spark.rdd
 
 import scala.reflect.ClassTag
 
-import org.apache.spark.{Partition, TaskContext, PartitionData, IteratedPartitionData,
+import org.apache.spark.{Partition, TaskContext, PartitionData, IteratorPartitionData,
   ColumnPartitionData, PartitionFormat, IteratorFormat}
 
 import org.apache.spark.cuda.CUDAKernel
@@ -43,7 +43,7 @@ private[spark] class MapPartitionsRDD[U: ClassTag, T: ClassTag](
 
       // computing  iterator-based partition on CPU
       case (data, _) =>
-        IteratedPartitionData(f(context, split.index, data.iterator))
+        IteratorPartitionData(f(context, split.index, data.iterator))
     }
   }
 }

@@ -26,7 +26,8 @@ import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.apache.spark.storage.{BlockId, BlockManager, StorageLevel, StreamBlockId}
 import org.apache.spark.streaming.util.{FileBasedWriteAheadLogSegment, FileBasedWriteAheadLogWriter}
 import org.apache.spark.util.Utils
-import org.apache.spark.{SparkConf, SparkContext, SparkException, SparkFunSuite, IteratedPartitionData}
+import org.apache.spark.{SparkConf, SparkContext, SparkException, SparkFunSuite,
+  IteratorPartitionData}
 
 class WriteAheadLogBackedBlockRDDSuite
   extends SparkFunSuite with BeforeAndAfterAll with BeforeAndAfterEach {
@@ -213,7 +214,7 @@ class WriteAheadLogBackedBlockRDDSuite
     require(blockData.size === blockIds.size)
     val writer = new FileBasedWriteAheadLogWriter(new File(dir, "logFile").toString, hadoopConf)
     val segments = blockData.zip(blockIds).map { case (data, id) =>
-      writer.write(blockManager.dataSerialize(id, IteratedPartitionData(data.iterator)))
+      writer.write(blockManager.dataSerialize(id, IteratorPartitionData(data.iterator)))
     }
     writer.close()
     segments

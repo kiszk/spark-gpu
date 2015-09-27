@@ -24,12 +24,12 @@ import org.apache.spark.annotation.DeveloperApi
 case object IteratorFormat extends PartitionFormat
 
 @DeveloperApi
-class IteratedPartitionData[T](
+class IteratorPartitionData[T](
     val iter: Iterator[T]
   ) extends PartitionData[T] {
 
   override def wrapIterator(f: (Iterator[T] => Iterator[T])): PartitionData[T] =
-    IteratedPartitionData(f(iter))
+    IteratorPartitionData(f(iter))
 
   override def iterator: Iterator[T] = iter
 
@@ -47,27 +47,27 @@ class IteratedPartitionData[T](
 }
 
 @DeveloperApi
-object IteratedPartitionData {
+object IteratorPartitionData {
 
   /**
-   * Wraps an iterator in IteratedPartitionData object.
+   * Wraps an iterator in IteratorPartitionData object.
    */
-  def apply[T](iter: Iterator[T]): IteratedPartitionData[T] =
-    new IteratedPartitionData(iter)
+  def apply[T](iter: Iterator[T]): IteratorPartitionData[T] =
+    new IteratorPartitionData(iter)
 
   /**
-   * Extracts iterator from IteratedPartitionData.
+   * Extracts iterator from IteratorPartitionData.
    * Usage:
    * {{{
    * partitionData match {
-   *   case IteratedPartitionData(iter) =>
+   *   case IteratorPartitionData(iter) =>
    *     do_iterated_stuff_with(iter)
    *   case col: ColumnPartitionData[_] =>
    *     do_column_stuff_with(col)
    * }
    * }}}
    */
-  def unapply[T](it: IteratedPartitionData[T]): Option[Iterator[T]] =
+  def unapply[T](it: IteratorPartitionData[T]): Option[Iterator[T]] =
     Some(it.iter)
 
 }

@@ -962,7 +962,7 @@ class RDDSuite extends SparkFunSuite with SharedSparkContext {
   private class CyclicalDependencyRDD[T: ClassTag] extends RDD[T](sc, Nil) {
     private val mutableDependencies: ArrayBuffer[Dependency[_]] = ArrayBuffer.empty
     override def computePartition(p: Partition, c: TaskContext): PartitionData[T] =
-      IteratedPartitionData(Iterator.empty)
+      IteratorPartitionData(Iterator.empty)
     override def getPartitions: Array[Partition] = Array.empty
     override def getDependencies: Seq[Dependency[_]] = mutableDependencies
     def addDependency(dep: Dependency[_]) {

@@ -103,7 +103,7 @@ class KinesisBackedBlockRDD(
       val credenentials = awsCredentialsOption.getOrElse {
         new DefaultAWSCredentialsProviderChain().getCredentials()
       }
-      IteratedPartitionData(
+      IteratorPartitionData(
         partition.seqNumberRanges.ranges.iterator.flatMap { range =>
           new KinesisSequenceRangeIterator(
             credenentials, endpointUrl, regionId, range, retryTimeoutMs)

@@ -120,7 +120,7 @@ abstract class RDD[T: ClassTag](
    */
   @DeveloperApi
   def computePartition(split: Partition, context: TaskContext): PartitionData[T] = {
-    IteratedPartitionData(compute(split, context))
+    IteratorPartitionData(compute(split, context))
   }
 
   /**
@@ -268,11 +268,11 @@ abstract class RDD[T: ClassTag](
 
   /**
    * Internal method returning iterator to values in the Partition. It will fail if the partition
-   * is not of IteratedPartitionData type.
+   * is not of IteratorPartitionData type.
    */
   final def iterator(split: Partition, context: TaskContext): Iterator[T] = {
     partitionData(split, context) match {
-      case IteratedPartitionData(iter) => iter
+      case IteratorPartitionData(iter) => iter
       case _ =>
         throw new SparkException("RDD.iterator does not work with non-iterator-type partitions.")
     }

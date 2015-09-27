@@ -29,7 +29,7 @@ import org.apache.spark.util.collection.SizeTrackingVector
 
 import org.apache.spark.PartitionData
 import org.apache.spark.ColumnPartitionData
-import org.apache.spark.IteratedPartitionData
+import org.apache.spark.IteratorPartitionData
 
 import scala.language.existentials
 
@@ -150,10 +150,10 @@ private[spark] class MemoryStore(blockManager: BlockManager, maxMemory: Long)
     if (level.deserialized) {
       val sizeEstimate = SizeEstimator.estimate(values.asInstanceOf[AnyRef])
       val putAttempt = tryToPut(blockId, values, sizeEstimate)
-      PutResult(sizeEstimate, Left(IteratedPartitionData(values.iterator)),
+      PutResult(sizeEstimate, Left(IteratorPartitionData(values.iterator)),
         putAttempt.droppedBlocks)
     } else {
-      val bytes = blockManager.dataSerialize(blockId, IteratedPartitionData(values.iterator))
+      val bytes = blockManager.dataSerialize(blockId, IteratorPartitionData(values.iterator))
       val putAttempt = tryToPut(blockId, bytes, bytes.limit)
       PutResult(bytes.limit(), Right(bytes.duplicate()))
     }
@@ -218,7 +218,7 @@ private[spark] class MemoryStore(blockManager: BlockManager, maxMemory: Long)
           val res = blockManager.diskStore.putIterator(blockId, iteratorValues, level, returnValues)
           PutResult(res.size, res.data, droppedBlocks)
         } else {
-          PutResult(0, Left(IteratedPartitionData(iteratorValues)), droppedBlocks)
+          PutResult(0, Left(IteratorPartitionData(iteratorValues)), droppedBlocks)
         }
     }
   }
@@ -230,7 +230,7 @@ private[spark] class MemoryStore(blockManager: BlockManager, maxMemory: Long)
     entry match {
       case ArrayMemoryEntry(value, size) =>
         Some(blockManager.dataSerialize(blockId,
-            IteratedPartitionData(value.asInstanceOf[Array[Any]].iterator)))
+            IteratorPartitionData(value.asInstanceOf[Array[Any]].iterator)))
       case ColumnPartitionMemoryEntry(value, size) =>
         Some(blockManager.dataSerialize(blockId, value))
       case SerializedMemoryEntry(value, size) =>
@@ -248,7 +248,7 @@ private[spark] class MemoryStore(blockManager: BlockManager, maxMemory: Long)
     }
     entry match {
       case ArrayMemoryEntry(value, _) =>
-        Some(IteratedPartitionData(value.asInstanceOf[Array[Any]].iterator))
+        Some(IteratorPartitionData(value.asInstanceOf[Array[Any]].iterator))
       case ColumnPartitionMemoryEntry(value, _) =>
         Some(value)
       case SerializedMemoryEntry(value, _) =>

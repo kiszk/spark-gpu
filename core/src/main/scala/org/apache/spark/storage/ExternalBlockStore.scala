@@ -26,7 +26,7 @@ import org.apache.spark.util.Utils
 
 import org.apache.spark.PartitionData
 import org.apache.spark.ColumnPartitionData
-import org.apache.spark.IteratedPartitionData
+import org.apache.spark.IteratorPartitionData
 
 import scala.language.existentials
 
@@ -62,7 +62,7 @@ private[spark] class ExternalBlockStore(blockManager: BlockManager, executorId: 
       values: Array[Any],
       level: StorageLevel,
       returnValues: Boolean): PutResult = {
-    putIntoExternalBlockStore(blockId, IteratedPartitionData(values.toIterator), returnValues)
+    putIntoExternalBlockStore(blockId, IteratorPartitionData(values.toIterator), returnValues)
   }
 
   override def putColumns(
@@ -78,7 +78,7 @@ private[spark] class ExternalBlockStore(blockManager: BlockManager, executorId: 
       values: Iterator[Any],
       level: StorageLevel,
       returnValues: Boolean): PutResult = {
-    putIntoExternalBlockStore(blockId, IteratedPartitionData(values), returnValues)
+    putIntoExternalBlockStore(blockId, IteratorPartitionData(values), returnValues)
   }
 
   private def putIntoExternalBlockStore(

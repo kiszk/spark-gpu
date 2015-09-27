@@ -17,22 +17,22 @@
 
 package org.apache.spark
 
-class IteratedPartitionDataSuite extends SparkFunSuite with SharedSparkContext {
+class IteratorPartitionDataSuite extends SparkFunSuite with SharedSparkContext {
 
-  test("Creates and extracts iterator from IteratedPartitionData", GPUTest) {
+  test("Creates and extracts iterator from IteratorPartitionData", GPUTest) {
     val data = (1 to 16).iterator
-    val it = IteratedPartitionData(data)
+    val it = IteratorPartitionData(data)
     it.asInstanceOf[PartitionData[Int]] match {
       case col: ColumnPartitionData[Int] =>
         assert(false)
-      case IteratedPartitionData(iter) =>
+      case IteratorPartitionData(iter) =>
         assert(iter.toArray.sameElements(1 to 16))
     }
   }
 
   test("Wraps the iterator inside another", GPUTest) {
     val data = (1 to 16).iterator
-    val it = IteratedPartitionData(data)
+    val it = IteratorPartitionData(data)
     var iterCount = 0
     val wrapped = it.wrapIterator { iter: Iterator[Int] => new Iterator[Int] {
       override def hasNext: Boolean = iter.hasNext
