@@ -67,8 +67,6 @@ class CUDAKernel(
     val constArgs: Seq[AnyVal] = Seq(),
     val dimensions: Option[Long => (Int, Int)] = None) {
 
-  var cachedFunction: Option[CUfunction] = None
-
   private[spark] def run[T: ClassTag, U: ClassTag](in: ColumnPartitionData[T]):
       ColumnPartitionData[U] = {
 
@@ -78,13 +76,11 @@ class CUDAKernel(
 
     val stream = SparkEnv.get.cudaManager.getStream(memoryUsage)
 
-    val function = cachedFunction.getOrElse {
-      val module = SparkEnv.get.cudaManager.cachedLoadModule(moduleBinaryData)
-      val f = new CUfunction
-      JCudaDriver.cuModuleGetFunction(f, module, kernelSignature)
-      cachedFunction = Some(f)
-      f
-    }
+    // TODO cache the function if there is a chance that after a deserialization kernel gets called
+    // multiple times - but only if no synchronization is needed for that
+    val module = SparkEnv.get.cudaManager.cachedLoadModule(moduleBinaryData)
+    val function = new CUfunction
+    JCudaDriver.cuModuleGetFunction(function, module, kernelSignature)
 
     val out = new ColumnPartitionData[U](outputSchema, in.size)
     try {

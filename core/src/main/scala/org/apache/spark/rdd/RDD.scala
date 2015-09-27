@@ -1653,8 +1653,8 @@ abstract class RDD[T: ClassTag](
    *
    * @param format the target format
    */
-  def convert(format: PartitionFormat): RDD[T] = {
-    new ConversionRDD(this, format)
+  def convert(format: PartitionFormat, ratio: Double = 1.0): RDD[T] = {
+    new ConvertRDD(this, format, ratio)
   }
 
   // =======================================================================
