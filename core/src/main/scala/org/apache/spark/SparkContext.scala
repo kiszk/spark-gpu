@@ -47,6 +47,7 @@ import org.apache.mesos.MesosNativeLibrary
 
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.cuda.CUDAManager
 import org.apache.spark.deploy.{LocalSparkCluster, SparkHadoopUtil}
 import org.apache.spark.executor.{ExecutorEndpoint, TriggerThreadDump}
 import org.apache.spark.input.{StreamInputFormat, PortableDataStream, WholeTextFileInputFormat,
@@ -392,6 +393,11 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
     }
     Utils.setLogLevel(org.apache.log4j.Level.toLevel(logLevel))
   }
+
+  /**
+   * CUDA manager that keeps kernels and operates on GPU for this Spark context.
+   */
+  def cudaManager: CUDAManager = _env.cudaManager
 
   try {
     _conf = config.clone()
