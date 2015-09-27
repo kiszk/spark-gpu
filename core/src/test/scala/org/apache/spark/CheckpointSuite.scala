@@ -490,7 +490,7 @@ class FatPairRDD(parent: RDD[Int], _partitioner: Partitioner) extends RDD[(Int, 
   @transient override val partitioner = Some(_partitioner)
 
   override def computePartition(split: Partition, context: TaskContext): PartitionData[(Int, Int)] = {
-    IteratedPartitionData(
+    IteratorPartitionData(
       parent.computePartition(split.asInstanceOf[FatPartition].partition, context)
         .iterator.map(x => (x, x)))
   }

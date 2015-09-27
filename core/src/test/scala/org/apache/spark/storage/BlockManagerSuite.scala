@@ -449,17 +449,17 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     store.putIterator("list2disk", list2.iterator, StorageLevel.DISK_ONLY, tellMaster = true)
     val list1Get = store.get("list1")
     assert(list1Get.isDefined, "list1 expected to be in store")
-    assert(list1Get.get.data.asInstanceOf[IteratedPartitionData[Any]].iterator.size === 2)
+    assert(list1Get.get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     assert(list1Get.get.bytes === list1SizeEstimate)
     assert(list1Get.get.readMethod === DataReadMethod.Memory)
     val list2MemoryGet = store.get("list2memory")
     assert(list2MemoryGet.isDefined, "list2memory expected to be in store")
-    assert(list2MemoryGet.get.data.asInstanceOf[IteratedPartitionData[Any]].iterator.size === 3)
+    assert(list2MemoryGet.get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 3)
     assert(list2MemoryGet.get.bytes === list2SizeEstimate)
     assert(list2MemoryGet.get.readMethod === DataReadMethod.Memory)
     val list2DiskGet = store.get("list2disk")
     assert(list2DiskGet.isDefined, "list2memory expected to be in store")
-    assert(list2DiskGet.get.data.asInstanceOf[IteratedPartitionData[Any]].iterator.size === 3)
+    assert(list2DiskGet.get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 3)
     // We don't know the exact size of the data on disk, but it should certainly be > 0.
     assert(list2DiskGet.get.bytes > 0)
     assert(list2DiskGet.get.readMethod === DataReadMethod.Disk)
@@ -786,18 +786,18 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     store.putIterator("list2", list2.iterator, StorageLevel.MEMORY_ONLY, tellMaster = true)
     store.putIterator("list3", list3.iterator, StorageLevel.MEMORY_ONLY, tellMaster = true)
     assert(store.get("list2").isDefined, "list2 was not in store")
-    assert(store.get("list2").get.data.asInstanceOf[IteratedPartitionData[Any]].iterator.size === 2)
+    assert(store.get("list2").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     assert(store.get("list3").isDefined, "list3 was not in store")
-    assert(store.get("list3").get.data.asInstanceOf[IteratedPartitionData[Any]].iterator.size === 2)
+    assert(store.get("list3").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     assert(store.get("list1") === None, "list1 was in store")
     assert(store.get("list2").isDefined, "list2 was not in store")
-    assert(store.get("list2").get.data.asInstanceOf[IteratedPartitionData[Any]].iterator.size === 2)
+    assert(store.get("list2").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     // At this point list2 was gotten last, so LRU will getSingle rid of list3
     store.putIterator("list1", list1.iterator, StorageLevel.MEMORY_ONLY, tellMaster = true)
     assert(store.get("list1").isDefined, "list1 was not in store")
-    assert(store.get("list1").get.data.asInstanceOf[IteratedPartitionData[Any]].iterator.size === 2)
+    assert(store.get("list1").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     assert(store.get("list2").isDefined, "list2 was not in store")
-    assert(store.get("list2").get.data.asInstanceOf[IteratedPartitionData[Any]].iterator.size === 2)
+    assert(store.get("list2").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     assert(store.get("list3") === None, "list1 was in store")
   }
 
@@ -816,26 +816,26 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     val listSize = SizeEstimator.estimate(listForSizeEstimate)
     // At this point LRU should not kick in because list3 is only on disk
     assert(store.get("list1").isDefined, "list1 was not in store")
-    assert(store.get("list1").get.data.asInstanceOf[IteratedPartitionData[Any]].iterator.size === 2)
+    assert(store.get("list1").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     assert(store.get("list2").isDefined, "list2 was not in store")
-    assert(store.get("list2").get.data.asInstanceOf[IteratedPartitionData[Any]].iterator.size === 2)
+    assert(store.get("list2").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     assert(store.get("list3").isDefined, "list3 was not in store")
-    assert(store.get("list3").get.data.asInstanceOf[IteratedPartitionData[Any]].iterator.size === 2)
+    assert(store.get("list3").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     assert(store.get("list1").isDefined, "list1 was not in store")
-    assert(store.get("list1").get.data.asInstanceOf[IteratedPartitionData[Any]].iterator.size === 2)
+    assert(store.get("list1").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     assert(store.get("list2").isDefined, "list2 was not in store")
-    assert(store.get("list2").get.data.asInstanceOf[IteratedPartitionData[Any]].iterator.size === 2)
+    assert(store.get("list2").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     assert(store.get("list3").isDefined, "list3 was not in store")
-    assert(store.get("list3").get.data.asInstanceOf[IteratedPartitionData[Any]].iterator.size === 2)
+    assert(store.get("list3").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     // Now let's add in list4, which uses both disk and memory; list1 should drop out
     store.putIterator("list4", list4.iterator, StorageLevel.MEMORY_AND_DISK_SER, tellMaster = true)
     assert(store.get("list1") === None, "list1 was in store")
     assert(store.get("list2").isDefined, "list2 was not in store")
-    assert(store.get("list2").get.data.asInstanceOf[IteratedPartitionData[Any]].iterator.size === 2)
+    assert(store.get("list2").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     assert(store.get("list3").isDefined, "list3 was not in store")
-    assert(store.get("list3").get.data.asInstanceOf[IteratedPartitionData[Any]].iterator.size === 2)
+    assert(store.get("list3").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     assert(store.get("list4").isDefined, "list4 was not in store")
-    assert(store.get("list4").get.data.asInstanceOf[IteratedPartitionData[Any]].iterator.size === 2)
+    assert(store.get("list4").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
   }
 
   test("negative byte values in ByteBufferInputStream") {
@@ -1407,13 +1407,13 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     assert(result.droppedBlocks === Nil)
   }
 
-  test("serialize iterated primitives - IteratedPartitionData[Int]") {
+  test("serialize iterated primitives - IteratorPartitionData[Int]") {
     store = makeBlockManager(10000)
     val blockId =  BlockId("rdd_42_42")
-    val inputData = IteratedPartitionData((1 to 1024).iterator)
+    val inputData = IteratorPartitionData((1 to 1024).iterator)
     val serBuf = store.dataSerialize(blockId, inputData, serializer)
     val outputData = store.dataDeserialize(blockId, serBuf, serializer)
-    val it = outputData.asInstanceOf[IteratedPartitionData[Int]]
+    val it = outputData.asInstanceOf[IteratorPartitionData[Int]]
     assert(it.iterator.toIndexedSeq.sameElements(1 to 1024))
   }
 

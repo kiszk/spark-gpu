@@ -27,7 +27,7 @@ import org.apache.spark.util.Utils
 
 import org.apache.spark.PartitionData
 import org.apache.spark.ColumnPartitionData
-import org.apache.spark.IteratedPartitionData
+import org.apache.spark.IteratorPartitionData
 
 /**
  * Stores BlockManager blocks on disk.
@@ -75,7 +75,7 @@ private[spark] class DiskStore(blockManager: BlockManager, diskManager: DiskBloc
       values: Iterator[Any],
       level: StorageLevel,
       returnValues: Boolean): PutResult = {
-    putData(blockId, IteratedPartitionData(values), level, returnValues)
+    putData(blockId, IteratorPartitionData(values), level, returnValues)
   }
 
   override def putColumns(
