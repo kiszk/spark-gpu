@@ -10,8 +10,8 @@
 	</parent>
 
 	<groupId>com.ibm</groupId>
-	<artifactId>ParallelizeTest</artifactId>
-	<name>ParallelizeTest</name>
+	<artifactId>SparkGPUIntegrationTest</artifactId>
+	<name>SparkGPUIntegrationTest</name>
 	<packaging>jar</packaging>
 	<version>1.0</version>
 
