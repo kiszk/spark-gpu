@@ -18,20 +18,33 @@
 package org.apache.spark.rdd
 
 import scala.reflect.ClassTag
+import scala.math._
 
 import org.apache.spark.{Partition, TaskContext, PartitionFormat, PartitionData,
   IteratedPartitionData, ColumnPartitionData, ColumnPartitionDataBuilder}
 
-private[spark] class ConversionRDD[T: ClassTag](
+private[spark] class ConvertRDD[T: ClassTag](
     prev: RDD[T],
-    targetFormat: PartitionFormat
+    targetFormat: PartitionFormat,
+    ratio: Double = 1.0
   ) extends RDD[T](prev) {
 
   override def getPartitions: Array[Partition] =
     firstParent[T].partitions
 
   override def computePartition(split: Partition, context: TaskContext): PartitionData[T] = {
-    firstParent[T].partitionData(split, context).convert(targetFormat)
+    // ceil(n * ratio) - how many partitions should be converted in first n partitions to maintain
+    // the ratio
+    // substract value for n-1 from that and you'll get either 0 or 1 - if you have to convert the
+    // current partition
+    // this maintains the ratio with good accuracy +- 1 for every interval of partition indexes
+    // TODO this works only once per complete conversion, applying this twice will not yield
+    // expected results
+    if (ceil((split.index + 1) * ratio).toInt - ceil(split.index * ratio) > 0) {
+      firstParent[T].partitionData(split, context).convert(targetFormat)
+    } else {
+      firstParent[T].partitionData(split, context)
+    }
   }
 
 }

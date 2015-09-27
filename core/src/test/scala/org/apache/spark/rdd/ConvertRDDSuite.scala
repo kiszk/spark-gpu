@@ -19,7 +19,7 @@ package org.apache.spark.rdd
 
 import org.apache.spark._
 
-class ConversionRDDSuite extends SparkFunSuite with SharedSparkContext {
+class ConvertRDDSuite extends SparkFunSuite with SharedSparkContext {
 
   test("convert iterator->column->iterator", GPUTest) {
     val input = 1 to 999
