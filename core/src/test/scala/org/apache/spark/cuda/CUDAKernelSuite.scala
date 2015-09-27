@@ -171,4 +171,7 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
     }
   }
 
+  // TODO check other formats - cubin and fatbin
+  // TODO make the test somehow work on multiple platforms, preferably without recompilation
+
 }

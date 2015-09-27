@@ -69,7 +69,6 @@ class CUDAKernel(
 
   private[spark] def run[T: ClassTag, U: ClassTag](in: ColumnPartitionData[T]):
       ColumnPartitionData[U] = {
-
     val outputSchema = ColumnPartitionSchema.schemaFor[U]
 
     val memoryUsage = in.memoryUsage + outputSchema.memoryUsage(in.size)
