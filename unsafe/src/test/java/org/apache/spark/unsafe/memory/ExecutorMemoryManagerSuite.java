@@ -28,7 +28,7 @@ public class ExecutorMemoryManagerSuite {
 
   @BeforeClass
   public static void setUp() {
-    // normally it's set by CUDAManager
+    // normally it's set by CUDAManager, but we don't need cuInit or the whole SparkContext here
     JCudaDriver.setExceptionsEnabled(true);
   }
 
@@ -40,6 +40,7 @@ public class ExecutorMemoryManagerSuite {
     Assert.assertEquals(0, manager.getUsedAllocatedPinnedMemorySize());
 
     Pointer ptr1 = manager.allocatePinnedMemory(2048);
+    // this is a way of checking that ptr1 is not null internally (native address is private)
     Assert.assertTrue(!ptr1.equals(new Pointer()));
     Assert.assertEquals(2048, manager.getAllocatedPinnedMemorySize());
     Assert.assertEquals(2048, manager.getUsedAllocatedPinnedMemorySize());
