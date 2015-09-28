@@ -32,6 +32,19 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
 
   private val conf = new SparkConf(false)
 
+  test("Ensure kernel is serializable", GPUTest) {
+    sc = new SparkContext("local", "test", conf)
+    val manager = new CUDAManager
+    val resource = getClass.getClassLoader.getResourceAsStream("testCUDAKernels.ptx")
+    val ptxData = IOUtils.toByteArray(resource)
+    val kernel = new CUDAKernel(
+      "_Z8identityPKiPil",
+      Array("this"),
+      Array("this"),
+      ptxData)
+    SparkEnv.get.closureSerializer.newInstance().serialize(kernel)
+  }
+
   test("Run identity kernel on a single primitive column", GPUTest) {
     sc = new SparkContext("local", "test", conf)
     val manager = new CUDAManager
