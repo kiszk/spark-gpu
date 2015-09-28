@@ -56,13 +56,15 @@ public class ExecutorMemoryManager {
   private final Map<Long, LinkedList<WeakReference<MemoryBlock>>> bufferPoolsBySize =
     new HashMap<Long, LinkedList<WeakReference<MemoryBlock>>>();
 
-  // TODO instead of allocating pinned memory allocate normal page-aligned memory (valloc with
-  // JNI?) and pin it in CUDAManager
-  // This way this page-aligned memory might be used on CPU too without needless costly pinning
+  // TODO Instead of allocating pinned memory allocate normal page-aligned memory (valloc with
+  // JNI?) and pin it in CUDAManager. This way this page-aligned memory might be used on CPU too
+  // without needless costly pinning.
   @GuardedBy("this")
   private long allocatedPinnedMemory = 0;
 
   // Pointer content won't release itself, so no need for WeakReference
+  // TODO use ConcurrentHashMap instead of synchronization and maybe even do thread-local pooling
+  // instead
   @GuardedBy("this")
   private final Map<Long, LinkedList<Pointer>> pinnedMemoryBySize =
     new HashMap<Long, LinkedList<Pointer>>();
