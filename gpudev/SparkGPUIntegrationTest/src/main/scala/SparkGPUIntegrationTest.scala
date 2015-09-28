@@ -1,3 +1,5 @@
+import org.apache.commons.io.IOUtils
+
 import org.apache.spark.{SparkConf, SparkContext, ColumnFormat, IteratorFormat}
 import org.apache.spark.SparkContext._
 
@@ -10,15 +12,19 @@ object SparkGPUIntegrationTest {
 
     var ok = true
 
-    sc.cudaManager.registerCUDAKernelFromResource(
+    val kernelResource = getClass.getClassLoader.getResourceAsStream("kernel.ptx")
+    assert(kernelResource != null)
+    val kernelData = IOUtils.toByteArray(kernelResource)
+
+    sc.cudaManager.registerCUDAKernel(
       "multiplyBy2",
       "_Z11multiplyBy2PiS_l",
       Array("this"),
       Array("this"),
-      "kernel.ptx")
+      kernelData)
 
     println("=== TEST 1 ===")
-    val data = sc.parallelize(1 to 100000, 100)
+    val data = sc.parallelize(1 to 100000, 10)
       .convert(ColumnFormat)
       .mapUsingKernel((x: Int) => 2 * x, "multiplyBy2")
       .convert(IteratorFormat)
