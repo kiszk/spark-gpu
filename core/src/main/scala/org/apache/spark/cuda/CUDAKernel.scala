@@ -65,7 +65,7 @@ class CUDAKernel(
     val outputColumnsOrder: Seq[String],
     val moduleBinaryData: Array[Byte],
     val constArgs: Seq[AnyVal] = Seq(),
-    val dimensions: Option[Long => (Int, Int)] = None) {
+    val dimensions: Option[Long => (Int, Int)] = None) extends Serializable {
 
   private[spark] def run[T: ClassTag, U: ClassTag](in: ColumnPartitionData[T]):
       ColumnPartitionData[U] = {

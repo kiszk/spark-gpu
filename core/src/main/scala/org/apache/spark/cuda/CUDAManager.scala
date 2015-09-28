@@ -150,6 +150,9 @@ class CUDAManager {
       constArgs: Seq[AnyVal] = Seq(),
       dimensions: Option[Long => (Int, Int)] = None): CUDAKernel = {
     val resource = getClass.getClassLoader.getResourceAsStream(resourcePath)
+    if (resource == null) {
+      throw new SparkException(s"Could not load CUDA kernel resource $resourcePath.")
+    }
     val moduleBinaryData = IOUtils.toByteArray(resource)
     registerCUDAKernel(name, kernelSignature, inputColumnsOrder, outputColumnsOrder,
       moduleBinaryData, constArgs, dimensions)

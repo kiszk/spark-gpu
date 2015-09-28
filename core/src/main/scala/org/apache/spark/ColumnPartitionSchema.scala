@@ -34,8 +34,9 @@ object ColumnPartitionSchema {
   // Since we are creating a runtime mirror usign the class loader of current thread,
   // we need to use def at here. So, every time we call mirror, it is using the
   // class loader of the current thread.
-  // TODO check out bug https://issues.scala-lang.org/browse/SI-6240 about reflection not being
-  // thread-safe before 2.11 http://docs.scala-lang.org/overviews/reflection/thread-safety.html
+  // TODO check out if synchronization etc. is needed - see bug
+  // https://issues.scala-lang.org/browse/SI-6240 about reflection not being thread-safe before 2.11
+  // http://docs.scala-lang.org/overviews/reflection/thread-safety.html
   private[spark] def mirror: universe.Mirror =
     universe.runtimeMirror(Thread.currentThread().getContextClassLoader)
 
@@ -57,10 +58,11 @@ object ColumnPartitionSchema {
         case t if t <:< typeOf[Float] => Vector(new ColumnSchema(FLOAT_COLUMN))
         // 64-bit double-precision IEEE 754 floating point
         case t if t <:< typeOf[Double] => Vector(new ColumnSchema(DOUBLE_COLUMN))
-        // TODO boolean - it does not have specified size
-        // TODO char
-        // TODO string - along with special storage space
-        // TODO array (especially constant size)
+        // TODO boolean - note that in JVM specification it does not have specified size
+        // TODO char - note that it's different that C char*, it's more like short*?
+        // TODO string - along with special storage space in separate place - it's enough to point
+        // offset of start of current string in some big blob with concatenated strings
+        // TODO array (especially constant sized)
         // TODO option
         // TODO protection from cycles
         // TODO caching schemas for classes
