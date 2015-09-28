@@ -132,10 +132,11 @@ class CUDAManager {
       outputColumnsOrder: Seq[String],
       moduleFilePath: String,
       constArgs: Seq[AnyVal] = Seq(),
-      dimensions: Option[Long => (Int, Int)] = None): CUDAKernel = {
+      stagesCount: Option[Int] = None,
+      dimensions: Option[(Long, Int) => (Int, Int)] = None): CUDAKernel = {
     val moduleBinaryData = Files.readAllBytes(Paths.get(moduleFilePath))
     registerCUDAKernel(name, kernelSignature, inputColumnsOrder, outputColumnsOrder,
-      moduleBinaryData, constArgs, dimensions)
+      moduleBinaryData, constArgs, stagesCount, dimensions)
   }
 
   /**
@@ -148,14 +149,15 @@ class CUDAManager {
       outputColumnsOrder: Seq[String],
       resourcePath: String,
       constArgs: Seq[AnyVal] = Seq(),
-      dimensions: Option[Long => (Int, Int)] = None): CUDAKernel = {
+      stagesCount: Option[Int] = None,
+      dimensions: Option[(Long, Int) => (Int, Int)] = None): CUDAKernel = {
     val resource = getClass.getClassLoader.getResourceAsStream(resourcePath)
     if (resource == null) {
       throw new SparkException(s"Could not load CUDA kernel resource $resourcePath.")
     }
     val moduleBinaryData = IOUtils.toByteArray(resource)
     registerCUDAKernel(name, kernelSignature, inputColumnsOrder, outputColumnsOrder,
-      moduleBinaryData, constArgs, dimensions)
+      moduleBinaryData, constArgs, stagesCount, dimensions)
   }
 
   /**
@@ -169,9 +171,10 @@ class CUDAManager {
       outputColumnsOrder: Seq[String],
       moduleBinaryData: Array[Byte],
       constArgs: Seq[AnyVal] = Seq(),
-      dimensions: Option[Long => (Int, Int)] = None): CUDAKernel = {
+      stagesCount: Option[Int] = None,
+      dimensions: Option[(Long, Int) => (Int, Int)] = None): CUDAKernel = {
     val kernel = new CUDAKernel(kernelSignature, inputColumnsOrder, outputColumnsOrder,
-      moduleBinaryData, constArgs, dimensions)
+      moduleBinaryData, constArgs, stagesCount, dimensions)
     registerCUDAKernel(name, kernel)
     kernel
   }

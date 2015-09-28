@@ -33,6 +33,7 @@ import org.apache.commons.lang3.SerializationUtils
 
 import org.apache.spark._
 import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.cuda.CUDAKernel
 import org.apache.spark.executor.TaskMetrics
 import org.apache.spark.partial.{ApproximateActionListener, ApproximateEvaluator, PartialResult}
 import org.apache.spark.rdd.RDD
@@ -507,7 +508,7 @@ class DAGScheduler(
    */
   def submitJob[T, U](
       rdd: RDD[T],
-      func: (TaskContext, Iterator[T]) => U,
+      func: (TaskContext, PartitionData[T]) => U,
       partitions: Seq[Int],
       callSite: CallSite,
       resultHandler: (Int, U) => Unit,
@@ -526,7 +527,7 @@ class DAGScheduler(
     }
 
     assert(partitions.size > 0)
-    val func2 = func.asInstanceOf[(TaskContext, Iterator[_]) => _]
+    val func2 = func.asInstanceOf[(TaskContext, PartitionData[_]) => _]
     val waiter = new JobWaiter(this, jobId, partitions.size, resultHandler)
     eventProcessLoop.post(JobSubmitted(
       jobId, rdd, func2, partitions.toArray, callSite, waiter,
@@ -536,7 +537,7 @@ class DAGScheduler(
 
   def runJob[T, U](
       rdd: RDD[T],
-      func: (TaskContext, Iterator[T]) => U,
+      func: (TaskContext, PartitionData[T]) => U,
       partitions: Seq[Int],
       callSite: CallSite,
       resultHandler: (Int, U) => Unit,
@@ -559,13 +560,13 @@ class DAGScheduler(
 
   def runApproximateJob[T, U, R](
       rdd: RDD[T],
-      func: (TaskContext, Iterator[T]) => U,
+      func: (TaskContext, PartitionData[T]) => U,
       evaluator: ApproximateEvaluator[U, R],
       callSite: CallSite,
       timeout: Long,
       properties: Properties): PartialResult[R] = {
     val listener = new ApproximateActionListener(rdd, func, evaluator, timeout)
-    val func2 = func.asInstanceOf[(TaskContext, Iterator[_]) => _]
+    val func2 = func.asInstanceOf[(TaskContext, PartitionData[_]) => _]
     val partitions = (0 until rdd.partitions.size).toArray
     val jobId = nextJobId.getAndIncrement()
     eventProcessLoop.post(JobSubmitted(
@@ -706,7 +707,7 @@ class DAGScheduler(
 
   private[scheduler] def handleJobSubmitted(jobId: Int,
       finalRDD: RDD[_],
-      func: (TaskContext, Iterator[_]) => _,
+      func: (TaskContext, PartitionData[_]) => _,
       partitions: Array[Int],
       callSite: CallSite,
       listener: JobListener,

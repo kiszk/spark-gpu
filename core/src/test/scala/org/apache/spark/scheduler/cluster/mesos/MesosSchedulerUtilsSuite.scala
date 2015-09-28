@@ -17,6 +17,8 @@
 
 package org.apache.spark.scheduler.cluster.mesos
 
+import scala.language.reflectiveCalls
+
 import org.apache.mesos.Protos.Value
 import org.mockito.Mockito._
 import org.scalatest._
