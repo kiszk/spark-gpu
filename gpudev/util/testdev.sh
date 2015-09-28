@@ -15,7 +15,8 @@ org.apache.spark.cuda.CUDAKernelSuite,\
 org.apache.spark.ConvertRDDSuite,\
 org.apache.spark.storage.BlockManagerSuite,\
 org.apache.spark.rdd.RDDSuite,\
-org.apache.spark.CacheManagerSuite
+org.apache.spark.CacheManagerSuite,\
+org.apache.spark.util.ClosureCleanerSuite
 
 #org.apache.spark.DistributedSuite,\
 #org.apache.spark.rdd.AsyncRDDActionsSuite,\

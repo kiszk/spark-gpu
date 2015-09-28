@@ -19,7 +19,7 @@ package org.apache.spark.scheduler
 
 import java.util.Properties
 
-import org.apache.spark.TaskContext
+import org.apache.spark.{TaskContext, PartitionData}
 import org.apache.spark.util.CallSite
 
 /**
@@ -43,7 +43,7 @@ import org.apache.spark.util.CallSite
  */
 private[spark] class ActiveJob(
     val jobId: Int,
-    val finalStage: Stage,
+    val finalStage: ResultStage,
     val callSite: CallSite,
     val listener: JobListener,
     val properties: Properties) {

@@ -236,8 +236,8 @@ class DAGSchedulerSuite
    * below, we do not expect this function to ever be executed; instead, we will return results
    * directly through CompletionEvents.
    */
-  private val jobComputeFunc = (context: TaskContext, it: Iterator[(_)]) =>
-     it.next.asInstanceOf[Tuple2[_, _]]._1
+  private val jobComputeFunc = (context: TaskContext, it: PartitionData[(_)]) =>
+     it.iterator.next.asInstanceOf[Tuple2[_, _]]._1
 
   /** Send the given CompletionEvent messages for the tasks in the TaskSet. */
   private def complete(taskSet: TaskSet, results: Seq[(TaskEndReason, Any)]) {
@@ -265,7 +265,7 @@ class DAGSchedulerSuite
   private def submit(
       rdd: RDD[_],
       partitions: Array[Int],
-      func: (TaskContext, Iterator[_]) => _ = jobComputeFunc,
+      func: (TaskContext, PartitionData[_]) => _ = jobComputeFunc,
       listener: JobListener = jobListener,
       properties: Properties = null): Int = {
     val jobId = scheduler.nextJobId.getAndIncrement()

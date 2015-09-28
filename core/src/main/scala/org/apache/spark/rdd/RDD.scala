@@ -366,7 +366,7 @@ abstract class RDD[T: ClassTag](
    * column-based partitions.
    */
   def mapUsingKernel[U: ClassTag](f: T => U, kernelName: String): RDD[U] = {
-    mapUsingKernel(f, sc.cudaManager.getKernel(kernelName))
+    mapUsingKernel(f, SparkEnv.get.cudaManager.getKernel(kernelName))
   }
 
   /**
@@ -1078,6 +1078,49 @@ abstract class RDD[T: ClassTag](
       }
     }
     sc.runJob(this, reducePartition, mergeResult)
+    // Get the final result out of our Option, or throw an exception if the RDD was empty
+    jobResult.getOrElse(throw new UnsupportedOperationException("empty collection"))
+  }
+
+  /**
+   * Reduces the elements of this RDD using the specified commutative and associative binary
+   * operator. Uses supplied CUDA kernel for performing those operations on column-based partitions.
+   */
+  def reduceUsingKernel(f: (T, T) => T, kernelName: String): T =
+    reduceUsingKernel(f, SparkEnv.get.cudaManager.getKernel(kernelName))
+
+  /**
+   * Reduces the elements of this RDD using the specified commutative and associative binary
+   * operator. Uses supplied CUDA kernel for performing those operations on column-based partitions.
+   */
+  def reduceUsingKernel(f: (T, T) => T, kernel: CUDAKernel): T = withScope {
+    val cleanF = sc.clean(f)
+    val reducePartition: (TaskContext, PartitionData[T]) => Option[T] =
+      (ctx: TaskContext, data: PartitionData[T]) => data match {
+        case IteratorPartitionData(iter) =>
+          if (iter.hasNext) {
+            Some(iter.reduceLeft(cleanF))
+          } else {
+            None
+          }
+
+        case col: ColumnPartitionData[T] =>
+          if (col.size != 0) {
+            Some(kernel.run[T, T](col, Some(1)).iterator.next)
+          } else {
+            None
+          }
+      }
+    var jobResult: Option[T] = None
+    val mergeResult = (index: Int, taskResult: Option[T]) => {
+      if (taskResult.isDefined) {
+        jobResult = jobResult match {
+          case Some(value) => Some(f(value, taskResult.get))
+          case None => taskResult
+        }
+      }
+    }
+    sc.runGenericJob(this, reducePartition, 0 until partitions.length, mergeResult)
     // Get the final result out of our Option, or throw an exception if the RDD was empty
     jobResult.getOrElse(throw new UnsupportedOperationException("empty collection"))
   }
