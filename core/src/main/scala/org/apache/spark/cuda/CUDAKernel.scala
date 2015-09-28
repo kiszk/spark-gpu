@@ -65,10 +65,15 @@ class CUDAKernel(
     val outputColumnsOrder: Seq[String],
     val moduleBinaryData: Array[Byte],
     val constArgs: Seq[AnyVal] = Seq(),
-    val dimensions: Option[Long => (Int, Int)] = None) extends Serializable {
+    val stagesCount: Option[Int] = None,
+    val dimensions: Option[(Long, Int) => (Int, Int)] = None) extends Serializable {
 
-  private[spark] def run[T: ClassTag, U: ClassTag](in: ColumnPartitionData[T]):
-      ColumnPartitionData[U] = {
+  /**
+   * Runs the kernel on input data. Output size should be specified if kernel's result is of size
+   * different than input size.
+   */
+  private[spark] def run[T, U: ClassTag](in: ColumnPartitionData[T],
+      outputSize: Option[Long] = None): ColumnPartitionData[U] = {
     val outputSchema = ColumnPartitionSchema.schemaFor[U]
 
     val memoryUsage = in.memoryUsage + outputSchema.memoryUsage(in.size)
@@ -81,7 +86,8 @@ class CUDAKernel(
     val function = new CUfunction
     JCudaDriver.cuModuleGetFunction(function, module, kernelSignature)
 
-    val out = new ColumnPartitionData[U](outputSchema, in.size)
+    val actualOutputSize = outputSize.getOrElse(in.size)
+    val out = new ColumnPartitionData[U](outputSchema, actualOutputSize)
     try {
       var gpuInputPtrs = Vector[Pointer]()
       var gpuOutputPtrs = Vector[Pointer]()
@@ -95,7 +101,7 @@ class CUDAKernel(
         val outColumns = out.schema.orderedColumns(outputColumnsOrder)
         for (col <- outColumns) {
           gpuOutputPtrs = gpuOutputPtrs :+
-            SparkEnv.get.cudaManager.allocateGPUMemory(col.memoryUsage(in.size))
+            SparkEnv.get.cudaManager.allocateGPUMemory(col.memoryUsage(out.size))
         }
 
         val inPointers = in.orderedPointers(inputColumnsOrder)
@@ -117,25 +123,60 @@ class CUDAKernel(
           case _ => throw new SparkException("Unsupported type passed to kernel as a constant "
             + "argument")
         }
-        val params = gpuPtrParams ++ sizeParam ++ constArgParams
-        val kernelParameters = Pointer.to(params: _*)
 
-        val (gpuGridSize, gpuBlockSize) = dimensions match {
-          case Some(computeDim) => computeDim(in.size)
-          case None => SparkEnv.get.cudaManager.computeDimensions(in.size)
+        val wrappedStream = new CUstream(stream)
+
+        stagesCount match {
+          // normal launch, no stages, suitable for map
+          case None =>
+            val params = gpuPtrParams ++ sizeParam ++ constArgParams
+            val kernelParameters = Pointer.to(params: _*)
+
+            val (gpuGridSize, gpuBlockSize) = dimensions match {
+              case Some(computeDim) => computeDim(in.size, 1)
+              case None => SparkEnv.get.cudaManager.computeDimensions(in.size)
+            }
+
+            JCudaDriver.cuLaunchKernel(
+              function,
+              gpuGridSize, 1, 1,
+              gpuBlockSize, 1, 1,
+              0,
+              wrappedStream,
+              kernelParameters, null)
+
+          // launch kernel multiple times (multiple stages), suitable for reduce
+          case Some(totalStages) =>
+            if (totalStages <= 0) {
+              throw new SparkException("Number of stages in a kernel launch must be positive")
+            }
+            (0 to totalStages - 1).foreach { stageNumber =>
+              val stageParams =
+                List(Pointer.to(Array[Int](stageNumber)), Pointer.to(Array[Int](totalStages)))
+              val params = gpuPtrParams ++ sizeParam ++ constArgParams ++ stageParams
+              val kernelParameters = Pointer.to(params: _*)
+
+              val (gpuGridSize, gpuBlockSize) = dimensions match {
+                case Some(computeDim) => computeDim(in.size, stageNumber)
+                case None =>
+                  // TODO it can be automatized if we say that by default we reduce exactly one
+                  // warp size amount of data, though it'll become complex for the user
+                  throw new SparkException("Dimensions must be provided for multi-stage kernels")
+              }
+
+              JCudaDriver.cuLaunchKernel(
+                function,
+                gpuGridSize, 1, 1,
+                gpuBlockSize, 1, 1,
+                0,
+                wrappedStream,
+                kernelParameters, null)
+            }
         }
-
-        JCudaDriver.cuLaunchKernel(
-          function,
-          gpuGridSize, 1, 1,
-          gpuBlockSize, 1, 1,
-          0,
-          new CUstream(stream),
-          kernelParameters, null)
 
         val outPointers = out.orderedPointers(outputColumnsOrder)
         for ((cpuPtr, gpuPtr, col) <- (outPointers, gpuOutputPtrs, outColumns).zipped) {
-          JCuda.cudaMemcpyAsync(cpuPtr, gpuPtr, col.memoryUsage(in.size),
+          JCuda.cudaMemcpyAsync(cpuPtr, gpuPtr, col.memoryUsage(out.size),
             cudaMemcpyKind.cudaMemcpyDeviceToHost, stream)
         }
 

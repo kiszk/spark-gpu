@@ -5,3 +5,21 @@ __global__ void multiplyBy2(int *in, int *out, long size) {
         out[ix] = in[ix] * 2;
     }
 }
+
+__global__ void sum(int *input, int *output, long size, int stage, int totalStages) {
+    const long ix = threadIdx.x + blockIdx.x * (long)blockDim.x;
+    const long jump = 4 * 32;
+    if (stage == 0) {
+        int result = 0;
+        for (long i = ix; i < size; i += jump) {
+            result += input[i];
+        }
+        input[ix] = result;
+    } else if (ix == 0) {
+        int result = 0;
+        for (long i = 0; i < (size + jump - 1) / jump; ++i) {
+            result += input[i];
+        }
+        output[0] = result;
+    }
+}

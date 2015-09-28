@@ -40,3 +40,32 @@ __global__ void blockXOR(const char *input, char *output, long size, long key) {
         ((long *)output)[ix] = ((const long *)input)[ix] ^ key;
     }
 }
+
+// another simple test kernel
+__global__ void multiplyBy2(int *in, int *out, long size) {
+    const int ix = threadIdx.x + blockIdx.x * blockDim.x;
+
+    if (ix < size) {
+        out[ix] = in[ix] * 2;
+    }
+}
+
+// test reduce kernel that sums elements
+__global__ void sum(int *input, int *output, long size, int stage, int totalStages) {
+    const long ix = threadIdx.x + blockIdx.x * (long)blockDim.x;
+    const int jump = 64 * 256;
+    if (stage == 0) {
+        assert(jump == blockDim.x * gridDim.x);
+        int result = 0;
+        for (long i = ix; i < size; i += jump) {
+            result += input[i];
+        }
+        input[ix] = result;
+    } else if (ix == 0) {
+        int result = 0;
+        for (long i = 0; i < jump; ++i) {
+            result += input[i];
+        }
+        output[0] = result;
+    }
+}

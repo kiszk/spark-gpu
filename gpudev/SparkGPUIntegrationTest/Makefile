@@ -8,7 +8,7 @@ NVCCFLAGS ?= -arch=sm_$(COMPUTE_CAPABILITY) -Xptxas="-v"
 all: target/SparkGPUIntegrationTest-1.0.jar
 
 target/SparkGPUIntegrationTest-1.0.jar: src/main/scala/SparkGPUIntegrationTest.scala src/main/resources/kernel.ptx
-	mvn package
+	mvn -Dscala-2.11 package
 
 src/main/resources/kernel.ptx: src/cuda/kernel.cu
 	mkdir -p src/main/resources

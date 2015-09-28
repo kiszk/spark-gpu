@@ -11,6 +11,18 @@
 .address_size 64
 
 	// .globl	_Z8identityPKiPil
+.extern .func __assertfail
+(
+	.param .b64 __assertfail_param_0,
+	.param .b64 __assertfail_param_1,
+	.param .b32 __assertfail_param_2,
+	.param .b64 __assertfail_param_3,
+	.param .b64 __assertfail_param_4
+)
+;
+.global .align 1 .b8 __T20[39] = {118, 111, 105, 100, 32, 115, 117, 109, 40, 105, 110, 116, 32, 42, 44, 32, 105, 110, 116, 32, 42, 44, 32, 108, 111, 110, 103, 44, 32, 105, 110, 116, 44, 32, 105, 110, 116, 41, 0};
+.global .align 1 .b8 $str[31] = {106, 117, 109, 112, 32, 61, 61, 32, 98, 108, 111, 99, 107, 68, 105, 109, 46, 120, 32, 42, 32, 103, 114, 105, 100, 68, 105, 109, 46, 120, 0};
+.global .align 1 .b8 $str1[19] = {116, 101, 115, 116, 67, 85, 68, 65, 75, 101, 114, 110, 101, 108, 115, 46, 99, 117, 0};
 
 .visible .entry _Z8identityPKiPil(
 	.param .u64 _Z8identityPKiPil_param_0,
@@ -228,6 +240,220 @@ BB3_2:
 	st.global.u64 	[%rd15], %rd13;
 
 BB4_2:
+	ret;
+}
+
+	// .globl	_Z11multiplyBy2PiS_l
+.visible .entry _Z11multiplyBy2PiS_l(
+	.param .u64 _Z11multiplyBy2PiS_l_param_0,
+	.param .u64 _Z11multiplyBy2PiS_l_param_1,
+	.param .u64 _Z11multiplyBy2PiS_l_param_2
+)
+{
+	.reg .pred 	%p<2>;
+	.reg .s32 	%r<7>;
+	.reg .s64 	%rd<10>;
+
+
+	ld.param.u64 	%rd1, [_Z11multiplyBy2PiS_l_param_0];
+	ld.param.u64 	%rd2, [_Z11multiplyBy2PiS_l_param_1];
+	ld.param.u64 	%rd3, [_Z11multiplyBy2PiS_l_param_2];
+	mov.u32 	%r2, %tid.x;
+	mov.u32 	%r3, %ntid.x;
+	mov.u32 	%r4, %ctaid.x;
+	mad.lo.s32 	%r1, %r3, %r4, %r2;
+	cvt.s64.s32	%rd4, %r1;
+	setp.ge.s64	%p1, %rd4, %rd3;
+	@%p1 bra 	BB5_2;
+
+	cvta.to.global.u64 	%rd5, %rd1;
+	mul.wide.s32 	%rd6, %r1, 4;
+	add.s64 	%rd7, %rd5, %rd6;
+	ld.global.u32 	%r5, [%rd7];
+	shl.b32 	%r6, %r5, 1;
+	cvta.to.global.u64 	%rd8, %rd2;
+	add.s64 	%rd9, %rd8, %rd6;
+	st.global.u32 	[%rd9], %r6;
+
+BB5_2:
+	ret;
+}
+
+	// .globl	_Z3sumPiS_lii
+.visible .entry _Z3sumPiS_lii(
+	.param .u64 _Z3sumPiS_lii_param_0,
+	.param .u64 _Z3sumPiS_lii_param_1,
+	.param .u64 _Z3sumPiS_lii_param_2,
+	.param .u32 _Z3sumPiS_lii_param_3,
+	.param .u32 _Z3sumPiS_lii_param_4
+)
+{
+	.reg .pred 	%p<7>;
+	.reg .s32 	%r<82>;
+	.reg .s64 	%rd<36>;
+
+
+	ld.param.u64 	%rd15, [_Z3sumPiS_lii_param_0];
+	ld.param.u64 	%rd13, [_Z3sumPiS_lii_param_1];
+	ld.param.u64 	%rd14, [_Z3sumPiS_lii_param_2];
+	ld.param.u32 	%r9, [_Z3sumPiS_lii_param_3];
+	cvta.to.global.u64 	%rd32, %rd15;
+	mov.u32 	%r1, %tid.x;
+	cvt.u64.u32	%rd16, %r1;
+	mov.u32 	%r2, %ctaid.x;
+	mov.u32 	%r3, %ntid.x;
+	mul.wide.u32 	%rd17, %r3, %r2;
+	add.s64 	%rd2, %rd17, %rd16;
+	setp.eq.s32	%p1, %r9, 0;
+	@%p1 bra 	BB6_4;
+
+	cvta.to.global.u64 	%rd3, %rd13;
+	mov.u32 	%r80, 0;
+	mov.u64 	%rd33, 16384;
+	setp.ne.s64	%p2, %rd2, 0;
+	@%p2 bra 	BB6_10;
+
+BB6_2:
+	ld.global.u32 	%r11, [%rd32];
+	add.s32 	%r12, %r11, %r80;
+	ld.global.u32 	%r13, [%rd32+4];
+	add.s32 	%r14, %r13, %r12;
+	ld.global.u32 	%r15, [%rd32+8];
+	add.s32 	%r16, %r15, %r14;
+	ld.global.u32 	%r17, [%rd32+12];
+	add.s32 	%r18, %r17, %r16;
+	ld.global.u32 	%r19, [%rd32+16];
+	add.s32 	%r20, %r19, %r18;
+	ld.global.u32 	%r21, [%rd32+20];
+	add.s32 	%r22, %r21, %r20;
+	ld.global.u32 	%r23, [%rd32+24];
+	add.s32 	%r24, %r23, %r22;
+	ld.global.u32 	%r25, [%rd32+28];
+	add.s32 	%r26, %r25, %r24;
+	ld.global.u32 	%r27, [%rd32+32];
+	add.s32 	%r28, %r27, %r26;
+	ld.global.u32 	%r29, [%rd32+36];
+	add.s32 	%r30, %r29, %r28;
+	ld.global.u32 	%r31, [%rd32+40];
+	add.s32 	%r32, %r31, %r30;
+	ld.global.u32 	%r33, [%rd32+44];
+	add.s32 	%r34, %r33, %r32;
+	ld.global.u32 	%r35, [%rd32+48];
+	add.s32 	%r36, %r35, %r34;
+	ld.global.u32 	%r37, [%rd32+52];
+	add.s32 	%r38, %r37, %r36;
+	ld.global.u32 	%r39, [%rd32+56];
+	add.s32 	%r40, %r39, %r38;
+	ld.global.u32 	%r41, [%rd32+60];
+	add.s32 	%r42, %r41, %r40;
+	ld.global.u32 	%r43, [%rd32+64];
+	add.s32 	%r44, %r43, %r42;
+	ld.global.u32 	%r45, [%rd32+68];
+	add.s32 	%r46, %r45, %r44;
+	ld.global.u32 	%r47, [%rd32+72];
+	add.s32 	%r48, %r47, %r46;
+	ld.global.u32 	%r49, [%rd32+76];
+	add.s32 	%r50, %r49, %r48;
+	ld.global.u32 	%r51, [%rd32+80];
+	add.s32 	%r52, %r51, %r50;
+	ld.global.u32 	%r53, [%rd32+84];
+	add.s32 	%r54, %r53, %r52;
+	ld.global.u32 	%r55, [%rd32+88];
+	add.s32 	%r56, %r55, %r54;
+	ld.global.u32 	%r57, [%rd32+92];
+	add.s32 	%r58, %r57, %r56;
+	ld.global.u32 	%r59, [%rd32+96];
+	add.s32 	%r60, %r59, %r58;
+	ld.global.u32 	%r61, [%rd32+100];
+	add.s32 	%r62, %r61, %r60;
+	ld.global.u32 	%r63, [%rd32+104];
+	add.s32 	%r64, %r63, %r62;
+	ld.global.u32 	%r65, [%rd32+108];
+	add.s32 	%r66, %r65, %r64;
+	ld.global.u32 	%r67, [%rd32+112];
+	add.s32 	%r68, %r67, %r66;
+	ld.global.u32 	%r69, [%rd32+116];
+	add.s32 	%r70, %r69, %r68;
+	ld.global.u32 	%r71, [%rd32+120];
+	add.s32 	%r72, %r71, %r70;
+	ld.global.u32 	%r73, [%rd32+124];
+	add.s32 	%r80, %r73, %r72;
+	add.s64 	%rd32, %rd32, 128;
+	add.s64 	%rd33, %rd33, -32;
+	setp.ne.s64	%p3, %rd33, 0;
+	@%p3 bra 	BB6_2;
+
+	st.global.u32 	[%rd3], %r80;
+	bra.uni 	BB6_10;
+
+BB6_4:
+	mov.u32 	%r74, %nctaid.x;
+	mul.lo.s32 	%r75, %r74, %r3;
+	setp.eq.s32	%p4, %r75, 16384;
+	@%p4 bra 	BB6_6;
+
+	mov.u64 	%rd19, $str;
+	cvta.global.u64 	%rd20, %rd19;
+	mov.u64 	%rd21, $str1;
+	cvta.global.u64 	%rd22, %rd21;
+	mov.u64 	%rd23, __T20;
+	cvta.global.u64 	%rd24, %rd23;
+	mov.u32 	%r76, 58;
+	mov.u64 	%rd25, 1;
+	// Callseq Start 0
+	{
+	.reg .b32 temp_param_reg;
+	// <end>}
+	.param .b64 param0;
+	st.param.b64	[param0+0], %rd20;
+	.param .b64 param1;
+	st.param.b64	[param1+0], %rd22;
+	.param .b32 param2;
+	st.param.b32	[param2+0], %r76;
+	.param .b64 param3;
+	st.param.b64	[param3+0], %rd24;
+	.param .b64 param4;
+	st.param.b64	[param4+0], %rd25;
+	call.uni 
+	__assertfail, 
+	(
+	param0, 
+	param1, 
+	param2, 
+	param3, 
+	param4
+	);
+	
+	//{
+	}// Callseq End 0
+
+BB6_6:
+	mov.u32 	%r81, 0;
+	setp.ge.s64	%p5, %rd2, %rd14;
+	@%p5 bra 	BB6_9;
+
+	add.s64 	%rd28, %rd17, %rd16;
+	shl.b64 	%rd29, %rd28, 2;
+	add.s64 	%rd34, %rd32, %rd29;
+	mov.u32 	%r81, 0;
+	mov.u64 	%rd35, %rd2;
+
+BB6_8:
+	mov.u64 	%rd10, %rd35;
+	ld.global.u32 	%r79, [%rd34];
+	add.s32 	%r81, %r79, %r81;
+	add.s64 	%rd34, %rd34, 65536;
+	add.s64 	%rd12, %rd10, 16384;
+	setp.lt.s64	%p6, %rd12, %rd14;
+	mov.u64 	%rd35, %rd12;
+	@%p6 bra 	BB6_8;
+
+BB6_9:
+	shl.b64 	%rd30, %rd2, 2;
+	add.s64 	%rd31, %rd32, %rd30;
+	st.global.u32 	[%rd31], %r81;
+
+BB6_10:
 	ret;
 }
 

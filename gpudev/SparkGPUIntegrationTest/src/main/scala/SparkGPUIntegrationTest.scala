@@ -23,8 +23,23 @@ object SparkGPUIntegrationTest {
       Array("this"),
       kernelData)
 
+    val dimensions = (size: Long, stage: Int) => stage match {
+      case 0 => (4, 32)
+      case 1 => (1, 1)
+    }
+    sc.cudaManager.registerCUDAKernel(
+      "sum",
+      "_Z3sumPiS_lii",
+      Array("this"),
+      Array("this"),
+      kernelData,
+      Seq[AnyVal](),
+      Some(2),
+      Some(dimensions))
+
     println("=== TEST 1 ===")
-    val data = sc.parallelize(1 to 100000, 100)
+    println("= map =")
+    val data = sc.parallelize(1 to 100000, 10)
       .convert(ColumnFormat)
       .mapUsingKernel((x: Int) => 2 * x, "multiplyBy2")
       .convert(IteratorFormat)
@@ -33,6 +48,18 @@ object SparkGPUIntegrationTest {
     print(data.take(5).mkString(", ") + " ... ")
     println(data.takeRight(5).mkString(", "))
     if (!data.sameElements((1 to 100000).map(_ * 2))) {
+      println("GOT WRONG DATA")
+      ok = false
+    }
+
+    println("=== TEST 2 ===")
+    println("= map + reduce =")
+    val sum = sc.parallelize(1 to 10)
+      .convert(ColumnFormat)
+      .mapUsingKernel((x: Int) => 2 * x, "multiplyBy2")
+      .reduceUsingKernel((x: Int, y: Int) => x + y, "sum")
+    println(s"Got result: $sum")
+    if (sum != 100010000) {
       println("GOT WRONG DATA")
       ok = false
     }
