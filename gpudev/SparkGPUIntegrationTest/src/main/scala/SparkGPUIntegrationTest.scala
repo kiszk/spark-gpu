@@ -24,7 +24,7 @@ object SparkGPUIntegrationTest {
       kernelData)
 
     println("=== TEST 1 ===")
-    val data = sc.parallelize(1 to 100000, 10)
+    val data = sc.parallelize(1 to 100000, 100)
       .convert(ColumnFormat)
       .mapUsingKernel((x: Int) => 2 * x, "multiplyBy2")
       .convert(IteratorFormat)
