@@ -65,7 +65,7 @@ class CUDAKernel(
     val outputColumnsOrder: Seq[String],
     val moduleBinaryData: Array[Byte],
     val constArgs: Seq[AnyVal] = Seq(),
-    val stagesCount: Option[Int] = None,
+    val stagesCount: Option[Long => Int] = None,
     val dimensions: Option[(Long, Int) => (Int, Int)] = None) extends Serializable {
 
   /**
@@ -95,13 +95,13 @@ class CUDAKernel(
         val inColumns = in.schema.orderedColumns(inputColumnsOrder)
         for (col <- inColumns) {
           gpuInputPtrs = gpuInputPtrs :+
-            SparkEnv.get.cudaManager.allocateGPUMemory(col.memoryUsage(in.size))
+            SparkEnv.get.cudaManager.allocGPUMemory(col.memoryUsage(in.size))
         }
 
         val outColumns = out.schema.orderedColumns(outputColumnsOrder)
         for (col <- outColumns) {
           gpuOutputPtrs = gpuOutputPtrs :+
-            SparkEnv.get.cudaManager.allocateGPUMemory(col.memoryUsage(out.size))
+            SparkEnv.get.cudaManager.allocGPUMemory(col.memoryUsage(out.size))
         }
 
         val inPointers = in.orderedPointers(inputColumnsOrder)
@@ -146,7 +146,8 @@ class CUDAKernel(
               kernelParameters, null)
 
           // launch kernel multiple times (multiple stages), suitable for reduce
-          case Some(totalStages) =>
+          case Some(totalStagesFun) =>
+            val totalStages = totalStagesFun(in.size)
             if (totalStages <= 0) {
               throw new SparkException("Number of stages in a kernel launch must be positive")
             }
@@ -187,10 +188,10 @@ class CUDAKernel(
         out
       } {
         for (ptr <- gpuInputPtrs) {
-          SparkEnv.get.cudaManager.deallocateGPUMemory(ptr)
+          SparkEnv.get.cudaManager.freeGPUMemory(ptr)
         }
         for (ptr <- gpuOutputPtrs){
-          SparkEnv.get.cudaManager.deallocateGPUMemory(ptr)
+          SparkEnv.get.cudaManager.freeGPUMemory(ptr)
         }
       }
     } catch {

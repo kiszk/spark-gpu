@@ -17,7 +17,7 @@
 
 package org.apache.spark.cuda
 
-import scala.collection.mutable.{Map, HashMap}
+import scala.collection.mutable.{Map, HashMap, MutableList}
 import scala.util.Random
 
 import java.nio.file.{Files, Paths}
@@ -33,8 +33,10 @@ import jcuda.runtime.cudaStream_t
 import jcuda.runtime.JCuda
 
 import org.apache.commons.io.IOUtils
-
 import org.apache.spark.SparkException
+
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 
 class CUDAManager {
 
@@ -64,27 +66,26 @@ class CUDAManager {
     cnt(0)
   }
 
-  private val context: Option[CUcontext] = if (deviceCount > 0) {
-    val dev = new CUdevice
-    JCudaDriver.cuDeviceGet(dev, 0)
-    val ctx = new CUcontext
-    JCudaDriver.cuCtxCreate(ctx, 0, dev)
-    Some(ctx)
-  } else {
-    None
+  private val allStreams = MutableList[Array[cudaStream_t]]()
+  private def allocateThreadStreams: Array[cudaStream_t] = {
+    val threadStreams = (0 to deviceCount - 1).map { devIx =>
+      JCuda.cudaSetDevice(devIx)
+      val stream = new cudaStream_t
+      JCuda.cudaStreamCreateWithFlags(stream, JCuda.cudaStreamNonBlocking)
+      stream
+    } .toArray
+    synchronized {
+      allStreams += threadStreams
+    }
+    threadStreams
   }
 
   private val streams: ThreadLocal[Array[cudaStream_t]] = new ThreadLocal[Array[cudaStream_t]] {
     override def initialValue(): Array[cudaStream_t] = {
-      context match {
-        case Some(ctx) =>
-          (1 to deviceCount).map { devIx =>
-            JCuda.cudaSetDevice(devIx)
-            val stream = new cudaStream_t
-            JCuda.cudaStreamCreate(stream)
-            stream
-          } .toArray
-        case None => new Array[cudaStream_t](0)
+      if (deviceCount > 0) {
+        allocateThreadStreams
+      } else {
+        new Array[cudaStream_t](0)
       }
     }
   }
@@ -100,9 +101,14 @@ class CUDAManager {
       throw new SparkException("No available CUDA devices to create a stream")
     }
 
+    // ensuring streams are already created, since their creation calls cudaSetDevice
+    streams.get
+
     // TODO balance the load (ideally equal amount of streams everywhere but without
     // synchronization) better than just picking at random - this will have standard deviation
     // around sqrt(num_of_threads)
+    // maybe correct synchronized load balancing is okay after all - partitions synchronize to
+    // allocate the memory anyway
     val startDev = Random.nextInt(deviceCount)
     (startDev to (startDev + deviceCount - 1)).map(_ % deviceCount).map { devIx =>
       JCuda.cudaSetDevice(devIx)
@@ -110,6 +116,10 @@ class CUDAManager {
       JCuda.cudaMemGetInfo(memInfo(0), memInfo(1))
       val freeMem = memInfo(0)(0)
       if (freeMem >= memoryUsage) {
+        if (CUDAManager.logger.isDebugEnabled()) {
+          CUDAManager.logger.debug(s"Choosing stream from device $devIx for running the " +
+            s"kernel (Thread ID ${Thread.currentThread.getId})");
+        }
         // TODO ensure that there will be enough memory available at allocation time (maybe by
         // allocating it now?)
         // TODO GPU memory pooling - no need to reallocate, since usually exact same sizes of memory
@@ -132,7 +142,7 @@ class CUDAManager {
       outputColumnsOrder: Seq[String],
       moduleFilePath: String,
       constArgs: Seq[AnyVal] = Seq(),
-      stagesCount: Option[Int] = None,
+      stagesCount: Option[Long => Int] = None,
       dimensions: Option[(Long, Int) => (Int, Int)] = None): CUDAKernel = {
     val moduleBinaryData = Files.readAllBytes(Paths.get(moduleFilePath))
     registerCUDAKernel(name, kernelSignature, inputColumnsOrder, outputColumnsOrder,
@@ -149,7 +159,7 @@ class CUDAManager {
       outputColumnsOrder: Seq[String],
       resourcePath: String,
       constArgs: Seq[AnyVal] = Seq(),
-      stagesCount: Option[Int] = None,
+      stagesCount: Option[Long => Int] = None,
       dimensions: Option[(Long, Int) => (Int, Int)] = None): CUDAKernel = {
     val resource = getClass.getClassLoader.getResourceAsStream(resourcePath)
     if (resource == null) {
@@ -171,7 +181,7 @@ class CUDAManager {
       outputColumnsOrder: Seq[String],
       moduleBinaryData: Array[Byte],
       constArgs: Seq[AnyVal] = Seq(),
-      stagesCount: Option[Int] = None,
+      stagesCount: Option[Long => Int] = None,
       dimensions: Option[(Long, Int) => (Int, Int)] = None): CUDAKernel = {
     val kernel = new CUDAKernel(kernelSignature, inputColumnsOrder, outputColumnsOrder,
       moduleBinaryData, constArgs, stagesCount, dimensions)
@@ -201,12 +211,14 @@ class CUDAManager {
       (n: String) => throw new SparkException(s"Kernel with name $n was not registered"))
   }
 
-  private val cachedModules = new ThreadLocal[HashMap[Array[Byte], CUmodule]] {
-    override def initialValue() = new HashMap[Array[Byte], CUmodule]
+  private val cachedModules = new ThreadLocal[HashMap[(Array[Byte], Int), CUmodule]] {
+    override def initialValue() = new HashMap[(Array[Byte], Int), CUmodule]
   }
 
   private[spark] def cachedLoadModule(moduleBinaryData: Array[Byte]): CUmodule = {
-    cachedModules.get.getOrElseUpdate(moduleBinaryData, {
+    val devIx = new Array[Int](1)
+    JCuda.cudaGetDevice(devIx)
+    cachedModules.get.getOrElseUpdate((moduleBinaryData, devIx(0)), {
       // TODO maybe unload the module if it won't be needed later
       val module = new CUmodule
       JCudaDriver.cuModuleLoadData(module, moduleBinaryData)
@@ -214,13 +226,19 @@ class CUDAManager {
     })
   }
 
-  private[spark] def allocateGPUMemory(size: Long): Pointer = {
+  private[spark] def allocGPUMemory(size: Long): Pointer = {
+    require(size >= 0)
     val ptr = new Pointer
+    if (CUDAManager.logger.isDebugEnabled()) {
+      CUDAManager.logger.debug(s"Allocating ${size}B of GPU memory (Thread ID " +
+        s"${Thread.currentThread.getId})");
+    }
     JCuda.cudaMalloc(ptr, size)
+    assert(size == 0 || ptr != new Pointer())
     ptr
   }
 
-  private[spark] def deallocateGPUMemory(ptr: Pointer) {
+  private[spark] def freeGPUMemory(ptr: Pointer) {
     JCuda.cudaFree(ptr)
   }
 
@@ -241,7 +259,13 @@ class CUDAManager {
    * Release resources connected to CUDA. After this call, this object should not be used again.
    */
   private[spark] def stop() {
-    context.foreach(JCudaDriver.cuCtxDestroy(_))
+    allStreams.flatten.foreach(JCuda.cudaStreamDestroy(_))
   }
+
+}
+
+object CUDAManager {
+
+  private final val logger: Logger = LoggerFactory.getLogger(classOf[CUDAManager])
 
 }

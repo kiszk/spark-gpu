@@ -21,7 +21,7 @@ import scala.collection.immutable.HashMap
 
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe
-import scala.reflect.runtime.universe.{typeOf, weakTypeOf, Type, TermSymbol, WeakTypeTag}
+import scala.reflect.runtime.universe.{typeOf, Type, TermSymbol}
 
 import org.apache.spark.util.Utils
 

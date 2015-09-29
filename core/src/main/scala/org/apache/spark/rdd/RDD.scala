@@ -1059,27 +1059,36 @@ abstract class RDD[T: ClassTag](
    * Reduces the elements of this RDD using the specified commutative and
    * associative binary operator.
    */
-  def reduce(f: (T, T) => T): T = withScope {
-    val cleanF = sc.clean(f)
-    val reducePartition: Iterator[T] => Option[T] = iter => {
-      if (iter.hasNext) {
-        Some(iter.reduceLeft(cleanF))
-      } else {
-        None
-      }
-    }
-    var jobResult: Option[T] = None
-    val mergeResult = (index: Int, taskResult: Option[T]) => {
-      if (taskResult.isDefined) {
-        jobResult = jobResult match {
-          case Some(value) => Some(f(value, taskResult.get))
-          case None => taskResult
+  def reduce(f: (T, T) => T, kernel: Option[Either[String, CUDAKernel]] = None): T = withScope {
+    kernel match {
+      case None =>
+        val cleanF = sc.clean(f)
+        val reducePartition: Iterator[T] => Option[T] = iter => {
+          if (iter.hasNext) {
+            Some(iter.reduceLeft(cleanF))
+          } else {
+            None
+          }
         }
-      }
+        var jobResult: Option[T] = None
+        val mergeResult = (index: Int, taskResult: Option[T]) => {
+          if (taskResult.isDefined) {
+            jobResult = jobResult match {
+              case Some(value) => Some(f(value, taskResult.get))
+              case None => taskResult
+            }
+          }
+        }
+        sc.runJob(this, reducePartition, mergeResult)
+        // Get the final result out of our Option, or throw an exception if the RDD was empty
+        jobResult.getOrElse(throw new UnsupportedOperationException("empty collection"))
+
+      case Some(Left(kernelName)) =>
+        reduceUsingKernel(f, kernelName = kernelName)
+
+      case Some(Right(kernel)) =>
+        reduceUsingKernel(f, kernel = kernel)
     }
-    sc.runJob(this, reducePartition, mergeResult)
-    // Get the final result out of our Option, or throw an exception if the RDD was empty
-    jobResult.getOrElse(throw new UnsupportedOperationException("empty collection"))
   }
 
   /**
@@ -1699,6 +1708,10 @@ abstract class RDD[T: ClassTag](
    * @param format the target format
    */
   def convert(format: PartitionFormat, ratio: Double = 1.0): RDD[T] = {
+    if (ratio < 0.0 || ratio > 1.0) {
+      throw new SparkException("RDD conversion ratio must be between 0 (no conversion) and 1 " +
+        "(convert everything)")
+    }
     new ConvertRDD(this, format, ratio)
   }
 
