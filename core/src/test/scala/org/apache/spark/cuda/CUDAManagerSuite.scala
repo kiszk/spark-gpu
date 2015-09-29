@@ -52,7 +52,7 @@ class CUDAManagerSuite extends SparkFunSuite with LocalSparkContext {
     if (manager.deviceCount > 0) {
       val stream = manager.getStream(1024)
 
-      val gpuPtr = manager.allocateGPUMemory(1024)
+      val gpuPtr = manager.allocGPUMemory(1024)
       Utils.tryWithSafeFinally {
         JCuda.cudaMemcpy(gpuPtr, Pointer.to(Array.fill[Byte](1024)(42)), 1024,
           cudaMemcpyKind.cudaMemcpyHostToDevice)

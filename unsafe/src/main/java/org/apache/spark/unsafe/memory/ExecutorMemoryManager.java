@@ -204,7 +204,7 @@ public class ExecutorMemoryManager {
 
       Pointer ptr = new Pointer();
       try {
-        JCuda.cudaMallocHost(ptr, size);
+        JCuda.cudaHostAlloc(ptr, size, JCuda.cudaHostAllocPortable);
       } catch (CudaException ex) {
         throw new OutOfMemoryError("Could not alloc pinned memory: " + ex.getMessage());
       }
