@@ -1,0 +1,128 @@
+IBM PROPRIETARY
+
+SparkGPU final dev notes
+--------------------------------------------------------------------------------
+Jan Wroblewski <e55951@jp.ibm.com, xi@mimuw.edu.pl>
+
+
+Spark build and testing
+-----------------------
+To compile Spark use scripts in the gpudev/util directory. They contain a lot of
+necessary maven arguments and environment variables for proper SparkGPU build
+and testing.
+
+Configuration options for this script are set in gpudev/util/args.sh. There are
+various options there to ensure that maven, spawned in tests Executor processes
+etc. will have enough memory. JAVA_HOME and javac in the PATH are also set. The
+build is performed with MVN_CMD which is pointing at the script in Spark that
+automatically downloads correct maven version along with correct scala version
+and scala. You want to use this to avoid problems. --force forces the script to
+use downloaded maven even if another one is present in the system. More
+importantly, without it zinc server would not be launched automatically.
+
+Zinc server is a tool that speeds up compilation time by keeping some compilers
+cache warm, whatever that means. However it runs as a daemon which can cause
+some problems. First, the zinc server has to be launched with the same JDK as
+the one used later with it. The check is not performed later, which can lead to
+some problems not reported by the compiler. The second problem is when two users
+want to use zinc at once, it should be launched on different ports. Otherwise
+some permission issues will occur. For that ZINC_PORT has to be set to be unique
+for each user (done in the script using user uid). Original Spark had broken
+usage of ZINC_PORT (i.e. it always used default 3030 port), but it is fixed in
+this version.
+
+Zinc server also spawns nailgun program, but does it in an incorrect way. On
+some distributions (like Ubuntu 14 used on npk40ar) this program is present in
+the PATH as ng-nailgun, while zinc searches for ng. When it does not find it, it
+tries to use one of provided implementations. It does so in a wrong way by
+assuming that linux is always x86 or x86_64. To fix this problem locally on ppc
+modify build/zinc-*/bin/nailgun script and declare correct ng_cmd variable as
+the name of the nailgun in the path. Also, you might want to add 
+  *ppc64*)         platform="unknown" ;;
+line ABOVE *linux* option to make sure nailgun does not think that ppc64 linux
+is generic 32-bit linux x86 and run its (incompatibile) binary.
+
+Now that environment is fixed, here is how to perform basic operations using
+the gpudev/util/*.sh scripts. I recommend reading their code and modifying for
+current purposes.
+
+compile.sh compiles all modules where Spark code is actually present, i.e. not
+assembly modules and not examples module. This is done by passing a
+-pl !moduleName argument to maven. See the bash script for details. compile.sh
+main additionally compiles main spark assembly module which is needed (and only
+this is needed) to launch Spark programs from external maven project. compile.sh
+full makes it compile everything, but usually is not needed. Additionally you
+can pass clean parameter at the beginning of the parameter list. Any other
+parameters (like install) will be appended to maven argument list, so if you
+want to compile a module without dependencies you can use -pl here. compile.sh
+tee's the output of the compilation in ~/compile.txt in case you missed
+something.
+
+testcore.sh tests the whole Spark core module without Spark tests marked as
+PPCIBMJDKFailingTest or SlowTest (picked manually to not waste time). The
+marking of tests is a new thing in Spark that uses scalatest's tagging
+mechanism. Output is tee'd to ~/testlog-core.txt.
+
+As with all scripts, remaining parameters are passed to maven. To run a single
+java test, pass -Dtest=org.apache.spark.SomeClassSuite -DwildcardSuites=none. To
+run a single scala test use -Dtest=none
+-DwildcardSuites=org.apache.spark.cuda.CUDAKernelSuite. testdev.sh is an
+extended example of this (with multiple hand-picked tests separated by ",").
+
+testdev.sh tests core and unsafe module, but only few hand-picked tests that are
+connected to changed functionality. Modify it making sure it contains only short
+tests that test only actually changed code to make sure it runs very fast, since
+it's for development purposes. If you run it with debug argument, it will pass
+to scalatest options to attach debugger on port given in args.sh. It can be
+connected to e.g. Eclipse from outside as long as the user has the same code
+base (does not have to be compiled). In one of my presentations there was
+information how to set up Eclipse with ScalaIDE for debugging with Spark. Tee's
+to ~/testlog-dev.txt
+
+testall.sh tests everything, but tests marked as PPCIBMJDKFailingTest or
+SlowTest. Tee's to ~/testlog-all.txt.
+
+scala-console.sh is a script which launches a scala interpreter that has all
+compiled (assembly not needed) Spark classes available in the classpath. It can
+be used to experiment on the actual code. Additionally, since scala interpreter
+shuts down (losing your session data) when you press Ctrl-C, I disabled SIGINT
+in its terminal (normal Ctrl-D works instead).
+
+scala-cc.sh runs scala continuous builder. It compiles scala code incrementally
+and detects all file changes. Each time you save a file, it will compile that
+part. Unfortunately it doesn't completely work with test files - it will not try
+to compile them at the beginning, but will do so when you overwrite them.
+
+Note that because JCuda needs native library, LD_LIBRARY_PATH to
+core/target/lib/ has to be set to run Spark or Spark tests. JCuda needs its own
+native libs (supplied by mavenized-jcuda - check out and install my custom
+version for ppc64le support, possibly upgrading it if you need newer CUDA
+version). It can be fixed for running tests (and was before I reverted it) by
+setting proper -Djava.library.path, but this does not work for all tests. The
+problem is that currently Spawns executors without propagating java.library.path
+and before this is fixed, there will be no good solution.
+
+Spark "user" test application
+-----------------------------
+In gpudev/SparkGPUIntegrationTest, there is an application which runs test Spark
+session as if it was from the user perspective. It's a good way to check if
+interfaces work as a whole. Run compile.sh main to compile Spark assembly module
+to run with the latest version of SparkGPU. make to make CUDA kernels + proper
+mvn build. run.sh to run the thing using current Spark with proper
+LD_LIBRARY_PATH.
+
+Memory management
+-----------------
+TODO, also about pinning
+
+Distribution of the tasks between CPUs and GPUs
+-----------------------------------------------
+TODO
+
+Ideas for serializing arrays/strings
+------------------------------------
+TODO
+
+Ideas for shuffle
+-----------------
+TODO

@@ -152,6 +152,7 @@ class CUDAManager {
   /**
    * Register in the manager a CUDA kernel from a module in resources.
    */
+  // TODO does not seem to work when the source is in user jars, though works for Spark unit tests
   def registerCUDAKernelFromResource(
       name: String,
       kernelSignature: String,
