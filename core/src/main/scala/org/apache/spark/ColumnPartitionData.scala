@@ -107,9 +107,11 @@ class ColumnPartitionData[T](
     if (refCounter > 0) {
       refCounter = 1
       free()
+      /* TODO do manual memory management with acquire and free and then bring back the code below
       if (ColumnPartitionData.logger.isWarnEnabled()) {
         ColumnPartitionData.logger.warn("{}B of memory still not freed in finalizer.", memoryUsage);
       }
+      */
     }
   }
 

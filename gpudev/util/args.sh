@@ -19,7 +19,8 @@ MVN_CMD="./build/mvn --force"
 
 DBG_PORT=5004
 
-export ZINC_PORT=3032
+UNIQ_USER_VAL=`id -u`
+export ZINC_PORT=$((3031+UNIQ_USER_VAL))
 
 export LD_LIBRARY_PATH="$ABSOLUTE_DIR/core/target/lib:$LD_LIBRARY_PATH"
 
