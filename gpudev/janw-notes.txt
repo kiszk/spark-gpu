@@ -111,18 +111,136 @@ to run with the latest version of SparkGPU. make to make CUDA kernels + proper
 mvn build. run.sh to run the thing using current Spark with proper
 LD_LIBRARY_PATH.
 
-Memory management
------------------
-TODO, also about pinning
+Memory management and possible improvements
+-------------------------------------------
+Memory can be pinned only if it's page-aligned (valloc?). Pinned memory's
+advantage over normal native memory is that transfers of data to GPU can be
+performed using DMA offloading the work from the CPU. The transfers are also
+faster. The downside is probably higher allocation time and removing pageable
+memory from the OS.
+
+Currently ExecutorMemoryManager manages allocation of such memory through JCuda.
+The memory is pooled and there is also configurable limit on amount of allocated
+pinned memory. Pooling is especially effective here, because that memory is
+allocated for partitions' columns, which usually have same size for each column
+of the same size of the primitive. Pooling introduces some synchronization, but
+memory allocation is done only few times per task x partition.
+
+This design could be improved by removing JCuda dependency from
+ExecutorMemoryManager and allocating page-aligned memory instead. This would
+probably be have to be done by JNI with valloc or better by some existing
+library, if there is one. Later the memory could be pinned when needed. It would
+have to be checked if the pinning alone takes considerable time for it to be
+worth. This solution would give better code quality (no JCuda dependency outside
+of kernel code) and would let us use that kind of memory for other things too,
+like SIMD CPU operations in future.
 
 Distribution of the tasks between CPUs and GPUs
 -----------------------------------------------
-TODO
+Currently the only way to distribute the load is to convert manually given
+percentage of the data to GPU format and know that this gives equal CPU and GPU
+usage. As for balancing the load between GPUs, currently GPU is picked randomly
+to have no synchronizaton. Probably it would be worth it to make a simple
+synchronization to pick the GPU with the smallest amount of used streams. We can
+control that because CUDAManager is giving out streams and destroying them, so
+we have centralized place per Executor.
+
+There is of course problem that many Executors can run on the same machine.
+Also, GPUs may have different speeds.
+
+A different approach would be to measure GPU utilization and use one of the less
+utilized ones. There could be a problem here that a bunch of threads would want
+to run a task on GPU, everyone would see that one GPU is idle and go for it.
+And consecutive calls from different threads would not detect that GPU is in
+fact busy, because it would be idle when the data is being uploaded to it.
+
+Probably the best way to solve the distribution problem is to make a scheduler
+that computes speed of the current task on GPUs and CPUs and makes appropriate
+percentage of currently running threads run on GPUs and then in the same way
+to give proportionally more work to faster GPUs. This approach is better then
+the current simple one, because now partitions are tied to CPU/GPU, so we have
+no guarantee that the tasks picked for current execution won't be of the same
+type (CPU/GPU).
+
+The problem with scheduling here is that changing the percentage of GPU/CPU
+partitions to new "optimal" one is not going to work, because the change itself
+induces conversion cost. So scheduler would have a tough job of not only keeping
+track of statistics about execution speeds on CPUs/GPUs, but also on finding
+the sweet spot between current and proportional to computing power distribution
+of partitions to CPUs/GPUs to make sure the conversion cost is worth changing
+the CPU/GPU partition proportion for the current task.
+
+There is also problem with the fact that we allocate a CPU thread for GPU
+computations. The thread does not perform much work when it's running CUDA or
+copying the data, but when conversion occurs it is very active. So conversion
+should be treated as CPU work and all RDDs that do implicit conversion because
+of supporting only the old data format should also be treated as such even if
+the input data is column.
+
+Note: there should be like 8-32 streams per each CUDA device for it to run fast,
+as earlier benchmarks showed. The right amount seems to largely depend on
+proportion of upload/download time to kernel run time. And the benchmark is only
+partially relevant, as it was done outside of Spark.
 
 Ideas for serializing arrays/strings
 ------------------------------------
-TODO
+For serialization of dynamic-sized arrays, we could introduce additional
+optional blob (Option[Pointer]) for each column that would hold concatenated
+data. In the actual column we would store offsets of the data in the blob.
+That would give us access to the data for each thread (though pretty inoptimal
+for cache, but that'd be hard to fix. Additional advantage is that we'd have
+instant access for array size by computing offset difference.
+There would be an exception for the last element... so maybe we could store
+offsets of the last byte of our array in the blob. That way we wouldn't have to
+have a special case (= if instruction which costs processing power). And we'd
+remove the redundancy that the first element starts from 0.
+
+Picture of the serialized Seq[Array[Int]] for the second idea:
+Seq(Array(1,2,3), Array(11, 12), Array(21), Array(31, 32, 33, 34)) ->
+
+main column:        2    4  5            9
+storage (blob): 1 2 3 11 12 21 31 32 33 34
+
+For the first idea, we'd have:
+main column:    0     3     5  6           (10?)
+storage (blob): 1 2 3 11 12 21 31 32 33 34
+with a problem where to store this "10" and additional code branching.
 
 Ideas for shuffle
 -----------------
+Generally we could do what I think tungsten is already doing in unsafe shuffle,
+i.e. reading keys directly from serialized data. That way we would not have to
+deserialize the whole object just to read the key. Also, computing the keys
+could be done without actual costly map that throws away already good input
+columns of the original object instead of appending them to the list of columns
+in the key.
+
+The second idea is to use the column partition data as a storage format instead
+of kryo. This could be done by making column partition data resizeable and
+treating it as a buffer to dump when it reached full partition size.
+
+The above solution has its own problems: total large allocated memory size per
+worker. It could be reduced by making the buffers small and somehow merging them
+at the target node. Maybe through some nicely modified RDD repartition() that
+would just merge multiple small partitions back to larger partitions?
+
+Partition size
+--------------
+The size of the partition is still in the hands of the user. But for GPUs,
+larger size of used partitions should be somehow encouraged or maybe even
+forced.
+
+As benchmarks before have shown, generally it's good to have partitions size of
+128MB+.
+
 TODO
+----
+Do benchmark to see if there is any improvement for 50% GPU:CPU data for
+something computationally intensive. A good example could be distributed
+numerical integration - take some heavy function f() like with sin or exp and
+compute numerically integral of f(x) dx on [0,1] by just computing the values
+for every k/n, k=0..n, n being big and taking the average times size of the
+interval (=1).
+
+Also, I haven't finally even tested if mixed GPU/CPU partitions work. They
+should run well though, but write some unit tests for ConversionRDD.
