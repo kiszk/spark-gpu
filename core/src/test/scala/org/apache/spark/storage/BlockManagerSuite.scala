@@ -42,7 +42,7 @@ import org.apache.spark.util._
 
 
 class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterEach
-  with PrivateMethodTester with ResetSystemProperties {
+  with PrivateMethodTester with ResetSystemProperties with LocalSparkContext {
 
   private val conf = new SparkConf(false)
   var store: BlockManager = null
@@ -61,6 +61,9 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
   // Implicitly convert strings to BlockIds for test clarity.
   implicit def StringToBlockId(value: String): BlockId = new TestBlockId(value)
   def rdd(rddId: Int, splitId: Int): RDDBlockId = RDDBlockId(rddId, splitId)
+
+  // Remember real arch
+  val arch = System.getProperty("os.arch")
 
   private def makeBlockManager(
       maxMem: Long,
@@ -91,6 +94,9 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
   }
 
   override def afterEach(): Unit = {
+    // stopping SparkContext in LocalSparkContext
+    super.afterEach()
+
     if (store != null) {
       store.stop()
       store = null
@@ -103,6 +109,9 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     rpcEnv.awaitTermination()
     rpcEnv = null
     master = null
+
+    // Deterministic test cases are cool, but we have to restore the arch
+    System.setProperty("os.arch", arch)
   }
 
   test("StorageLevel object caching") {
@@ -274,7 +283,12 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     master.getLocations(rdd(0, 1)) should have size 0
   }
 
-  test("removing broadcast") {
+  /* Fails on PPC + IBM JDK because of java.lang.reflect.InvocationTargetException
+   * Only fails when this suite is ran alone. The reason is in CompressionCodec.
+   * It gets constructor of SnappyCompressionCodec, but has trouble when creating the actual
+   * instance.
+   */
+  test("removing broadcast", PPCIBMJDKFailingTest) {
     store = makeBlockManager(2000)
     val driverStore = store
     val executorStore = makeBlockManager(2000, "executor")
@@ -427,23 +441,23 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     store.putIterator("list2disk", list2.iterator, StorageLevel.DISK_ONLY, tellMaster = true)
     val list1Get = store.get("list1")
     assert(list1Get.isDefined, "list1 expected to be in store")
-    assert(list1Get.get.data.size === 2)
+    assert(list1Get.get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     assert(list1Get.get.bytes === list1SizeEstimate)
     assert(list1Get.get.readMethod === DataReadMethod.Memory)
     val list2MemoryGet = store.get("list2memory")
     assert(list2MemoryGet.isDefined, "list2memory expected to be in store")
-    assert(list2MemoryGet.get.data.size === 3)
+    assert(list2MemoryGet.get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 3)
     assert(list2MemoryGet.get.bytes === list2SizeEstimate)
     assert(list2MemoryGet.get.readMethod === DataReadMethod.Memory)
     val list2DiskGet = store.get("list2disk")
     assert(list2DiskGet.isDefined, "list2memory expected to be in store")
-    assert(list2DiskGet.get.data.size === 3)
+    assert(list2DiskGet.get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 3)
     // We don't know the exact size of the data on disk, but it should certainly be > 0.
     assert(list2DiskGet.get.bytes > 0)
     assert(list2DiskGet.get.readMethod === DataReadMethod.Disk)
   }
 
-  test("in-memory LRU storage") {
+  test("in-memory LRU storage - iterator-based") {
     store = makeBlockManager(12000)
     val a1 = new Array[Byte](4000)
     val a2 = new Array[Byte](4000)
@@ -462,7 +476,29 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     assert(store.getSingle("a3") === None, "a3 was in store")
   }
 
-  test("in-memory LRU storage with serialization") {
+  test("in-memory LRU storage - column-based") {
+    sc = new SparkContext("local", "test", conf)
+    assert(SparkEnv.get != null)
+    assert(SparkEnv.get.executorMemoryManager != null)
+    store = makeBlockManager(12000)
+    val c1 = ColumnPartitionDataBuilder.build[Byte](4000)
+    val c2 = ColumnPartitionDataBuilder.build[Byte](4000)
+    val c3 = ColumnPartitionDataBuilder.build[Byte](4000)
+    store.putColumns("c1", c1, StorageLevel.MEMORY_ONLY)
+    store.putColumns("c2", c2, StorageLevel.MEMORY_ONLY)
+    store.putColumns("c3", c3, StorageLevel.MEMORY_ONLY)
+    assert(store.get("c2").isDefined, "c2 was not in store")
+    assert(store.get("c3").isDefined, "c3 was not in store")
+    assert(store.get("c1") === None, "c1 was in store")
+    assert(store.get("c2").isDefined, "c2 was not in store")
+    // At this point c2 was gotten last, so LRU will getSingle rid of c3
+    store.putColumns("c1", c1, StorageLevel.MEMORY_ONLY)
+    assert(store.get("c1").isDefined, "c1 was not in store")
+    assert(store.get("c2").isDefined, "c2 was not in store")
+    assert(store.get("c3") === None, "c3 was in store")
+  }
+
+  test("in-memory LRU storage with serialization - iterator-based") {
     store = makeBlockManager(12000)
     val a1 = new Array[Byte](4000)
     val a2 = new Array[Byte](4000)
@@ -479,6 +515,28 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     assert(store.getSingle("a1").isDefined, "a1 was not in store")
     assert(store.getSingle("a2").isDefined, "a2 was not in store")
     assert(store.getSingle("a3") === None, "a3 was in store")
+  }
+
+  test("in-memory LRU storage with serialization - column-based") {
+    sc = new SparkContext("local", "test", conf)
+    assert(SparkEnv.get != null)
+    assert(SparkEnv.get.executorMemoryManager != null)
+    store = makeBlockManager(12000)
+    val c1 = ColumnPartitionDataBuilder.build[Byte](4000)
+    val c2 = ColumnPartitionDataBuilder.build[Byte](4000)
+    val c3 = ColumnPartitionDataBuilder.build[Byte](4000)
+    store.putColumns("c1", c1, StorageLevel.MEMORY_ONLY_SER)
+    store.putColumns("c2", c2, StorageLevel.MEMORY_ONLY_SER)
+    store.putColumns("c3", c3, StorageLevel.MEMORY_ONLY_SER)
+    assert(store.get("c2").isDefined, "c2 was not in store")
+    assert(store.get("c3").isDefined, "c3 was not in store")
+    assert(store.get("c1") === None, "c1 was in store")
+    assert(store.get("c2").isDefined, "c2 was not in store")
+    // At this point c2 was gotten last, so LRU will getSingle rid of c3
+    store.putSingle("c1", c1, StorageLevel.MEMORY_ONLY_SER)
+    assert(store.get("c1").isDefined, "c1 was not in store")
+    assert(store.get("c2").isDefined, "c2 was not in store")
+    assert(store.get("c3") === None, "c3 was in store")
   }
 
   test("in-memory LRU for partitions of same RDD") {
@@ -523,7 +581,7 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     assert(store.memoryStore.contains(rdd(0, 3)), "rdd_0_3 was not in store")
   }
 
-  test("tachyon storage") {
+  test("tachyon storage - iterator-based") {
     // TODO Make the spark.test.tachyon.enable true after using tachyon 0.5.0 testing jar.
     val tachyonUnitTestEnabled = conf.getBoolean("spark.test.tachyon.enable", false)
     conf.set(ExternalBlockStore.BLOCK_MANAGER_NAME, ExternalBlockStore.DEFAULT_BLOCK_MANAGER_NAME)
@@ -543,7 +601,31 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     }
   }
 
-  test("on-disk storage") {
+  test("tachyon storage - column-based") {
+    sc = new SparkContext("local", "test", conf)
+    assert(SparkEnv.get != null)
+    assert(SparkEnv.get.executorMemoryManager != null)
+    // TODO Make the spark.test.tachyon.enable true after using tachyon 0.5.0 testing jar.
+    val tachyonUnitTestEnabled = conf.getBoolean("spark.test.tachyon.enable", false)
+    conf.set(ExternalBlockStore.BLOCK_MANAGER_NAME, ExternalBlockStore.DEFAULT_BLOCK_MANAGER_NAME)
+    if (tachyonUnitTestEnabled) {
+      // some space has to be reserved for schema serialization
+      store = makeBlockManager(2000)
+      val c1 = ColumnPartitionDataBuilder.build[Byte](400)
+      val c2 = ColumnPartitionDataBuilder.build[Byte](400)
+      val c3 = ColumnPartitionDataBuilder.build[Byte](400)
+      store.putColumns("c1", c1, StorageLevel.OFF_HEAP)
+      store.putColumns("c2", c2, StorageLevel.OFF_HEAP)
+      store.putColumns("c3", c3, StorageLevel.OFF_HEAP)
+      assert(store.get("c3").isDefined, "c3 was in store")
+      assert(store.get("c2").isDefined, "c2 was in store")
+      assert(store.get("c1").isDefined, "c1 was in store")
+    } else {
+      info("tachyon storage test disabled.")
+    }
+  }
+
+  test("on-disk storage - iterator-based") {
     store = makeBlockManager(1200)
     val a1 = new Array[Byte](400)
     val a2 = new Array[Byte](400)
@@ -554,6 +636,23 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     assert(store.getSingle("a2").isDefined, "a2 was in store")
     assert(store.getSingle("a3").isDefined, "a3 was in store")
     assert(store.getSingle("a1").isDefined, "a1 was in store")
+  }
+
+  test("on-disk storage - column-based") {
+    sc = new SparkContext("local", "test", conf)
+    assert(SparkEnv.get != null)
+    assert(SparkEnv.get.executorMemoryManager != null)
+    // some space has to be reserved for schema serialization
+    store = makeBlockManager(2000)
+    val c1 = ColumnPartitionDataBuilder.build[Byte](400)
+    val c2 = ColumnPartitionDataBuilder.build[Byte](400)
+    val c3 = ColumnPartitionDataBuilder.build[Byte](400)
+    store.putColumns("c1", c1, StorageLevel.DISK_ONLY)
+    store.putColumns("c2", c2, StorageLevel.DISK_ONLY)
+    store.putColumns("c3", c3, StorageLevel.DISK_ONLY)
+    assert(store.get("c2").isDefined, "c2 was in store")
+    assert(store.get("c3").isDefined, "c3 was in store")
+    assert(store.get("c1").isDefined, "c1 was in store")
   }
 
   test("disk and memory storage") {
@@ -647,18 +746,18 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     store.putIterator("list2", list2.iterator, StorageLevel.MEMORY_ONLY, tellMaster = true)
     store.putIterator("list3", list3.iterator, StorageLevel.MEMORY_ONLY, tellMaster = true)
     assert(store.get("list2").isDefined, "list2 was not in store")
-    assert(store.get("list2").get.data.size === 2)
+    assert(store.get("list2").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     assert(store.get("list3").isDefined, "list3 was not in store")
-    assert(store.get("list3").get.data.size === 2)
+    assert(store.get("list3").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     assert(store.get("list1") === None, "list1 was in store")
     assert(store.get("list2").isDefined, "list2 was not in store")
-    assert(store.get("list2").get.data.size === 2)
+    assert(store.get("list2").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     // At this point list2 was gotten last, so LRU will getSingle rid of list3
     store.putIterator("list1", list1.iterator, StorageLevel.MEMORY_ONLY, tellMaster = true)
     assert(store.get("list1").isDefined, "list1 was not in store")
-    assert(store.get("list1").get.data.size === 2)
+    assert(store.get("list1").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     assert(store.get("list2").isDefined, "list2 was not in store")
-    assert(store.get("list2").get.data.size === 2)
+    assert(store.get("list2").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     assert(store.get("list3") === None, "list1 was in store")
   }
 
@@ -677,26 +776,26 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     val listSize = SizeEstimator.estimate(listForSizeEstimate)
     // At this point LRU should not kick in because list3 is only on disk
     assert(store.get("list1").isDefined, "list1 was not in store")
-    assert(store.get("list1").get.data.size === 2)
+    assert(store.get("list1").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     assert(store.get("list2").isDefined, "list2 was not in store")
-    assert(store.get("list2").get.data.size === 2)
+    assert(store.get("list2").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     assert(store.get("list3").isDefined, "list3 was not in store")
-    assert(store.get("list3").get.data.size === 2)
+    assert(store.get("list3").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     assert(store.get("list1").isDefined, "list1 was not in store")
-    assert(store.get("list1").get.data.size === 2)
+    assert(store.get("list1").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     assert(store.get("list2").isDefined, "list2 was not in store")
-    assert(store.get("list2").get.data.size === 2)
+    assert(store.get("list2").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     assert(store.get("list3").isDefined, "list3 was not in store")
-    assert(store.get("list3").get.data.size === 2)
+    assert(store.get("list3").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     // Now let's add in list4, which uses both disk and memory; list1 should drop out
     store.putIterator("list4", list4.iterator, StorageLevel.MEMORY_AND_DISK_SER, tellMaster = true)
     assert(store.get("list1") === None, "list1 was in store")
     assert(store.get("list2").isDefined, "list2 was not in store")
-    assert(store.get("list2").get.data.size === 2)
+    assert(store.get("list2").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     assert(store.get("list3").isDefined, "list3 was not in store")
-    assert(store.get("list3").get.data.size === 2)
+    assert(store.get("list3").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
     assert(store.get("list4").isDefined, "list4 was not in store")
-    assert(store.get("list4").get.data.size === 2)
+    assert(store.get("list4").get.data.asInstanceOf[IteratorPartitionData[Any]].iterator.size === 2)
   }
 
   test("negative byte values in ByteBufferInputStream") {
@@ -720,7 +819,12 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     assert(store.getSingle("a2").isDefined, "a2 was not in store")
   }
 
-  test("block compression") {
+  /* Fails on PPC + IBM JDK because of java.lang.reflect.InvocationTargetException
+   * Only fails when this suite is ran alone. The reason is in CompressionCodec.
+   * It gets constructor of SnappyCompressionCodec, but has trouble when creating the actual
+   * instance.
+   */
+  test("block compression", PPCIBMJDKFailingTest) {
     try {
       conf.set("spark.shuffle.compress", "true")
       store = makeBlockManager(20000, "exec1")
@@ -1251,4 +1355,59 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     assert(result.data === Right(bytes))
     assert(result.droppedBlocks === Nil)
   }
+
+  test("serialize iterated primitives - IteratorPartitionData[Int]") {
+    store = makeBlockManager(10000)
+    val blockId =  BlockId("rdd_42_42")
+    val inputData = IteratorPartitionData((1 to 1024).iterator)
+    val serBuf = store.dataSerialize(blockId, inputData, serializer)
+    val outputData = store.dataDeserialize(blockId, serBuf, serializer)
+    val it = outputData.asInstanceOf[IteratorPartitionData[Int]]
+    assert(it.iterator.toIndexedSeq.sameElements(1 to 1024))
+  }
+
+  test("serialize primitives - ColumnPartitionData[Int]") {
+    // This test loads external library, so it needs correct architecture
+    System.setProperty("os.arch", arch)
+
+    sc = new SparkContext("local", "test", conf)
+    assert(SparkEnv.get != null)
+    assert(SparkEnv.get.executorMemoryManager != null)
+    store = makeBlockManager(10000)
+    val blockId =  BlockId("rdd_42_42")
+    val inputData = ColumnPartitionDataBuilder.build(1 to 1024)
+    val serBuf = store.dataSerialize(blockId, inputData, serializer)
+    assert(serBuf.capacity > 1024 * 4)
+    val outputData = store.dataDeserialize(blockId, serBuf, serializer)
+    val col = outputData.asInstanceOf[ColumnPartitionData[Int]]
+    assert(col.buffers(0).capacity == 4 * 1024)
+    val arr = new Array[Byte](4096)
+    assert(col.size == 1024)
+    assert(col.schema.isPrimitive)
+    assert(col.schema.columns(0).columnType == INT_COLUMN)
+    assert(col.iterator.toIndexedSeq.sameElements(1 to 1024))
+  }
+
+  test("serialize case classes - ColumnPartitionData[Rectangle]") {
+    // This test loads external library, so it needs correct architecture
+    System.setProperty("os.arch", arch)
+
+    sc = new SparkContext("local", "test", conf)
+    store = makeBlockManager(10000)
+    val blockId =  BlockId("rdd_42_42")
+    val rects = (1 to 256).map(x => Rectangle(Point(x, x * 2), Point(x + 42, 42)))
+    val inputData = ColumnPartitionDataBuilder.build(rects)
+    val serBuf = store.dataSerialize(blockId, inputData, serializer)
+    assert(serBuf.capacity > 256 * 4 * 4)
+    val outputData = store.dataDeserialize(blockId, serBuf, serializer)
+    val col = outputData.asInstanceOf[ColumnPartitionData[Rectangle]]
+    assert(col.buffers.forall(_.capacity == 4 * 256))
+    val arr = new Array[Byte](4096)
+    assert(col.size == 256)
+    assert(!col.schema.isPrimitive)
+    assert(col.schema.columns.size == 4)
+    assert(col.schema.columns.forall(_.columnType == INT_COLUMN))
+    assert(col.iterator.toIndexedSeq.sameElements(rects))
+  }
+
 }

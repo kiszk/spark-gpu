@@ -21,13 +21,13 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>org.apache.spark</groupId>
-    <artifactId>spark-parent_2.10</artifactId>
+    <artifactId>spark-parent_2.11</artifactId>
     <version>1.5.0-GPU</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 
   <groupId>org.apache.spark</groupId>
-  <artifactId>spark-unsafe_2.10</artifactId>
+  <artifactId>spark-unsafe_2.11</artifactId>
   <packaging>jar</packaging>
   <name>Spark Project Unsafe</name>
   <url>http://spark.apache.org/</url>
@@ -45,6 +45,11 @@
     <dependency>
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.mystic</groupId>
+      <artifactId>mavenized-jcuda</artifactId>
+      <version>0.1.2</version>
     </dependency>
 
     <!-- Provided dependencies -->

@@ -25,7 +25,7 @@
     <version>14</version>
   </parent>
   <groupId>org.apache.spark</groupId>
-  <artifactId>spark-parent_2.10</artifactId>
+  <artifactId>spark-parent_2.11</artifactId>
   <version>1.5.0-GPU</version>
   <packaging>pom</packaging>
   <name>Spark Project Parent POM</name>
@@ -158,7 +158,7 @@
     <httpclient.classic.version>3.1</httpclient.classic.version>
     <commons.math3.version>3.4.1</commons.math3.version>
     <scala.version>2.10.4</scala.version>
-    <scala.binary.version>2.10</scala.binary.version>
+    <scala.binary.version>2.11</scala.binary.version>
     <jline.version>${scala.version}</jline.version>
     <jline.groupid>org.scala-lang</jline.groupid>
     <codehaus.jackson.version>1.9.13</codehaus.jackson.version>
@@ -2085,6 +2085,17 @@
         <version>2.10</version>
         <executions>
           <execution>
+            <id>strip-native-lib-version-exec</id>
+            <phase>package</phase>
+            <goals>
+              <goal>copy-dependencies</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/lib</outputDirectory>
+              <stripVersion>true</stripVersion>
+            </configuration>
+          </execution>
+          <execution>
             <phase>test-compile</phase>
             <goals>
               <goal>build-classpath</goal>
@@ -2121,6 +2132,11 @@
               <include>org.eclipse.jetty:jetty-server</include>
               <include>com.google.guava:guava</include>
             </includes>
+            <excludes>
+              <exclude>jcuda:*:so:*</exclude>
+              <exclude>jcuda:*:dll:*</exclude>
+              <exclude>jcuda:*:dylib:*</exclude>
+            </excludes>
           </artifactSet>
           <relocations>
             <relocation>

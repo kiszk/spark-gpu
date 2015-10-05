@@ -32,7 +32,7 @@ import org.apache.spark.scheduler.JobListener
  */
 private[spark] class ApproximateActionListener[T, U, R](
     rdd: RDD[T],
-    func: (TaskContext, Iterator[T]) => U,
+    func: (TaskContext, PartitionData[T]) => U,
     evaluator: ApproximateEvaluator[U, R],
     timeout: Long)
   extends JobListener {

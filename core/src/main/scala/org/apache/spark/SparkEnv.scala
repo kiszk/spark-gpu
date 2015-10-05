@@ -30,6 +30,7 @@ import com.google.common.collect.MapMaker
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.api.python.PythonWorkerFactory
 import org.apache.spark.broadcast.BroadcastManager
+import org.apache.spark.cuda.CUDAManager
 import org.apache.spark.metrics.MetricsSystem
 import org.apache.spark.network.BlockTransferService
 import org.apache.spark.network.netty.NettyBlockTransferService
@@ -73,6 +74,7 @@ class SparkEnv (
     val shuffleMemoryManager: ShuffleMemoryManager,
     val executorMemoryManager: ExecutorMemoryManager,
     val outputCommitCoordinator: OutputCommitCoordinator,
+    val cudaManager: CUDAManager,
     val conf: SparkConf) extends Logging {
 
   // TODO Remove actorSystem
@@ -102,6 +104,7 @@ class SparkEnv (
       metricsSystem.stop()
       outputCommitCoordinator.stop()
       rpcEnv.shutdown()
+      cudaManager.stop()
 
       // Unfortunately Akka's awaitTermination doesn't actually wait for the Netty server to shut
       // down, but let's call it anyway in case it gets fixed in a later release
@@ -390,13 +393,16 @@ object SparkEnv extends Logging {
       new OutputCommitCoordinatorEndpoint(rpcEnv, outputCommitCoordinator))
     outputCommitCoordinator.coordinatorRef = Some(outputCommitCoordinatorRef)
 
+    val cudaManager: CUDAManager = new CUDAManager
+
     val executorMemoryManager: ExecutorMemoryManager = {
       val allocator = if (conf.getBoolean("spark.unsafe.offHeap", false)) {
         MemoryAllocator.UNSAFE
       } else {
         MemoryAllocator.HEAP
       }
-      new ExecutorMemoryManager(allocator)
+      val maxPinnedMemory = conf.getLong("spark.unsafe.maxPinnedMemory", -1)
+      new ExecutorMemoryManager(allocator, maxPinnedMemory)
     }
 
     val envInstance = new SparkEnv(
@@ -417,6 +423,7 @@ object SparkEnv extends Logging {
       shuffleMemoryManager,
       executorMemoryManager,
       outputCommitCoordinator,
+      cudaManager,
       conf)
 
     // Add a reference to tmp dir created by driver, we will delete this tmp dir when stop() is

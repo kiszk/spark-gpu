@@ -27,7 +27,30 @@ import org.apache.spark.TaskContext
 import org.apache.spark.util.{SizeEstimator, Utils}
 import org.apache.spark.util.collection.SizeTrackingVector
 
-private case class MemoryEntry(value: Any, size: Long, deserialized: Boolean)
+import org.apache.spark.PartitionData
+import org.apache.spark.ColumnPartitionData
+import org.apache.spark.IteratorPartitionData
+
+import scala.language.existentials
+
+private abstract class MemoryEntry {
+  val size: Long
+  def unitName: String
+  val value: Any
+}
+
+private case class ArrayMemoryEntry(value: Array[Any], size: Long) extends MemoryEntry {
+  def unitName: String = "array values"
+}
+
+private case class ColumnPartitionMemoryEntry(value: ColumnPartitionData[_], size: Long)
+  extends MemoryEntry {
+  def unitName: String = "column-based values"
+}
+
+private case class SerializedMemoryEntry(value: ByteBuffer, size: Long) extends MemoryEntry {
+  def unitName: String = "serialized bytes"
+}
 
 /**
  * Stores blocks in memory, either as Arrays of deserialized Java objects or as
@@ -92,9 +115,9 @@ private[spark] class MemoryStore(blockManager: BlockManager, maxMemory: Long)
     bytes.rewind()
     if (level.deserialized) {
       val values = blockManager.dataDeserialize(blockId, bytes)
-      putIterator(blockId, values, level, returnValues = true)
+      putData(blockId, values, level, returnValues = true)
     } else {
-      val putAttempt = tryToPut(blockId, bytes, bytes.limit, deserialized = false)
+      val putAttempt = tryToPut(blockId, bytes, bytes.limit)
       PutResult(bytes.limit(), Right(bytes.duplicate()), putAttempt.droppedBlocks)
     }
   }
@@ -108,7 +131,7 @@ private[spark] class MemoryStore(blockManager: BlockManager, maxMemory: Long)
   def putBytes(blockId: BlockId, size: Long, _bytes: () => ByteBuffer): PutResult = {
     // Work on a duplicate - since the original input might be used elsewhere.
     lazy val bytes = _bytes().duplicate().rewind().asInstanceOf[ByteBuffer]
-    val putAttempt = tryToPut(blockId, () => bytes, size, deserialized = false)
+    val putAttempt = tryToPut(blockId, () => bytes, size)
     val data =
       if (putAttempt.success) {
         assert(bytes.limit == size)
@@ -126,11 +149,30 @@ private[spark] class MemoryStore(blockManager: BlockManager, maxMemory: Long)
       returnValues: Boolean): PutResult = {
     if (level.deserialized) {
       val sizeEstimate = SizeEstimator.estimate(values.asInstanceOf[AnyRef])
-      val putAttempt = tryToPut(blockId, values, sizeEstimate, deserialized = true)
-      PutResult(sizeEstimate, Left(values.iterator), putAttempt.droppedBlocks)
+      val putAttempt = tryToPut(blockId, values, sizeEstimate)
+      PutResult(sizeEstimate, Left(IteratorPartitionData(values.iterator)),
+        putAttempt.droppedBlocks)
     } else {
-      val bytes = blockManager.dataSerialize(blockId, values.iterator)
-      val putAttempt = tryToPut(blockId, bytes, bytes.limit, deserialized = false)
+      val bytes = blockManager.dataSerialize(blockId, IteratorPartitionData(values.iterator))
+      val putAttempt = tryToPut(blockId, bytes, bytes.limit)
+      PutResult(bytes.limit(), Right(bytes.duplicate()))
+    }
+  }
+
+  override def putColumns(
+      blockId: BlockId,
+      values: ColumnPartitionData[_],
+      level: StorageLevel,
+      returnValues: Boolean): PutResult = {
+    if (level.deserialized) {
+      val wrapperSizeEstimate = SizeEstimator.estimate(values.asInstanceOf[AnyRef])
+      val sizeEstimate = wrapperSizeEstimate + values.memoryUsage
+      // TODO should off-heap memory be included here?
+      val putAttempt = tryToPut(blockId, values, sizeEstimate)
+      PutResult(sizeEstimate, Left(values), putAttempt.droppedBlocks)
+    } else {
+      val bytes = blockManager.dataSerialize(blockId, values)
+      val putAttempt = tryToPut(blockId, bytes, bytes.limit)
       PutResult(bytes.limit(), Right(bytes.duplicate()), putAttempt.droppedBlocks)
     }
   }
@@ -176,7 +218,7 @@ private[spark] class MemoryStore(blockManager: BlockManager, maxMemory: Long)
           val res = blockManager.diskStore.putIterator(blockId, iteratorValues, level, returnValues)
           PutResult(res.size, res.data, droppedBlocks)
         } else {
-          PutResult(0, Left(iteratorValues), droppedBlocks)
+          PutResult(0, Left(IteratorPartitionData(iteratorValues)), droppedBlocks)
         }
     }
   }
@@ -185,26 +227,37 @@ private[spark] class MemoryStore(blockManager: BlockManager, maxMemory: Long)
     val entry = entries.synchronized {
       entries.get(blockId)
     }
-    if (entry == null) {
-      None
-    } else if (entry.deserialized) {
-      Some(blockManager.dataSerialize(blockId, entry.value.asInstanceOf[Array[Any]].iterator))
-    } else {
-      Some(entry.value.asInstanceOf[ByteBuffer].duplicate()) // Doesn't actually copy the data
+    entry match {
+      case ArrayMemoryEntry(value, size) =>
+        Some(blockManager.dataSerialize(blockId,
+            IteratorPartitionData(value.asInstanceOf[Array[Any]].iterator)))
+      case ColumnPartitionMemoryEntry(value, size) =>
+        Some(blockManager.dataSerialize(blockId, value))
+      case SerializedMemoryEntry(value, size) =>
+        Some(value.duplicate()) // Doesn't actually copy the data
+      case _ => {
+        assert(entry == null)
+        None
+      }
     }
   }
 
-  override def getValues(blockId: BlockId): Option[Iterator[Any]] = {
+  override def getValues(blockId: BlockId): Option[PartitionData[_]] = {
     val entry = entries.synchronized {
       entries.get(blockId)
     }
-    if (entry == null) {
-      None
-    } else if (entry.deserialized) {
-      Some(entry.value.asInstanceOf[Array[Any]].iterator)
-    } else {
-      val buffer = entry.value.asInstanceOf[ByteBuffer].duplicate() // Doesn't actually copy data
-      Some(blockManager.dataDeserialize(blockId, buffer))
+    entry match {
+      case ArrayMemoryEntry(value, _) =>
+        Some(IteratorPartitionData(value.asInstanceOf[Array[Any]].iterator))
+      case ColumnPartitionMemoryEntry(value, _) =>
+        Some(value)
+      case SerializedMemoryEntry(value, _) =>
+        // Doesn't actually copy the data
+        Some(blockManager.dataDeserialize(blockId, value.duplicate()))
+      case _ => {
+        assert(entry == null)
+        None
+      }
     }
   }
 
@@ -336,9 +389,8 @@ private[spark] class MemoryStore(blockManager: BlockManager, maxMemory: Long)
   private def tryToPut(
       blockId: BlockId,
       value: Any,
-      size: Long,
-      deserialized: Boolean): ResultWithDroppedBlocks = {
-    tryToPut(blockId, () => value, size, deserialized)
+      size: Long): ResultWithDroppedBlocks = {
+    tryToPut(blockId, () => value, size)
   }
 
   /**
@@ -359,8 +411,7 @@ private[spark] class MemoryStore(blockManager: BlockManager, maxMemory: Long)
   private def tryToPut(
       blockId: BlockId,
       value: () => Any,
-      size: Long,
-      deserialized: Boolean): ResultWithDroppedBlocks = {
+      size: Long): ResultWithDroppedBlocks = {
 
     /* TODO: Its possible to optimize the locking by locking entries only when selecting blocks
      * to be dropped. Once the to-be-dropped blocks have been selected, and lock on entries has
@@ -377,23 +428,22 @@ private[spark] class MemoryStore(blockManager: BlockManager, maxMemory: Long)
       droppedBlocks ++= freeSpaceResult.droppedBlocks
 
       if (enoughFreeSpace) {
-        val entry = new MemoryEntry(value(), size, deserialized)
+        val entry = value() match {
+          case arr: Array[Any] => ArrayMemoryEntry(arr, size)
+          case cp: ColumnPartitionData[_] => ColumnPartitionMemoryEntry(cp, size)
+          case buf: ByteBuffer => SerializedMemoryEntry(buf, size)
+        }
         entries.synchronized {
           entries.put(blockId, entry)
           currentMemory += size
         }
-        val valuesOrBytes = if (deserialized) "values" else "bytes"
         logInfo("Block %s stored as %s in memory (estimated size %s, free %s)".format(
-          blockId, valuesOrBytes, Utils.bytesToString(size), Utils.bytesToString(freeMemory)))
+          blockId, entry.unitName, Utils.bytesToString(size), Utils.bytesToString(freeMemory)))
         putSuccess = true
       } else {
         // Tell the block manager that we couldn't put it in memory so that it can drop it to
         // disk if the block allows disk storage.
-        lazy val data = if (deserialized) {
-          Left(value().asInstanceOf[Array[Any]])
-        } else {
-          Right(value().asInstanceOf[ByteBuffer].duplicate())
-        }
+        lazy val data = duplicateIfNeeded(value())
         val droppedBlockStatus = blockManager.dropFromMemory(blockId, () => data)
         droppedBlockStatus.foreach { status => droppedBlocks += ((blockId, status)) }
       }
@@ -401,6 +451,11 @@ private[spark] class MemoryStore(blockManager: BlockManager, maxMemory: Long)
       releasePendingUnrollMemoryForThisTask()
     }
     ResultWithDroppedBlocks(putSuccess, droppedBlocks)
+  }
+
+  def duplicateIfNeeded(value: Any): Any = value match {
+    case buf: ByteBuffer => buf.duplicate()
+    case v => v
   }
 
   /**
@@ -460,11 +515,7 @@ private[spark] class MemoryStore(blockManager: BlockManager, maxMemory: Long)
           // blocks and removing entries. However the check is still here for
           // future safety.
           if (entry != null) {
-            val data = if (entry.deserialized) {
-              Left(entry.value.asInstanceOf[Array[Any]])
-            } else {
-              Right(entry.value.asInstanceOf[ByteBuffer].duplicate())
-            }
+            val data = duplicateIfNeeded(entry.value)
             val droppedBlockStatus = blockManager.dropFromMemory(blockId, data)
             droppedBlockStatus.foreach { status => droppedBlocks += ((blockId, status)) }
           }

@@ -168,15 +168,17 @@ class PipedRDDSuite extends SparkFunSuite with SharedSparkContext {
 
         override val getDependencies = List[Dependency[_]]()
 
-        override def compute(theSplit: Partition, context: TaskContext) = {
-          new InterruptibleIterator[(LongWritable, Text)](context, Iterator((new LongWritable(1),
-            new Text("b"))))
+        override def computePartition(theSplit: Partition, context: TaskContext) = {
+          IteratorPartitionData(new InterruptibleIterator[(LongWritable, Text)](
+            context,
+            Iterator((new LongWritable(1),
+            new Text("b")))))
         }
       }
       val hadoopPart1 = generateFakeHadoopPartition()
       val pipedRdd = new PipedRDD(nums, "printenv " + varName)
       val tContext = TaskContext.empty()
-      val rddIter = pipedRdd.compute(hadoopPart1, tContext)
+      val rddIter = pipedRdd.computePartition(hadoopPart1, tContext).iterator
       val arr = rddIter.toArray
       assert(arr(0) == "/some/path")
     } else {

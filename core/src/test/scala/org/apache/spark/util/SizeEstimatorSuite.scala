@@ -66,11 +66,18 @@ class SizeEstimatorSuite
   with PrivateMethodTester
   with ResetSystemProperties {
 
+  // Remember real arch
+  val arch = System.getProperty("os.arch")
+
   override def beforeEach() {
     // Set the arch to 64-bit and compressedOops to true to get a deterministic test-case
     super.beforeEach()
     System.setProperty("os.arch", "amd64")
     System.setProperty("spark.test.useCompressedOops", "true")
+  }
+
+  override def afterEach() {
+    System.setProperty("os.arch", arch)
   }
 
   test("simple classes") {

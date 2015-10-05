@@ -32,6 +32,8 @@ import org.apache.spark.deploy.SparkSubmit._
 import org.apache.spark.deploy.SparkSubmitUtils.MavenCoordinate
 import org.apache.spark.util.{ResetSystemProperties, Utils}
 
+import org.apache.spark.PPCIBMJDKFailingTest
+
 // Note: this suite mixes in ResetSystemProperties because SparkSubmit.main() sets a bunch
 // of properties that neeed to be cleared after tests.
 class SparkSubmitSuite
@@ -210,11 +212,11 @@ class SparkSubmitSuite
     sysProps("spark.shuffle.spill") should be ("false")
   }
 
-  test("handles standalone cluster mode") {
+  test("handles standalone cluster mode", PPCIBMJDKFailingTest) {
     testStandaloneCluster(useRest = true)
   }
 
-  test("handles legacy standalone cluster mode") {
+  test("handles legacy standalone cluster mode", PPCIBMJDKFailingTest) {
     testStandaloneCluster(useRest = false)
   }
 
@@ -344,7 +346,7 @@ class SparkSubmitSuite
   }
 
   // SPARK-7287
-  test("includes jars passed in through --packages") {
+  test("includes jars passed in through --packages", PPCIBMJDKFailingTest) {
     val unusedJar = TestUtils.createJarWithClasses(Seq.empty)
     val main = MavenCoordinate("my.great.lib", "mylib", "0.1")
     val dep = MavenCoordinate("my.great.dep", "mylib", "0.1")

@@ -31,6 +31,8 @@ import org.scalatest.Matchers
 import org.scalatest.concurrent.Timeouts
 import org.scalatest.time.SpanSugar._
 
+import org.apache.spark.PPCIBMJDKFailingTest
+
 /**
  * This suite tests spark-submit with applications using HiveContext.
  */
@@ -62,7 +64,7 @@ class HiveSparkSubmitSuite
     runSparkSubmit(args)
   }
 
-  test("SPARK-8020: set sql conf in spark conf") {
+  test("SPARK-8020: set sql conf in spark conf", PPCIBMJDKFailingTest) {
     val unusedJar = TestUtils.createJarWithClasses(Seq.empty)
     val args = Seq(
       "--class", SparkSQLConfTest.getClass.getName.stripSuffix("$"),

@@ -24,6 +24,12 @@ import scala.util.control.NonFatal
 import org.apache.spark.Logging
 import org.apache.spark.util.Utils
 
+import org.apache.spark.PartitionData
+import org.apache.spark.ColumnPartitionData
+import org.apache.spark.IteratorPartitionData
+
+import scala.language.existentials
+
 
 /**
  * Stores BlockManager blocks on ExternalBlockStore.
@@ -56,7 +62,15 @@ private[spark] class ExternalBlockStore(blockManager: BlockManager, executorId: 
       values: Array[Any],
       level: StorageLevel,
       returnValues: Boolean): PutResult = {
-    putIntoExternalBlockStore(blockId, values.toIterator, returnValues)
+    putIntoExternalBlockStore(blockId, IteratorPartitionData(values.toIterator), returnValues)
+  }
+
+  override def putColumns(
+      blockId: BlockId,
+      values: ColumnPartitionData[_],
+      level: StorageLevel,
+      returnValues: Boolean): PutResult = {
+    putIntoExternalBlockStore(blockId, values, returnValues)
   }
 
   override def putIterator(
@@ -64,12 +78,12 @@ private[spark] class ExternalBlockStore(blockManager: BlockManager, executorId: 
       values: Iterator[Any],
       level: StorageLevel,
       returnValues: Boolean): PutResult = {
-    putIntoExternalBlockStore(blockId, values, returnValues)
+    putIntoExternalBlockStore(blockId, IteratorPartitionData(values), returnValues)
   }
 
   private def putIntoExternalBlockStore(
       blockId: BlockId,
-      values: Iterator[_],
+      values: PartitionData[_],
       returnValues: Boolean): PutResult = {
     logTrace(s"Attempting to put block $blockId into ExternalBlockStore")
     // we should never hit here if externalBlockManager is None. Handle it anyway for safety.
@@ -142,7 +156,7 @@ private[spark] class ExternalBlockStore(blockManager: BlockManager, executorId: 
     }
   }
 
-  override def getValues(blockId: BlockId): Option[Iterator[Any]] = {
+  override def getValues(blockId: BlockId): Option[PartitionData[_]] = {
     try {
       externalBlockManager.flatMap(_.getValues(blockId))
     } catch {
