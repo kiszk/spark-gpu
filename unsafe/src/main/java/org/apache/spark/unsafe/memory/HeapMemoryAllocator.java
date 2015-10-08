@@ -145,7 +145,10 @@ public class HeapMemoryAllocator implements MemoryAllocator {
           do {
             Pointer ptr = listIt.next();
             try {
-              JCuda.cudaFreeHost(ptr);
+              int result = JCuda.cudaFreeHost(ptr);
+              if (result != 0) {
+                throw new CudaException(JCuda.cudaGetErrorString(result));
+              }
             } catch (CudaException ex) {
               throw new OutOfMemoryError("Could not free pinned memory: " + ex.getMessage());
             }
@@ -166,7 +169,10 @@ public class HeapMemoryAllocator implements MemoryAllocator {
 
       Pointer ptr = new Pointer();
       try {
-        JCuda.cudaHostAlloc(ptr, size, JCuda.cudaHostAllocPortable);
+        int result = JCuda.cudaHostAlloc(ptr, size, JCuda.cudaHostAllocPortable);
+        if (result != 0) {
+          throw new CudaException(JCuda.cudaGetErrorString(result));
+        }
       } catch (CudaException ex) {
         throw new OutOfMemoryError("Could not alloc pinned memory: " + ex.getMessage());
       }
@@ -189,6 +195,53 @@ public class HeapMemoryAllocator implements MemoryAllocator {
         pinnedMemoryBySize.put(size, pool);
       }
       pool.add(ptr);
+      return size;
+    }
+  }
+
+  static protected final Logger logger = LoggerFactory.getLogger(ExecutorMemoryManager.class);
+
+  protected void finalize() {
+    // Deallocating off-heap pinned memory pool
+    for (Map.Entry<Long, LinkedList<Pointer>> sizeAndList : pinnedMemoryBySize.entrySet()) {
+      for (Pointer ptr : sizeAndList.getValue()) {
+        try {
+          int result = JCuda.cudaFreeHost(ptr);
+          if (result != 0) {
+            throw new CudaException(JCuda.cudaGetErrorString(result));
+          }
+          allocatedPinnedMemory -= sizeAndList.getKey();
+        } catch (CudaException ex) {
+          throw new OutOfMemoryError("Could not free pinned memory: " + ex.getMessage());
+        }
+      }
+    }
+
+    if (allocatedPinnedMemory > 0 && logger.isWarnEnabled()) {
+      logger.warn("{}B of memory still not freed in finalizer.", allocatedPinnedMemory);
+    }
+  }
+
+  /**
+   * Returns amount of allocated pinned memory. For testing purposes.
+   */
+  long getAllocatedPinnedMemorySize() {
+    synchronized (this) {
+      return allocatedPinnedMemory;
+    }
+  }
+
+  /**
+   * Returns amount of allocated pinned memory that is not in the pool. For testing purposes.
+   */
+  long getUsedAllocatedPinnedMemorySize() {
+    synchronized (this) {
+      long size = allocatedPinnedMemory;
+
+      for (Map.Entry<Long, LinkedList<Pointer>> sizeAndList : pinnedMemoryBySize.entrySet()) {
+        size -= sizeAndList.getKey() * sizeAndList.getValue().size();
+      }
+
       return size;
     }
   }
