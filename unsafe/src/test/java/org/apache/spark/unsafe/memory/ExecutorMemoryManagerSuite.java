@@ -19,6 +19,7 @@ package org.apache.spark.unsafe.memory;
 
 import jcuda.Pointer;
 import jcuda.driver.JCudaDriver;
+import jcuda.runtime.JCuda;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -30,6 +31,8 @@ public class ExecutorMemoryManagerSuite {
   public static void setUp() {
     // normally it's set by CUDAManager, but we don't need cuInit or the whole SparkContext here
     JCudaDriver.setExceptionsEnabled(true);
+    JCudaDriver.cuInit(0);
+    JCuda.cudaSetDevice(0);
   }
 
   @Test
