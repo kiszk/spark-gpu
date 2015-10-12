@@ -20,8 +20,6 @@ package org.apache.spark.cuda
 import scala.collection.mutable.{Map, HashMap, MutableList}
 import scala.util.Random
 
-import java.nio.file.{Files, Paths}
-
 import jcuda.Pointer
 import jcuda.driver.CUcontext
 import jcuda.driver.CUdevice
@@ -32,15 +30,30 @@ import jcuda.driver.JCudaDriver
 import jcuda.runtime.cudaStream_t
 import jcuda.runtime.JCuda
 
-import org.apache.commons.io.IOUtils
 import org.apache.spark.SparkException
 
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
+
+abstract sealed class CUDAManagerPtxResourceKind
+case object CUDAManagerPtxResource extends CUDAManagerPtxResourceKind
+case object CUDAManagerPtxFile     extends CUDAManagerPtxResourceKind
+
+object CUDAManagerCachedModule {
+  private val cachedModules = new HashMap[(String, Int), CUmodule]
+  private var cnt = 0
+
+  def getInstance() = { cachedModules }
+  def incCnt() = { cnt = cnt + 1
+    cnt
+  }
+}
+
 class CUDAManager {
 
   private val registeredKernels: Map[String, CUDAKernel] = new HashMap[String, CUDAKernel]()
+
 
   // Initialization
   // This is supposed to be called before ANY other JCuda* call to ensure we have properly loaded
@@ -109,7 +122,7 @@ class CUDAManager {
     // around sqrt(num_of_threads)
     // maybe correct synchronized load balancing is okay after all - partitions synchronize to
     // allocate the memory anyway
-    val startDev = Random.nextInt(deviceCount)
+    val startDev = Random.nextInt(deviceCount) * 0	///@@@
     (startDev to (startDev + deviceCount - 1)).map(_ % deviceCount).map { devIx =>
       JCuda.cudaSetDevice(devIx)
       val memInfo = Array.fill(2)(new Array[Long](1))
@@ -144,9 +157,8 @@ class CUDAManager {
       constArgs: Seq[AnyVal] = Seq(),
       stagesCount: Option[Long => Int] = None,
       dimensions: Option[(Long, Int) => (Int, Int)] = None): CUDAKernel = {
-    val moduleBinaryData = Files.readAllBytes(Paths.get(moduleFilePath))
     registerCUDAKernel(name, kernelSignature, inputColumnsOrder, outputColumnsOrder,
-      moduleBinaryData, constArgs, stagesCount, dimensions)
+      moduleFilePath, CUDAManagerPtxFile, constArgs, stagesCount, dimensions)
   }
 
   /**
@@ -162,13 +174,8 @@ class CUDAManager {
       constArgs: Seq[AnyVal] = Seq(),
       stagesCount: Option[Long => Int] = None,
       dimensions: Option[(Long, Int) => (Int, Int)] = None): CUDAKernel = {
-    val resource = getClass.getClassLoader.getResourceAsStream(resourcePath)
-    if (resource == null) {
-      throw new SparkException(s"Could not load CUDA kernel resource $resourcePath.")
-    }
-    val moduleBinaryData = IOUtils.toByteArray(resource)
     registerCUDAKernel(name, kernelSignature, inputColumnsOrder, outputColumnsOrder,
-      moduleBinaryData, constArgs, stagesCount, dimensions)
+      resourcePath, CUDAManagerPtxResource, constArgs, stagesCount, dimensions)
   }
 
   /**
@@ -180,12 +187,13 @@ class CUDAManager {
       kernelSignature: String,
       inputColumnsOrder: Seq[String],
       outputColumnsOrder: Seq[String],
-      moduleBinaryData: Array[Byte],
+      resourcePath: String,
+      resourceKind: CUDAManagerPtxResourceKind,
       constArgs: Seq[AnyVal] = Seq(),
       stagesCount: Option[Long => Int] = None,
       dimensions: Option[(Long, Int) => (Int, Int)] = None): CUDAKernel = {
     val kernel = new CUDAKernel(kernelSignature, inputColumnsOrder, outputColumnsOrder,
-      moduleBinaryData, constArgs, stagesCount, dimensions)
+      resourcePath, resourceKind, constArgs, stagesCount, dimensions)
     registerCUDAKernel(name, kernel)
     kernel
   }
@@ -212,19 +220,33 @@ class CUDAManager {
       (n: String) => throw new SparkException(s"Kernel with name $n was not registered"))
   }
 
-  private val cachedModules = new ThreadLocal[HashMap[(Array[Byte], Int), CUmodule]] {
-    override def initialValue() = new HashMap[(Array[Byte], Int), CUmodule]
+/*
+  private val cachedModules = new ThreadLocal[HashMap[(String, Int), CUmodule]] {
+    override def initialValue() = new HashMap[(String, Int), CUmodule]
   }
+*/
+  private val cachedModules = new HashMap[(String, Int), CUmodule]
 
-  private[spark] def cachedLoadModule(moduleBinaryData: Array[Byte]): CUmodule = {
+  private[spark] def cachedLoadModule(filename: String,
+    moduleBinaryData: Array[Byte]): CUmodule = {
     val devIx = new Array[Int](1)
     JCuda.cudaGetDevice(devIx)
-    cachedModules.get.getOrElseUpdate((moduleBinaryData, devIx(0)), {
-      // TODO maybe unload the module if it won't be needed later
-      val module = new CUmodule
-      JCudaDriver.cuModuleLoadData(module, moduleBinaryData)
-      module
-    })
+    synchronized {
+      // Since multiple modules cannot be loaded into one context in runtime API, we use singleton cache
+      //   http://stackoverflow.com/questions/32502375/loading-multiple-modules-in-jcuda-is-not-working
+      // TODO support loading multple ptxs
+      //   http://stackoverflow.com/questions/32535828/jit-in-jcuda-loading-multiple-ptx-modules
+      CUDAManagerCachedModule.getInstance.getOrElseUpdate((filename, devIx(0)), {
+        // TODO maybe unload the module if it won't be needed later
+//System.out.println("filename="+filename+", dev="+devIx(0)+", CM="+CUDAManagerCachedModule.getInstance)
+        if (CUDAManagerCachedModule.incCnt > 1) {
+          throw new SparkException("More than one ptx is loaded for one device. CUDAManager.cachedLoadModule currently supports only one ptx");
+        }
+        val module = new CUmodule
+        JCudaDriver.cuModuleLoadData(module, moduleBinaryData)
+        module
+      })
+    }
   }
 
   private[spark] def allocGPUMemory(size: Long): Pointer = {

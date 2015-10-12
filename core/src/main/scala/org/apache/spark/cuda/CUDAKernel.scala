@@ -19,6 +19,8 @@ package org.apache.spark.cuda
 
 import scala.reflect.ClassTag
 
+import java.nio.file.{Files, Paths}
+
 import jcuda.Pointer
 import jcuda.driver.CUfunction
 import jcuda.driver.CUmodule
@@ -28,6 +30,7 @@ import jcuda.runtime.cudaStream_t
 import jcuda.runtime.cudaMemcpyKind
 import jcuda.runtime.JCuda
 
+import org.apache.commons.io.IOUtils
 import org.apache.spark.{PartitionData, ColumnPartitionData, ColumnPartitionSchema, SparkEnv,
   SparkException}
 import org.apache.spark.util.Utils
@@ -63,7 +66,8 @@ class CUDAKernel(
     val kernelSignature: String,
     val inputColumnsOrder: Seq[String],
     val outputColumnsOrder: Seq[String],
-    val moduleBinaryData: Array[Byte],
+    val resourcePath: String,
+    val resourceKind: CUDAManagerPtxResourceKind,
     val constArgs: Seq[AnyVal] = Seq(),
     val stagesCount: Option[Long => Int] = None,
     val dimensions: Option[(Long, Int) => (Int, Int)] = None) extends Serializable {
@@ -82,7 +86,17 @@ class CUDAKernel(
 
     // TODO cache the function if there is a chance that after a deserialization kernel gets called
     // multiple times - but only if no synchronization is needed for that
-    val module = SparkEnv.get.cudaManager.cachedLoadModule(moduleBinaryData)
+    val ptxData = resourceKind match {
+      case CUDAManagerPtxResource =>
+        val resource = getClass.getClassLoader.getResourceAsStream(resourcePath)
+        if (resource == null) {
+          throw new SparkException(s"Could not load CUDA kernel resource $resourcePath.")
+        }
+        IOUtils.toByteArray(resource)
+      case CUDAManagerPtxFile =>
+        Files.readAllBytes(Paths.get(resourcePath))
+    }
+    val module = SparkEnv.get.cudaManager.cachedLoadModule(resourcePath, ptxData)
     val function = new CUfunction
     JCudaDriver.cuModuleGetFunction(function, module, kernelSignature)
 
