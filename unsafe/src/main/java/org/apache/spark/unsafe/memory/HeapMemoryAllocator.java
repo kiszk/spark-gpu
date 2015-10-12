@@ -25,6 +25,7 @@ import java.util.Map;
 
 import org.apache.spark.unsafe.Platform;
 
+import jcuda.CUresult;
 import jcuda.Pointer;
 import jcuda.driver.CUresult;
 import jcuda.runtime.JCuda;
