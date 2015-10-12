@@ -35,13 +35,11 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
   test("Ensure kernel is serializable", GPUTest) {
     sc = new SparkContext("local", "test", conf)
     val manager = new CUDAManager
-    val resource = getClass.getClassLoader.getResourceAsStream("testCUDAKernels.ptx")
-    val ptxData = IOUtils.toByteArray(resource)
     val kernel = new CUDAKernel(
       "_Z8identityPKiPil",
       Array("this"),
       Array("this"),
-      ptxData)
+      "testCUDAKernels.ptx", CUDAManagerPtxResource)
     SparkEnv.get.closureSerializer.newInstance().serialize(kernel)
   }
 
@@ -49,13 +47,11 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
     sc = new SparkContext("local", "test", conf)
     val manager = new CUDAManager
     if (manager.deviceCount > 0) {
-      val resource = getClass.getClassLoader.getResourceAsStream("testCUDAKernels.ptx")
-      val ptxData = IOUtils.toByteArray(resource)
       val kernel = new CUDAKernel(
         "_Z8identityPKiPil",
         Array("this"),
         Array("this"),
-        ptxData)
+        "testCUDAKernels.ptx", CUDAManagerPtxResource)
       val n = 1024
       val input = ColumnPartitionDataBuilder.build(1 to n)
       val output = kernel.run[Int, Int](input)
@@ -73,13 +69,11 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
     sc = new SparkContext("local", "test", conf)
     val manager = new CUDAManager
     if (manager.deviceCount > 0) {
-      val resource = getClass.getClassLoader.getResourceAsStream("testCUDAKernels.ptx")
-      val ptxData = IOUtils.toByteArray(resource)
       val kernel = new CUDAKernel(
         "_Z12vectorLengthPKdS0_Pdl",
         Array("this.x", "this.y"),
         Array("this.len"),
-        ptxData)
+        "testCUDAKernels.ptx", CUDAManagerPtxResource)
       val n = 100
       val inputVals = (1 to n).flatMap { x =>
         (1 to n).map { y =>
@@ -103,13 +97,11 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
     sc = new SparkContext("local", "test", conf)
     val manager = new CUDAManager
     if (manager.deviceCount > 0) {
-      val resource = getClass.getClassLoader.getResourceAsStream("testCUDAKernels.ptx")
-      val ptxData = IOUtils.toByteArray(resource)
       val kernel = new CUDAKernel(
         "_Z9plusMinusPKdPKfPdPfl",
         Array("this.base", "this.deviation"),
         Array("this.a", "this.b"),
-        ptxData)
+        "testCUDAKernels.ptx", CUDAManagerPtxResource)
       val n = 100
       val inputVals = (1 to n).flatMap { base =>
         (1 to n).map { deviation =>
@@ -133,13 +125,11 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
     sc = new SparkContext("local", "test", conf)
     val manager = new CUDAManager
     if (manager.deviceCount > 0) {
-      val resource = getClass.getClassLoader.getResourceAsStream("testCUDAKernels.ptx")
-      val ptxData = IOUtils.toByteArray(resource)
       val kernel = new CUDAKernel(
         "_Z19applyLinearFunctionPKsPslss",
         Array("this"),
         Array("this"),
-        ptxData,
+        "testCUDAKernels.ptx", CUDAManagerPtxResource,
         List(2: Short, 3: Short))
       val n = 1000
       val input = ColumnPartitionDataBuilder.build((1 to n).map(_.toShort))
@@ -159,14 +149,12 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
     sc = new SparkContext("local", "test", conf)
     val manager = new CUDAManager
     if (manager.deviceCount > 0) {
-      val resource = getClass.getClassLoader.getResourceAsStream("testCUDAKernels.ptx")
-      val ptxData = IOUtils.toByteArray(resource)
       // we only use size/8 GPU threads and run block on a single warp
       val kernel = new CUDAKernel(
         "_Z8blockXORPKcPcll",
         Array("this"),
         Array("this"),
-        ptxData,
+        "testCUDAKernels.ptx", CUDAManagerPtxResource,
         List(0x0102030411121314l),
         None,
         Some((size: Long, stage: Int) => (((size + 32 * 8 - 1) / (32 * 8)).toInt, 32)))
@@ -194,8 +182,6 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
     sc = new SparkContext("local", "test", conf)
     val manager = new CUDAManager
     if (manager.deviceCount > 0) {
-      val resource = getClass.getClassLoader.getResourceAsStream("testCUDAKernels.ptx")
-      val ptxData = IOUtils.toByteArray(resource)
       val dimensions = (size: Long, stage: Int) => stage match {
         case 0 => (64, 256)
         case 1 => (1, 1)
@@ -204,7 +190,7 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
         "_Z3sumPiS_lii",
         Array("this"),
         Array("this"),
-        ptxData,
+        "testCUDAKernels.ptx", CUDAManagerPtxResource,
         Seq(),
         Some((size: Long) => 2),
         Some(dimensions))
