@@ -18,8 +18,9 @@ EXCL_TAGS=\
 org.apache.spark.SlowTest,\
 org.apache.spark.PPCIBMJDKFailingTest
 
-MVN_COMPILE_PARALLEL_THREADS=20
-MVN_COMPILE_PARALLEL_THREADS=8
+NCORES=`lscpu | awk ' /^Core\(s\)/ { print $4 }'`
+NSOCKETS=`lscpu | awk ' /^Socket\(s\)/ { print $2 }'`
+MVN_COMPILE_PARALLEL_THREADS=`expr $NCORES \* $NSOCKETS`
 
 MVN_CMD="./build/mvn --force"
 
