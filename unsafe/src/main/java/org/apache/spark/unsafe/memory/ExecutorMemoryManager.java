@@ -24,8 +24,8 @@ import java.util.Map;
 import java.util.Iterator;
 import javax.annotation.concurrent.GuardedBy;
 
-import jcuda.CUresult;
 import jcuda.Pointer;
+import jcuda.driver.CUresult;
 import jcuda.runtime.JCuda;
 import jcuda.CudaException;
 
