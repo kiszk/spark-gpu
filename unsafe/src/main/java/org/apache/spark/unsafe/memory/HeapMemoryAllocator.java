@@ -25,6 +25,7 @@ import java.util.Map;
 
 import org.apache.spark.unsafe.Platform;
 
+import jcuda.CUresult;
 import jcuda.Pointer;
 import jcuda.runtime.JCuda;
 import jcuda.CudaException;
@@ -146,7 +147,7 @@ public class HeapMemoryAllocator implements MemoryAllocator {
             Pointer ptr = listIt.next();
             try {
               int result = JCuda.cudaFreeHost(ptr);
-              if (result != 0) {
+              if (result != CUresult.CUDA_SUCCESS) {
                 throw new CudaException(JCuda.cudaGetErrorString(result));
               }
             } catch (CudaException ex) {
@@ -170,7 +171,7 @@ public class HeapMemoryAllocator implements MemoryAllocator {
       Pointer ptr = new Pointer();
       try {
         int result = JCuda.cudaHostAlloc(ptr, size, JCuda.cudaHostAllocPortable);
-        if (result != 0) {
+        if (result != CUresult.CUDA_SUCCESS) {
           throw new CudaException(JCuda.cudaGetErrorString(result));
         }
       } catch (CudaException ex) {
@@ -207,7 +208,7 @@ public class HeapMemoryAllocator implements MemoryAllocator {
       for (Pointer ptr : sizeAndList.getValue()) {
         try {
           int result = JCuda.cudaFreeHost(ptr);
-          if (result != 0) {
+          if (result != CUresult.CUDA_SUCCESS) {
             throw new CudaException(JCuda.cudaGetErrorString(result));
           }
           allocatedPinnedMemory -= sizeAndList.getKey();
