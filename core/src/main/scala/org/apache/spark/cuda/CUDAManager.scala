@@ -120,7 +120,7 @@ class CUDAManager {
     // around sqrt(num_of_threads)
     // maybe correct synchronized load balancing is okay after all - partitions synchronize to
     // allocate the memory anyway
-    val startDev = Random.nextInt(deviceCount) * 0	///@@@
+    val startDev = Random.nextInt(deviceCount)
     (startDev to (startDev + deviceCount - 1)).map(_ % deviceCount).map { devIx =>
       JCuda.cudaSetDevice(devIx)
       val memInfo = Array.fill(2)(new Array[Long](1))
