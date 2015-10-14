@@ -45,9 +45,8 @@ object CUDAManagerCachedModule {
   private var cnt = 0
 
   def getInstance() = { cachedModules }
-  def incCnt() = { cnt = cnt + 1
-    cnt
-  }
+  def getCnt() = { cnt }
+  def incCnt() = { cnt = cnt + 1 }
 }
 
 class CUDAManager {
@@ -60,7 +59,6 @@ class CUDAManager {
   // native jCuda library and cuda context
   try {
     JCudaDriver.setExceptionsEnabled(true)
-
     JCudaDriver.cuInit(0)
   } catch {
     case ex: UnsatisfiedLinkError =>
@@ -122,7 +120,7 @@ class CUDAManager {
     // around sqrt(num_of_threads)
     // maybe correct synchronized load balancing is okay after all - partitions synchronize to
     // allocate the memory anyway
-    val startDev = Random.nextInt(deviceCount) * 0	///@@@
+    val startDev = Random.nextInt(deviceCount)
     (startDev to (startDev + deviceCount - 1)).map(_ % deviceCount).map { devIx =>
       JCuda.cudaSetDevice(devIx)
       val memInfo = Array.fill(2)(new Array[Long](1))
@@ -238,12 +236,15 @@ class CUDAManager {
       //   http://stackoverflow.com/questions/32535828/jit-in-jcuda-loading-multiple-ptx-modules
       CUDAManagerCachedModule.getInstance.getOrElseUpdate((filename, devIx(0)), {
         // TODO maybe unload the module if it won't be needed later
-//System.out.println("filename="+filename+", dev="+devIx(0)+", CM="+CUDAManagerCachedModule.getInstance)
-        if (CUDAManagerCachedModule.incCnt > 1) {
+        if (deviceCount <= CUDAManagerCachedModule.getCnt) {
           throw new SparkException("More than one ptx is loaded for one device. CUDAManager.cachedLoadModule currently supports only one ptx");
         }
+	val moduleBinaryData0 = new Array[Byte](moduleBinaryData.length+1)
+	System.arraycopy(moduleBinaryData, 0, moduleBinaryData0, 0, moduleBinaryData.length)
+	moduleBinaryData0(moduleBinaryData.length-1) = 0
         val module = new CUmodule
-        JCudaDriver.cuModuleLoadData(module, moduleBinaryData)
+        JCudaDriver.cuModuleLoadData(module, moduleBinaryData0)
+	CUDAManagerCachedModule.incCnt
         module
       })
     }
