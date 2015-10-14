@@ -30,7 +30,7 @@ case class FloatRange(a: Double, b: Float)
 
 class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
 
-  private val conf = new SparkConf(false)
+  private val conf = new SparkConf(false).set("spark.driver.maxResultSize", "2g")
 
   test("Ensure kernel is serializable", GPUTest) {
     sc = new SparkContext("local", "test", conf)
@@ -289,6 +289,27 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
     }
   }
 
+  test("Run map on rdds with 100,000,000 elements - multiple partition", GPUTest) {
+    sc = new SparkContext("local", "test", conf)
+    if (sc.cudaManager.deviceCount > 0) {
+      val mapKernel = sc.cudaManager.registerCUDAKernelFromResource(
+        "map",
+        "_Z11multiplyBy2PiS_l",
+        Array("this"),
+        Array("this"),
+        "testCUDAKernels.ptx")
+
+      val n = 100000000
+      val output = sc.parallelize(1 to n, 64)
+        .convert(ColumnFormat)
+        .mapUsingKernel((x: Int) => 2 * x, mapKernel)
+        .collect()
+      assert(output.sameElements((1 to n).map(_ * 2)))
+    } else {
+      info("No CUDA devices, so skipping the test.")
+    }
+  }
+
   test("Run map + reduce on rdds - multiple partitions", GPUTest) {
     sc = new SparkContext("local", "test", conf)
     if (sc.cudaManager.deviceCount > 0) {
@@ -315,6 +336,41 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
 
       val n = 100
       val output = sc.parallelize(1 to n, 16)
+        .convert(ColumnFormat)
+        .mapUsingKernel((x: Int) => 2 * x, "map")
+        .reduceUsingKernel((x: Int, y: Int) => x + y, "reduce")
+      assert(output == n * (n + 1))
+    } else {
+      info("No CUDA devices, so skipping the test.")
+    }
+  }
+
+  test("Run map + reduce on rdds with 100,000,000 elements - multiple partitions", GPUTest) {
+    sc = new SparkContext("local", "test", conf)
+    if (sc.cudaManager.deviceCount > 0) {
+      sc.cudaManager.registerCUDAKernelFromResource(
+        "map",
+        "_Z11multiplyBy2PiS_l",
+        Array("this"),
+        Array("this"),
+        "testCUDAKernels.ptx")
+
+      val dimensions = (size: Long, stage: Int) => stage match {
+        case 0 => (64, 256)
+        case 1 => (1, 1)
+      }
+      sc.cudaManager.registerCUDAKernelFromResource(
+        "reduce",
+        "_Z3sumPiS_lii",
+        Array("this"),
+        Array("this"),
+        "testCUDAKernels.ptx",
+        Seq(),
+        Some((size: Long) => 2),
+        Some(dimensions))
+
+      val n = 100000000
+      val output = sc.parallelize(1 to n, 64)
         .convert(ColumnFormat)
         .mapUsingKernel((x: Int) => 2 * x, "map")
         .reduceUsingKernel((x: Int, y: Int) => x + y, "reduce")
