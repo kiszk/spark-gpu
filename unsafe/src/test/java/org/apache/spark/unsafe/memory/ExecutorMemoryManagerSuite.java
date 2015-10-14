@@ -29,7 +29,7 @@ public class ExecutorMemoryManagerSuite {
 
   @BeforeClass
   public static void setUp() {
-    // normally it's set by CUDAManager, but we don't need cuInit or the whole SparkContext here
+    // normally it's set by CUDAManager
     JCudaDriver.setExceptionsEnabled(true);
     JCudaDriver.cuInit(0);
     JCuda.cudaSetDevice(0);
