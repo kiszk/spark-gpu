@@ -42,11 +42,14 @@ case object CUDAManagerPtxFile     extends CUDAManagerPtxResourceKind
 
 object CUDAManagerCachedModule {
   private val cachedModules = new HashMap[(String, Int), CUmodule]
-  private var cnt = 0
+  private var cnt : Int = 0
 
-  def getInstance() = { cachedModules }
-  def getCnt() = { cnt }
-  def incCnt() = { cnt = cnt + 1 }
+  def getInstance() : HashMap[(String, Int), CUmodule] = { cachedModules }
+  def getCnt() : Int = { cnt }
+  def incCnt() : Int = {
+    cnt = cnt + 1
+    cnt
+  }
 }
 
 class CUDAManager {
@@ -230,21 +233,23 @@ class CUDAManager {
     val devIx = new Array[Int](1)
     JCuda.cudaGetDevice(devIx)
     synchronized {
-      // Since multiple modules cannot be loaded into one context in runtime API, we use singleton cache
-      //   http://stackoverflow.com/questions/32502375/loading-multiple-modules-in-jcuda-is-not-working
+      // Since multiple modules cannot be loaded into one context in runtime API,
+      //   we use singlton cache http://stackoverflow.com/questions/32502375/
+      //   loading-multiple-modules-in-jcuda-is-not-working
       // TODO support loading multple ptxs
       //   http://stackoverflow.com/questions/32535828/jit-in-jcuda-loading-multiple-ptx-modules
       CUDAManagerCachedModule.getInstance.getOrElseUpdate((filename, devIx(0)), {
         // TODO maybe unload the module if it won't be needed later
         if (deviceCount <= CUDAManagerCachedModule.getCnt) {
-          throw new SparkException("More than one ptx is loaded for one device. CUDAManager.cachedLoadModule currently supports only one ptx");
+          throw new SparkException("More than one ptx is loaded for one device. " +
+            "CUDAManager.cachedLoadModule currently supports only one ptx");
         }
-	val moduleBinaryData0 = new Array[Byte](moduleBinaryData.length+1)
-	System.arraycopy(moduleBinaryData, 0, moduleBinaryData0, 0, moduleBinaryData.length)
-	moduleBinaryData0(moduleBinaryData.length-1) = 0
+        val moduleBinaryData0 = new Array[Byte](moduleBinaryData.length + 1)
+        System.arraycopy(moduleBinaryData, 0, moduleBinaryData0, 0, moduleBinaryData.length)
+        moduleBinaryData0(moduleBinaryData.length-1) = 0
         val module = new CUmodule
         JCudaDriver.cuModuleLoadData(module, moduleBinaryData0)
-	CUDAManagerCachedModule.incCnt
+        CUDAManagerCachedModule.incCnt
         module
       })
     }
