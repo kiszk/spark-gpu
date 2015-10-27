@@ -369,11 +369,6 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
     Utils.setLogLevel(org.apache.log4j.Level.toLevel(logLevel))
   }
 
-  /**
-   * CUDA manager that keeps kernels and operates on GPU for this Spark context.
-   */
-  def cudaManager: CUDAManager = _env.cudaManager
-
   try {
     _conf = config.clone()
     _conf.validateSettings()
