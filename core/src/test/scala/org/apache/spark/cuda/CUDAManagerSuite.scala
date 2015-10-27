@@ -30,22 +30,6 @@ class CUDAManagerSuite extends SparkFunSuite with LocalSparkContext {
 
   private val conf = new SparkConf(false)
 
-  test("Registering a kernel", GPUTest) {
-    sc = new SparkContext("local", "test", conf)
-    val manager = SparkEnv.get.cudaManager
-    if (manager.deviceCount > 0) {
-      val kernel = manager.registerCUDAKernelFromResource(
-        "identity",
-        "_Z8identityPKiPil",
-        Array("this"),
-        Array("this"),
-        "testCUDAKernels.ptx")
-      assert(manager.getKernel("identity") == kernel)
-    } else {
-      info("No CUDA devices, so skipping the test.")
-    }
-  }
-
   test("Allocate and copy memory to/from gpu", GPUTest) {
     sc = new SparkContext("local", "test", conf)
     val manager = SparkEnv.get.cudaManager

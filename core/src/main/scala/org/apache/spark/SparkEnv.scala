@@ -103,7 +103,7 @@ class SparkEnv (
         actorSystem.shutdown()
       }
       rpcEnv.shutdown()
-      cudaManager.stop()
+      if (cudaManager != null) { cudaManager.stop() }
 
       // Unfortunately Akka's awaitTermination doesn't actually wait for the Netty server to shut
       // down, but let's call it anyway in case it gets fixed in a later release
@@ -398,6 +398,12 @@ object SparkEnv extends Logging {
     val outputCommitCoordinatorRef = registerOrLookupEndpoint("OutputCommitCoordinator",
       new OutputCommitCoordinatorEndpoint(rpcEnv, outputCommitCoordinator))
     outputCommitCoordinator.coordinatorRef = Some(outputCommitCoordinatorRef)
+
+    val cudaManager: CUDAManager = if (isDriver && !isLocal) {
+      null
+    } else {
+      new CUDAManager
+    }
 
     val envInstance = new SparkEnv(
       executorId,
