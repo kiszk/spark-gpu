@@ -36,10 +36,6 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 
-abstract sealed class CUDAManagerPtxResourceKind
-case object CUDAManagerPtxResource extends CUDAManagerPtxResourceKind
-case object CUDAManagerPtxFile     extends CUDAManagerPtxResourceKind
-
 object CUDAManagerCachedModule {
   private val cachedModules = new HashMap[(String, Int), CUmodule]
   private var cnt : Int = 0
@@ -53,9 +49,6 @@ object CUDAManagerCachedModule {
 }
 
 class CUDAManager {
-
-  private val registeredKernels: Map[String, CUDAKernel] = new HashMap[String, CUDAKernel]()
-
 
   // Initialization
   // This is supposed to be called before ANY other JCuda* call to ensure we have properly loaded
@@ -146,86 +139,6 @@ class CUDAManager {
       s"($memoryUsage bytes needed)")
   }
 
-  /**
-   * Register in the manager a CUDA kernel from a module file in cubin, PTX or fatbin format.
-   */
-  def registerCUDAKernelFromFile(
-      name: String,
-      kernelSignature: String,
-      inputColumnsOrder: Seq[String],
-      outputColumnsOrder: Seq[String],
-      moduleFilePath: String,
-      constArgs: Seq[AnyVal] = Seq(),
-      stagesCount: Option[Long => Int] = None,
-      dimensions: Option[(Long, Int) => (Int, Int)] = None): CUDAKernel = {
-    registerCUDAKernel(name, kernelSignature, inputColumnsOrder, outputColumnsOrder,
-      moduleFilePath, CUDAManagerPtxFile, constArgs, stagesCount, dimensions)
-  }
-
-  /**
-   * Register in the manager a CUDA kernel from a module in resources.
-   */
-  // TODO does not seem to work when the source is in user jars, though works for Spark unit tests
-  def registerCUDAKernelFromResource(
-      name: String,
-      kernelSignature: String,
-      inputColumnsOrder: Seq[String],
-      outputColumnsOrder: Seq[String],
-      resourcePath: String,
-      constArgs: Seq[AnyVal] = Seq(),
-      stagesCount: Option[Long => Int] = None,
-      dimensions: Option[(Long, Int) => (Int, Int)] = None): CUDAKernel = {
-    registerCUDAKernel(name, kernelSignature, inputColumnsOrder, outputColumnsOrder,
-      resourcePath, CUDAManagerPtxResource, constArgs, stagesCount, dimensions)
-  }
-
-  /**
-   * Register in the manager a CUDA kernel from a module in binary cubin, PTX or fatbin binary data
-   * format.
-   */
-  def registerCUDAKernel(
-      name: String,
-      kernelSignature: String,
-      inputColumnsOrder: Seq[String],
-      outputColumnsOrder: Seq[String],
-      resourcePath: String,
-      resourceKind: CUDAManagerPtxResourceKind,
-      constArgs: Seq[AnyVal] = Seq(),
-      stagesCount: Option[Long => Int] = None,
-      dimensions: Option[(Long, Int) => (Int, Int)] = None): CUDAKernel = {
-    val kernel = new CUDAKernel(kernelSignature, inputColumnsOrder, outputColumnsOrder,
-      resourcePath, resourceKind, constArgs, stagesCount, dimensions)
-    registerCUDAKernel(name, kernel)
-    kernel
-  }
-
-  /**
-   * Register given CUDA kernel in the manager.
-   */
-  def registerCUDAKernel(name: String, kernel: CUDAKernel) {
-    if (registeredKernels.contains(name)) {
-      throw new SparkException(s"Kernel with name $name already registered")
-    }
-
-    synchronized {
-      registeredKernels.put(name, kernel)
-    }
-  }
-
-  /**
-   * Gets the kernel registered with given name. Must not be called when `registerCUDAKernel` might
-   * be called at the same time from another thread.
-   */
-  def getKernel(name: String): CUDAKernel = {
-    registeredKernels.applyOrElse(name,
-      (n: String) => throw new SparkException(s"Kernel with name $n was not registered"))
-  }
-
-/*
-  private val cachedModules = new ThreadLocal[HashMap[(String, Int), CUmodule]] {
-    override def initialValue() = new HashMap[(String, Int), CUmodule]
-  }
-*/
   private val cachedModules = new HashMap[(String, Int), CUmodule]
 
   private[spark] def cachedLoadModule(filename: String,
