@@ -20,7 +20,7 @@ package org.apache.spark.rdd
 import scala.reflect.ClassTag
 
 import org.apache.spark.{Partition, TaskContext, PartitionData, IteratorPartitionData,
-  ColumnPartitionData, PartitionFormat, IteratorFormat}
+  ColumnPartitionData, PartitionFormat, IteratorFormat, SparkException}
 
 import org.apache.spark.cuda.CUDAKernel
 
@@ -34,6 +34,10 @@ private[spark] class MapPartitionsRDD[U: ClassTag, T: ClassTag](
   override val partitioner = if (preservesPartitioning) firstParent[T].partitioner else None
 
   override def getPartitions: Array[Partition] = firstParent[T].partitions
+
+  override def compute(split: Partition, context: TaskContext): Iterator[U] = {
+    throw new SparkException("We do not implement compute since computePartition is implemented.")
+  }
 
   override def computePartition(split: Partition, context: TaskContext): PartitionData[U] = {
     (firstParent[T].partitionData(split, context), kernel) match {
