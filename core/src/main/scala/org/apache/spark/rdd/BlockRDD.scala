@@ -41,6 +41,10 @@ class BlockRDD[T: ClassTag](sc: SparkContext, @transient val blockIds: Array[Blo
     }).toArray
   }
 
+  override def compute(split: Partition, context: TaskContext): Iterator[T] = {
+    throw new SparkException("We do not implement compute since computePartition is implemented.")
+  }
+
   override def computePartition(split: Partition, context: TaskContext): PartitionData[T] = {
     assertValid()
     val blockManager = SparkEnv.get.blockManager
