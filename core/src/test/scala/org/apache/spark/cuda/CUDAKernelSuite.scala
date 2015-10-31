@@ -34,11 +34,12 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
 
   test("Ensure kernel is serializable", GPUTest) {
     sc = new SparkContext("local", "test", conf)
+    val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
     val kernel = new CUDAKernel(
       "_Z8identityPKiPil",
       Array("this"),
       Array("this"),
-      "testCUDAKernels.ptx", CUDAKernelPtxResource)
+      ptxURL)
     SparkEnv.get.closureSerializer.newInstance().serialize(kernel)
   }
 
@@ -46,11 +47,12 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
     sc = new SparkContext("local", "test", conf)
     val manager = new CUDAManager
     if (manager.deviceCount > 0) {
+      val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val kernel = new CUDAKernel(
         "_Z8identityPKiPil",
         Array("this"),
         Array("this"),
-        "testCUDAKernels.ptx", CUDAKernelPtxResource)
+        ptxURL)
       val n = 1024
       val input = ColumnPartitionDataBuilder.build(1 to n)
       val output = kernel.run[Int, Int](input)
@@ -68,11 +70,12 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
     sc = new SparkContext("local", "test", conf)
     val manager = new CUDAManager
     if (manager.deviceCount > 0) {
+      val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val kernel = new CUDAKernel(
         "_Z12vectorLengthPKdS0_Pdl",
         Array("this.x", "this.y"),
         Array("this.len"),
-        "testCUDAKernels.ptx", CUDAKernelPtxResource)
+        ptxURL)
       val n = 100
       val inputVals = (1 to n).flatMap { x =>
         (1 to n).map { y =>
@@ -96,11 +99,12 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
     sc = new SparkContext("local", "test", conf)
     val manager = new CUDAManager
     if (manager.deviceCount > 0) {
+      val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val kernel = new CUDAKernel(
         "_Z9plusMinusPKdPKfPdPfl",
         Array("this.base", "this.deviation"),
         Array("this.a", "this.b"),
-        "testCUDAKernels.ptx", CUDAKernelPtxResource)
+        ptxURL)
       val n = 100
       val inputVals = (1 to n).flatMap { base =>
         (1 to n).map { deviation =>
@@ -124,11 +128,12 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
     sc = new SparkContext("local", "test", conf)
     val manager = new CUDAManager
     if (manager.deviceCount > 0) {
+      val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val kernel = new CUDAKernel(
         "_Z19applyLinearFunctionPKsPslss",
         Array("this"),
         Array("this"),
-        "testCUDAKernels.ptx", CUDAKernelPtxResource,
+        ptxURL,
         List(2: Short, 3: Short))
       val n = 1000
       val input = ColumnPartitionDataBuilder.build((1 to n).map(_.toShort))
@@ -149,11 +154,12 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
     val manager = new CUDAManager
     if (manager.deviceCount > 0) {
       // we only use size/8 GPU threads and run block on a single warp
+      val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val kernel = new CUDAKernel(
         "_Z8blockXORPKcPcll",
         Array("this"),
         Array("this"),
-        "testCUDAKernels.ptx", CUDAKernelPtxResource,
+        ptxURL,
         List(0x0102030411121314l),
         None,
         Some((size: Long, stage: Int) => (((size + 32 * 8 - 1) / (32 * 8)).toInt, 32)))
@@ -181,6 +187,7 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
     sc = new SparkContext("local", "test", conf)
     val manager = new CUDAManager
     if (manager.deviceCount > 0) {
+      val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val dimensions = (size: Long, stage: Int) => stage match {
         case 0 => (64, 256)
         case 1 => (1, 1)
@@ -189,7 +196,7 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
         "_Z3sumPiS_lii",
         Array("this"),
         Array("this"),
-        "testCUDAKernels.ptx", CUDAKernelPtxResource,
+        ptxURL,
         Seq(),
         Some((size: Long) => 2),
         Some(dimensions))
@@ -209,11 +216,12 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
     sc = new SparkContext("local", "test", conf)
     val manager = new CUDAManager
     if (manager.deviceCount > 0) {
+      val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val mapKernel = new CUDAKernel(
         "_Z11multiplyBy2PiS_l",
         Array("this"),
         Array("this"),
-        "testCUDAKernels.ptx", CUDAKernelPtxResource)
+        ptxURL)
 
       val n = 10
       val output = sc.parallelize(1 to n, 1)
@@ -230,6 +238,7 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
     sc = new SparkContext("local", "test", conf)
     val manager = new CUDAManager
     if (manager.deviceCount > 0) {
+      val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val dimensions = (size: Long, stage: Int) => stage match {
         case 0 => (64, 256)
         case 1 => (1, 1)
@@ -238,7 +247,7 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
         "_Z3sumPiS_lii",
         Array("this"),
         Array("this"),
-        "testCUDAKernels.ptx", CUDAKernelPtxResource,
+        ptxURL,
         Seq(),
         Some((size: Long) => 2),
         Some(dimensions))
@@ -257,11 +266,12 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
     sc = new SparkContext("local", "test", conf)
     val manager = new CUDAManager
     if (manager.deviceCount > 0) {
+      val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val mapKernel = new CUDAKernel(
         "_Z11multiplyBy2PiS_l",
         Array("this"),
         Array("this"),
-        "testCUDAKernels.ptx")
+        ptxURL)
 
       val dimensions = (size: Long, stage: Int) => stage match {
         case 0 => (64, 256)
@@ -271,7 +281,7 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
         "_Z3sumPiS_lii",
         Array("this"),
         Array("this"),
-        "testCUDAKernels.ptx", CUDAKernelPtxResource,
+        ptxURL,
         Seq(),
         Some((size: Long) => 2),
         Some(dimensions))
@@ -291,11 +301,12 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
     sc = new SparkContext("local", "test", conf)
     val manager = new CUDAManager
     if (manager.deviceCount > 0) {
+      val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val mapKernel = new CUDAKernel(
         "_Z11multiplyBy2PiS_l",
         Array("this"),
         Array("this"),
-        "testCUDAKernels.ptx")
+        ptxURL)
 
       val n = 100000000
       val output = sc.parallelize(1 to n, 64)
@@ -312,11 +323,12 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
     sc = new SparkContext("local", "test", conf)
     val manager = new CUDAManager
     if (manager.deviceCount > 0) {
+      val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val mapKernel = new CUDAKernel(
         "_Z11multiplyBy2PiS_l",
         Array("this"),
         Array("this"),
-        "testCUDAKernels.ptx")
+        ptxURL)
 
       val dimensions = (size: Long, stage: Int) => stage match {
         case 0 => (64, 256)
@@ -326,7 +338,7 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
         "_Z3sumPiS_lii",
         Array("this"),
         Array("this"),
-        "testCUDAKernels.ptx", CUDAKernelPtxResource,
+        ptxURL,
         Seq(),
         Some((size: Long) => 2),
         Some(dimensions))
@@ -346,11 +358,12 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
     sc = new SparkContext("local", "test", conf)
     val manager = new CUDAManager
     if (manager.deviceCount > 0) {
+      val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val mapKernel = new CUDAKernel(
         "_Z11multiplyBy2PiS_l",
         Array("this"),
         Array("this"),
-        "testCUDAKernels.ptx")
+        ptxURL)
 
       val dimensions = (size: Long, stage: Int) => stage match {
         case 0 => (64, 256)
@@ -360,7 +373,7 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
         "_Z3sumPiS_lii",
         Array("this"),
         Array("this"),
-        "testCUDAKernels.ptx", CUDAKernelPtxResource,
+        ptxURL,
         Seq(),
         Some((size: Long) => 2),
         Some(dimensions))
@@ -380,11 +393,12 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
     sc = new SparkContext("local", "test", conf)
     val manager = new CUDAManager
     if (manager.deviceCount > 0) {
+      val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val mapKernel = new CUDAKernel(
         "_Z11multiplyBy2PiS_l",
         Array("this"),
         Array("this"),
-        "testCUDAKernels.ptx")
+        ptxURL)
 
       val dimensions = (size: Long, stage: Int) => stage match {
         case 0 => (64, 256)
@@ -394,7 +408,7 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
         "_Z3sumPiS_lii",
         Array("this"),
         Array("this"),
-        "testCUDAKernels.ptx", CUDAKernelPtxResource,
+        ptxURL,
         Seq(),
         Some((size: Long) => 2),
         Some(dimensions))
@@ -415,11 +429,12 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
     sc = new SparkContext("local", "test", conf)
     val manager = new CUDAManager
     if (manager.deviceCount > 0) {
+      val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val mapKernel = new CUDAKernel(
         "_Z11multiplyBy2PiS_l",
         Array("this"),
         Array("this"),
-        "testCUDAKernels.ptx")
+        ptxURL)
 
       val dimensions = (size: Long, stage: Int) => stage match {
         case 0 => (64, 256)
@@ -429,7 +444,7 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
         "_Z3sumPiS_lii",
         Array("this"),
         Array("this"),
-        "testCUDAKernels.ptx", CUDAKernelPtxResource,
+        ptxURL,
         Seq(),
         Some((size: Long) => 2),
         Some(dimensions))
@@ -446,6 +461,38 @@ class CUDAKernelSuite extends SparkFunSuite with LocalSparkContext {
       info("No CUDA devices, so skipping the test.")
     }
   }
+
+/*
+  test("Run map on rdds - multiple partition with multiple works", GPUTest) {
+    sc = new SparkContext("local-cluster[2,1,1024]", "test", conf)
+    val manager = new CUDAManager
+    if (manager.deviceCount > 0) {
+      val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
+//      val mapKernel = new CUDAKernel(
+//        "_Z11multiplyBy2PiS_l",
+//        Array("this"),
+//        Array("this"),
+//        "testCUDAKernels.ptx", CUDAKernelPtxResource)
+
+      val n = 100
+      val output = sc.parallelize(1 to n, 2)
+        .convert(ColumnFormat)
+        .mapUsingKernel((x: Int) => 2 * x, 
+ new CUDAKernel(
+        "_Z11multiplyBy2PiS_l",
+        Array("this"),
+        Array("this"),
+        ptxURL)
+
+//mapKernel
+)
+        .collect()
+      assert(output.sameElements((1 to n).map(_ * 2)))
+    } else {
+      info("No CUDA devices, so skipping the test.")
+    }
+  }
+*/
 
   // TODO check other formats - cubin and fatbin
   // TODO make the test somehow work on multiple platforms, preferably without recompilation

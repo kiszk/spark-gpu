@@ -19,6 +19,7 @@ package org.apache.spark.cuda
 
 import scala.reflect.ClassTag
 
+import java.net.URL
 import java.nio.file.{Files, Paths}
 
 import jcuda.Pointer
@@ -62,16 +63,12 @@ import org.apache.spark.util.Utils
 // buffers later to output ColumnPartitionData - can do it by special
 // inputColumnOrder/outputColumnsOrder syntax
 // TODO improve the way constant arguments are passed - especially duplication of kernels
-abstract sealed class CUDAKernelPtxResourceKind
-case object CUDAKernelPtxResource extends CUDAKernelPtxResourceKind
-case object CUDAKernelPtxFile     extends CUDAKernelPtxResourceKind
 
 class CUDAKernel(
     val kernelSignature: String,
     val inputColumnsOrder: Seq[String],
     val outputColumnsOrder: Seq[String],
-    val resourcePath: String,
-    val resourceKind: CUDAKernelPtxResourceKind = CUDAKernelPtxResource,
+    val resourceURL: URL,
     val constArgs: Seq[AnyVal] = Seq(),
     val stagesCount: Option[Long => Int] = None,
     val dimensions: Option[(Long, Int) => (Int, Int)] = None) extends Serializable {
@@ -90,17 +87,10 @@ class CUDAKernel(
 
     // TODO cache the function if there is a chance that after a deserialization kernel gets called
     // multiple times - but only if no synchronization is needed for that
-    val ptxData = resourceKind match {
-      case CUDAKernelPtxResource =>
-        val resource = getClass.getClassLoader.getResourceAsStream(resourcePath)
-        if (resource == null) {
-          throw new SparkException(s"Could not load CUDA kernel resource $resourcePath.")
-        }
-        IOUtils.toByteArray(resource)
-      case CUDAKernelPtxFile =>
-        Files.readAllBytes(Paths.get(resourcePath))
-    }
-    val module = SparkEnv.get.cudaManager.cachedLoadModule(resourcePath, ptxData)
+    val inputStream = resourceURL.openStream()
+    val ptxData = IOUtils.toByteArray(inputStream)
+    inputStream.close()
+    val module = SparkEnv.get.cudaManager.cachedLoadModule(resourceURL.toString(), ptxData)
     val function = new CUfunction
     JCudaDriver.cuModuleGetFunction(function, module, kernelSignature)
 
