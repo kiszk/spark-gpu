@@ -2123,6 +2123,11 @@
               <include>org.eclipse.jetty:jetty-server</include>
               <include>com.google.guava:guava</include>
             </includes>
+            <excludes>
+              <exclude>jcuda:*:so:*</exclude>
+              <exclude>jcuda:*:dll:*</exclude>
+              <exclude>jcuda:*:dylib:*</exclude>
+            </excludes>
           </artifactSet>
           <relocations>
             <relocation>
@@ -2176,7 +2181,7 @@
         <version>0.7.0</version>
         <configuration>
           <verbose>false</verbose>
-          <failOnViolation>true</failOnViolation>
+          <failOnViolation>false</failOnViolation>
           <includeTestSourceDirectory>false</includeTestSourceDirectory>
           <failOnWarning>false</failOnWarning>
           <sourceDirectory>${basedir}/src/main/scala</sourceDirectory>

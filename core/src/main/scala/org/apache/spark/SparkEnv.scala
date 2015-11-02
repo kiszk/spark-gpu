@@ -21,6 +21,7 @@ import java.io.File
 import java.net.Socket
 
 import akka.actor.ActorSystem
+import org.apache.spark.cuda.CUDAManager
 
 import scala.collection.mutable
 import scala.util.Properties
@@ -73,6 +74,7 @@ class SparkEnv (
     val shuffleMemoryManager: ShuffleMemoryManager,
     val executorMemoryManager: ExecutorMemoryManager,
     val outputCommitCoordinator: OutputCommitCoordinator,
+    val cudaManager: CUDAManager,
     val conf: SparkConf) extends Logging {
 
   // TODO Remove actorSystem
@@ -102,6 +104,8 @@ class SparkEnv (
       metricsSystem.stop()
       outputCommitCoordinator.stop()
       rpcEnv.shutdown()
+      cudaManager.stop()
+
 
       // Unfortunately Akka's awaitTermination doesn't actually wait for the Netty server to shut
       // down, but let's call it anyway in case it gets fixed in a later release
@@ -401,6 +405,8 @@ object SparkEnv extends Logging {
       new ExecutorMemoryManager(allocator)
     }
 
+    val cudaManager: CUDAManager = new CUDAManager(isLocal || !isDriver)
+
     val envInstance = new SparkEnv(
       executorId,
       rpcEnv,
@@ -419,6 +425,7 @@ object SparkEnv extends Logging {
       shuffleMemoryManager,
       executorMemoryManager,
       outputCommitCoordinator,
+      cudaManager,
       conf)
 
     // Add a reference to tmp dir created by driver, we will delete this tmp dir when stop() is

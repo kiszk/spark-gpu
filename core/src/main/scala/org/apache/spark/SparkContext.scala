@@ -17,6 +17,8 @@
 
 package org.apache.spark
 
+import org.apache.spark.cuda.CUDAManager
+
 import scala.language.implicitConversions
 
 import java.io._
@@ -372,6 +374,10 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
       "deprecated, please use spark.executor.memory instead.")
     value
   }
+  /**
+   * CUDA manager that keeps kernels and operates on GPU for this Spark context.
+   */
+  def cudaManager: CUDAManager = _env.cudaManager
 
   /** Control our logLevel. This overrides any user-defined log settings.
    * @param logLevel The desired log level as a string.

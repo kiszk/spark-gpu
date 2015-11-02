@@ -19,6 +19,8 @@ package org.apache.spark.rdd
 
 import java.util.Random
 
+import org.apache.spark.cuda.CUDAKernel
+
 import scala.collection.{mutable, Map}
 import scala.collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
@@ -313,6 +315,14 @@ abstract class RDD[T: ClassTag](
   def map[U: ClassTag](f: T => U): RDD[U] = withScope {
     val cleanF = sc.clean(f)
     new MapPartitionsRDD[U, T](this, (context, pid, iter) => iter.map(cleanF))
+  }
+
+  /**SparkGPUTest.scala
+   * Return a new RDD by applying a function to all elements of this RDD.
+   */
+  def mapGPU[U: ClassTag](f: T => U, kernel : CUDAKernel[U,T]): RDD[U] = withScope {
+    val cleanF = sc.clean(f)
+    new MapGPUPartitionsRDD[U, T](this, (context, pid, iter) => iter.map(cleanF), kernel)
   }
 
   /**
