@@ -32,6 +32,7 @@ import jcuda.runtime.cudaMemcpyKind
 import jcuda.runtime.JCuda
 
 import org.apache.commons.io.IOUtils
+import org.apache.spark.rdd.ExternalFunction
 import org.apache.spark.{PartitionData, ColumnPartitionData, ColumnPartitionSchema, SparkEnv,
   SparkException}
 import org.apache.spark.util.Utils
@@ -64,14 +65,14 @@ import org.apache.spark.util.Utils
 // inputColumnOrder/outputColumnsOrder syntax
 // TODO improve the way constant arguments are passed - especially duplication of kernels
 
-class CUDAKernel(
+class CUDAFunction(
     val kernelSignature: String,
     val inputColumnsOrder: Seq[String],
     val outputColumnsOrder: Seq[String],
     val resourceURL: URL,
     val constArgs: Seq[AnyVal] = Seq(),
     val stagesCount: Option[Long => Int] = None,
-    val dimensions: Option[(Long, Int) => (Int, Int)] = None) extends Serializable {
+    val dimensions: Option[(Long, Int) => (Int, Int)] = None) extends ExternalFunction {
 
   /**
    * Runs the kernel on input data. Output size should be specified if kernel's result is of size
