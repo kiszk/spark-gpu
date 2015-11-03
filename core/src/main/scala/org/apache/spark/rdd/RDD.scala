@@ -42,7 +42,6 @@ import org.apache.spark.util.{BoundedPriorityQueue, Utils}
 import org.apache.spark.util.collection.OpenHashMap
 import org.apache.spark.util.random.{BernoulliSampler, PoissonSampler, BernoulliCellSampler,
   SamplingUtils}
-import org.apache.spark.cuda.CUDAKernel
 
 /**
  * A Resilient Distributed Dataset (RDD), the basic abstraction in Spark. Represents an immutable,
@@ -346,13 +345,13 @@ abstract class RDD[T: ClassTag](
 
   /**
    * Return a new RDD by applying a function to all elements of this RDD.
-   * Uses supplied lambda function for iterator-based partitions and kernel for column-based
-   * partitions.
+   * Uses supplied lambda function for iterator-based partitions and 
+   * external function for column-based partitions.
    */
-  def mapUsingKernel[U: ClassTag](f: T => U, kernel: CUDAKernel): RDD[U] = withScope {
+  def mapExtFunc[U: ClassTag](f: T => U, extfunc: ExternalFunction): RDD[U] = withScope {
     val cleanF = sc.clean(f)
     new MapPartitionsRDD[U, T](this, (context, pid, iter) => iter.map(cleanF),
-      kernel = Some(kernel))
+      extfunc = Some(extfunc))
   }
 
   /**
@@ -1047,9 +1046,10 @@ abstract class RDD[T: ClassTag](
 
   /**
    * Reduces the elements of this RDD using the specified commutative and associative binary
-   * operator. Uses supplied CUDA kernel for performing those operations on column-based partitions.
+   * operator. Uses supplied external function for performing those operations
+   * on column-based partitions.
    */
-  def reduceUsingKernel(f: (T, T) => T, kernel: CUDAKernel): T = withScope {
+  def reduceExtFunc(f: (T, T) => T, extfunc: ExternalFunction): T = withScope {
     val cleanF = sc.clean(f)
     val reducePartition: (TaskContext, PartitionData[T]) => Option[T] =
       (ctx: TaskContext, data: PartitionData[T]) => data match {
@@ -1062,7 +1062,7 @@ abstract class RDD[T: ClassTag](
 
         case col: ColumnPartitionData[T] =>
           if (col.size != 0) {
-            Some(kernel.run[T, T](col, Some(1)).iterator.next)
+            Some(extfunc.run[T, T](col, Some(1)).iterator.next)
           } else {
             None
           }

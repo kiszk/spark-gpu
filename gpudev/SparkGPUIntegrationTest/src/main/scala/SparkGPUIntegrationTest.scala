@@ -22,7 +22,7 @@ object SparkGPUIntegrationTest {
     assert(kernelResource != null)
     val kernelData = IOUtils.toByteArray(kernelResource)
 
-    val mapKernel = new CUDAKernel(
+    val mapFunction = new CUDAFunction(
       "multiplyBy2",
       "_Z11multiplyBy2PiS_l",
       Array("this"),
@@ -34,12 +34,12 @@ object SparkGPUIntegrationTest {
       case 0 => (4, 32)
       case 1 => (1, 1)
     }
-    val reduceKernel = new CUDAKernel(
+    val reduceFunction = new CUDAFunction(
       "sum",
       "_Z3sumPiS_lii",
       Array("this"),
       Array("this"),
-      kernelData, CUDAKernelPtxResourceKind,
+      kernelData, CUDAFunctionPtxResourceKind,
       Seq[AnyVal](),
       Some(stages),
       Some(dimensions))

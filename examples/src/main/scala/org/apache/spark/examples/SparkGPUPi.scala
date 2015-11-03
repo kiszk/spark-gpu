@@ -32,7 +32,7 @@ object SparkGPUPi {
     val sparkConf = new SparkConf().setAppName("SparkGPUPi")
     val spark = new SparkContext(sparkConf)
     val ptxURL = SparkGPUPi.getClass.getResource("/SparkGPUExamples.ptx")
-    val mapKernel = new CUDAKernel(
+    val mapFunction = new CUDAFunction(
       "_Z14SparkGPUPi_mapPKiPil",
       Array("this"),
       Array("this"),
@@ -42,7 +42,7 @@ object SparkGPUPi {
       case 0 => (64, 256)
       case 1 => (1, 1)
     }
-    val reduceKernel = new CUDAKernel(
+    val reduceFunction = new CUDAFunction(
       "_Z17SparkGPUPi_reducePiS_lii",
       Array("this"),
       Array("this"),
@@ -57,12 +57,12 @@ object SparkGPUPi {
     val rdd = spark.parallelize(1 to n, slices)
     val count = rdd
       .convert(ColumnFormat)
-      .mapUsingKernel( (i : Int) => {
+      .mapExtFunc( (i : Int) => {
         val x = random * 2 - 1
         val y = random * 2 - 1
         if (x * x + y * y < 1) 1 else 0 } ,  
-        mapKernel)
-      .reduceUsingKernel((x: Int, y: Int) => x + y, reduceKernel)
+        mapFunction)
+      .reduceExtFunc((x: Int, y: Int) => x + y, reduceFunction)
     println("Pi is roughly " + 4.0 * count / n)
 
     spark.stop()
