@@ -346,7 +346,7 @@ abstract class RDD[T: ClassTag](
 
   /**
    * Return a new RDD by applying a function to all elements of this RDD.
-   * Uses supplied lambda function for iterator-based partitions and 
+   * Uses supplied lambda function for iterator-based partitions and
    * external function for column-based partitions.
    */
   def mapExtFunc[U: ClassTag](f: T => U, extfunc: ExternalFunction): RDD[U] = withScope {
