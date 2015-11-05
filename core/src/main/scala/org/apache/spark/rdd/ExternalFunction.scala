@@ -26,7 +26,7 @@ import org.apache.spark.ColumnPartitionData
  * :: Experimental ::
  * An abstract class to define hand-written external function for experiments
  * of column-based format RDD
-**/
+ */
 
 @Experimental
 abstract class ExternalFunction extends Serializable {
