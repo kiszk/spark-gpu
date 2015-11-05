@@ -19,20 +19,17 @@ package org.apache.spark.rdd
 
 import scala.reflect.ClassTag
 
-import org.apache.spark.{Partition, SparkContext, TaskContext, PartitionData}
+import org.apache.spark.annotation.{DeveloperApi, Experimental}
+import org.apache.spark.ColumnPartitionData
 
 /**
- * An RDD that has no partitions and no elements.
+ * :: Experimental ::
+ * An abstract class to define hand-written external function for experiments
+ * of column-based format RDD
  */
-private[spark] class EmptyRDD[T: ClassTag](sc: SparkContext) extends RDD[T](sc, Nil) {
 
-  override def getPartitions: Array[Partition] = Array.empty
-
-  override def compute(split: Partition, context: TaskContext): Iterator[T] = {
-    throw new UnsupportedOperationException("empty RDD")
-  }
-
-  override def computePartition(split: Partition, context: TaskContext): PartitionData[T] = {
-    throw new UnsupportedOperationException("empty RDD")
-  }
+@Experimental
+abstract class ExternalFunction extends Serializable {
+  private[spark] def run[T, U: ClassTag](in: ColumnPartitionData[T],
+      outputSize: Option[Long] = None): ColumnPartitionData[U]
 }

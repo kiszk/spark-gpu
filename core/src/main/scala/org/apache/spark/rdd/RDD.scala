@@ -42,7 +42,6 @@ import org.apache.spark.util.{BoundedPriorityQueue, Utils}
 import org.apache.spark.util.collection.OpenHashMap
 import org.apache.spark.util.random.{BernoulliSampler, PoissonSampler, BernoulliCellSampler,
   SamplingUtils}
-import org.apache.spark.cuda.CUDAKernel
 
 /**
  * A Resilient Distributed Dataset (RDD), the basic abstraction in Spark. Represents an immutable,
@@ -108,10 +107,7 @@ abstract class RDD[T: ClassTag](
    * Implemented by subclasses to compute a given partition in iterator form.
    */
   @DeveloperApi
-  @deprecated("Use computePartition for new RDDs", "spark-1.5.0-GPU")
-  def compute(split: Partition, context: TaskContext): Iterator[T] = {
-    throw new SparkException("Neither computePartition nor compute were implemented in this RDD.")
-  }
+  def compute(split: Partition, context: TaskContext): Iterator[T]
 
   /**
    * :: DeveloperApi ::
@@ -342,30 +338,20 @@ abstract class RDD[T: ClassTag](
   /**
    * Return a new RDD by applying a function to all elements of this RDD.
    */
-  // TODO the interface is a bit clunky, but when mapUsingKernel was also named map, Scala had
-  // problems with inferring the type of f in some cases, e.g. in intersection(other: RDD[T]) in
-  // .cogroup(other.map(v: <could not infer that> => ...)) and also in CheckpointSuite in code like
-  // the one user might write
-  def map[U: ClassTag](f: T => U, kernel: Option[CUDAKernel] = None): RDD[U] =
-    withScope {
-      kernel match {
-        case None =>
-          val cleanF = sc.clean(f)
-          new MapPartitionsRDD[U, T](this, (context, pid, iter) => iter.map(cleanF))
-        case Some(kernel) =>
-          mapUsingKernel(f, kernel = kernel)
-      }
-    }
+  def map[U: ClassTag](f: T => U): RDD[U] = withScope {
+    val cleanF = sc.clean(f)
+    new MapPartitionsRDD[U, T](this, (context, pid, iter) => iter.map(cleanF))
+  }
 
   /**
    * Return a new RDD by applying a function to all elements of this RDD.
-   * Uses supplied lambda function for iterator-based partitions and kernel for column-based
-   * partitions.
+   * Uses supplied lambda function for iterator-based partitions and
+   * external function for column-based partitions.
    */
-  def mapUsingKernel[U: ClassTag](f: T => U, kernel: CUDAKernel): RDD[U] = withScope {
+  def mapExtFunc[U: ClassTag](f: T => U, extfunc: ExternalFunction): RDD[U] = withScope {
     val cleanF = sc.clean(f)
     new MapPartitionsRDD[U, T](this, (context, pid, iter) => iter.map(cleanF),
-      kernel = Some(kernel))
+      extfunc = Some(extfunc))
   }
 
   /**
@@ -608,7 +594,7 @@ abstract class RDD[T: ClassTag](
    * Note that this method performs a shuffle internally.
    */
   def intersection(other: RDD[T]): RDD[T] = withScope {
-    this.map(v => (v, null)).cogroup(other.map((v: T) => (v, null)))
+    this.map(v => (v, null)).cogroup(other.map(v => (v, null)))
         .filter { case (_, (leftGroup, rightGroup)) => leftGroup.nonEmpty && rightGroup.nonEmpty }
         .keys
   }
@@ -1035,40 +1021,35 @@ abstract class RDD[T: ClassTag](
    * Reduces the elements of this RDD using the specified commutative and
    * associative binary operator.
    */
-  def reduce(f: (T, T) => T, kernel: Option[CUDAKernel] = None): T = withScope {
-    kernel match {
-      case None =>
-        val cleanF = sc.clean(f)
-        val reducePartition: Iterator[T] => Option[T] = iter => {
-          if (iter.hasNext) {
-            Some(iter.reduceLeft(cleanF))
-          } else {
-            None
-          }
-        }
-        var jobResult: Option[T] = None
-        val mergeResult = (index: Int, taskResult: Option[T]) => {
-          if (taskResult.isDefined) {
-            jobResult = jobResult match {
-              case Some(value) => Some(f(value, taskResult.get))
-              case None => taskResult
-            }
-          }
-        }
-        sc.runJob(this, reducePartition, mergeResult)
-        // Get the final result out of our Option, or throw an exception if the RDD was empty
-        jobResult.getOrElse(throw new UnsupportedOperationException("empty collection"))
-
-      case Some(kernel) =>
-        reduceUsingKernel(f, kernel = kernel)
+  def reduce(f: (T, T) => T): T = withScope {
+    val cleanF = sc.clean(f)
+    val reducePartition: Iterator[T] => Option[T] = iter => {
+      if (iter.hasNext) {
+        Some(iter.reduceLeft(cleanF))
+      } else {
+        None
+      }
     }
+    var jobResult: Option[T] = None
+    val mergeResult = (index: Int, taskResult: Option[T]) => {
+      if (taskResult.isDefined) {
+        jobResult = jobResult match {
+          case Some(value) => Some(f(value, taskResult.get))
+          case None => taskResult
+        }
+      }
+    }
+    sc.runJob(this, reducePartition, mergeResult)
+    // Get the final result out of our Option, or throw an exception if the RDD was empty
+    jobResult.getOrElse(throw new UnsupportedOperationException("empty collection"))
   }
 
   /**
    * Reduces the elements of this RDD using the specified commutative and associative binary
-   * operator. Uses supplied CUDA kernel for performing those operations on column-based partitions.
+   * operator. Uses supplied external function for performing those operations
+   * on column-based partitions.
    */
-  def reduceUsingKernel(f: (T, T) => T, kernel: CUDAKernel): T = withScope {
+  def reduceExtFunc(f: (T, T) => T, extfunc: ExternalFunction): T = withScope {
     val cleanF = sc.clean(f)
     val reducePartition: (TaskContext, PartitionData[T]) => Option[T] =
       (ctx: TaskContext, data: PartitionData[T]) => data match {
@@ -1081,7 +1062,7 @@ abstract class RDD[T: ClassTag](
 
         case col: ColumnPartitionData[T] =>
           if (col.size != 0) {
-            Some(kernel.run[T, T](col, Some(1)).iterator.next)
+            Some(extfunc.run[T, T](col, Some(1)).iterator.next)
           } else {
             None
           }

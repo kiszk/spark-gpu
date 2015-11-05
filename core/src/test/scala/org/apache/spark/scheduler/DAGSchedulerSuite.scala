@@ -55,6 +55,8 @@ class MyRDD(
     numPartitions: Int,
     dependencies: List[Dependency[_]],
     locations: Seq[Seq[String]] = Nil) extends RDD[(Int, Int)](sc, dependencies) with Serializable {
+  override def compute(split: Partition, context: TaskContext): Iterator[(Int, Int)] =
+    throw new RuntimeException("should not be reached")
   override def computePartition(split: Partition, context: TaskContext): PartitionData[(Int, Int)] =
     throw new RuntimeException("should not be reached")
   override def getPartitions: Array[Partition] = (0 until numPartitions).map(i => new Partition {
