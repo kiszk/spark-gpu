@@ -17,9 +17,11 @@
 
 package org.apache.spark
 
+import math._
 import scala.reflect.ClassTag
 import scala.language.existentials
 import scala.collection.immutable.HashMap
+import scala.collection.mutable.ListBuffer
 
 import java.nio.{ByteBuffer, ByteOrder}
 import java.io.{ObjectInputStream, ObjectOutputStream}
@@ -52,6 +54,11 @@ class ColumnPartitionData[T](
 
   private var refCounter = 1
 
+  /*private[spark]*/ var blobs:    Array[Pointer] = null
+  var blobBuffers: Array[ByteBuffer] = null
+  private val blobBufferLenSize = 8
+  private val blobMetaDataSize = 128
+
   /**
    * Columns kept as ByteBuffers. May be read directly. The inherent limitation of 2GB - 1B for
    * the partition size is present in other places too (e.g. BlockManager's serialized data).
@@ -72,6 +79,21 @@ class ColumnPartitionData[T](
     refCounter = 1
   }
   initialize
+
+  private def allocateBlob(blobSize : Long) : ByteBuffer = {
+    if (blobs == null) {
+      blobs = new Array(1)
+    }
+    val ptr = SparkEnv.get.executorMemoryManager.allocatePinnedMemory(blobSize)
+    blobs(0) = ptr
+    if (blobBuffers == null) {
+      blobBuffers = new Array(1)
+    }
+    assert(blobSize <= Int.MaxValue)
+    val byteBuffer = ptr.getByteBuffer(0, blobSize).order(ByteOrder.LITTLE_ENDIAN)
+    blobBuffers(0) = byteBuffer
+    byteBuffer
+  }
 
   /**
    * Total amount of memory allocated in columns. Does not take into account Java objects aggregated
@@ -96,6 +118,9 @@ class ColumnPartitionData[T](
     refCounter -= 1
     if (refCounter == 0) {
       pointers.foreach(SparkEnv.get.executorMemoryManager.freePinnedMemory(_))
+      if (blobs != null) {
+        blobs.foreach(SparkEnv.get.executorMemoryManager.freePinnedMemory(_))
+      }
     }
   }
 
@@ -120,6 +145,8 @@ class ColumnPartitionData[T](
    */
   def rewind {
     buffers.foreach(_.rewind)
+    if (blobBuffers != null)
+      blobBuffers.foreach(_.rewind)
   }
 
   /**
@@ -129,6 +156,11 @@ class ColumnPartitionData[T](
     val kvs = (schema.columns zip pointers).map { case (col, ptr) => col.prettyAccessor -> ptr }
     val columnsByAccessors = HashMap(kvs: _*)
     order.map(columnsByAccessors(_))
+  }
+
+  private def calculateBlobsCapacity(sz: Long): Long = {
+    floor(((blobMetaDataSize + sz) + blobMetaDataSize - 1) /
+          blobMetaDataSize).toLong * blobMetaDataSize
   }
 
   /**
@@ -143,7 +175,12 @@ class ColumnPartitionData[T](
     val getters = schema.getters
     rewind
 
+    var blobOffset: Long = 0
+    var byteBuffer: ByteBuffer = null
+    var bytes: Long = 0
+    var capacity: Long = 0
     iter.take(size).foreach { obj =>
+      var colIndex = 0
       for (((col, getter), buf) <- ((schema.columns zip getters) zip buffers)) {
         // TODO what should we do if sub-object is null?
         // TODO bulk put/get might be faster
@@ -155,7 +192,48 @@ class ColumnPartitionData[T](
           case LONG_COLUMN => buf.putLong(getter(obj).asInstanceOf[Long])
           case FLOAT_COLUMN => buf.putFloat(getter(obj).asInstanceOf[Float])
           case DOUBLE_COLUMN => buf.putDouble(getter(obj).asInstanceOf[Double])
+          case INT_ARRAY_COLUMN =>
+            val array = getter(obj).asInstanceOf[Array[Int]]
+            val length = array.length
+	    if (blobOffset == 0) {
+              capacity = calculateBlobsCapacity(length * 4) 
+              bytes = capacity * size
+              byteBuffer = allocateBlob(bytes + blobBufferLenSize)
+              byteBuffer.putLong(0, bytes)
+              blobOffset = blobBufferLenSize
+            }
+            buf.putLong(blobOffset)
+
+            byteBuffer.putLong(blobOffset.toInt,   capacity)
+            byteBuffer.putLong(blobOffset.toInt+8, length)
+            var i = 0
+            while (i < length) {
+              byteBuffer.putInt(blobOffset.toInt + blobMetaDataSize + i * 4, array(i))
+              i += 1
+            }
+            blobOffset += capacity
+          case DOUBLE_ARRAY_COLUMN =>
+            val array = getter(obj).asInstanceOf[Array[Double]]
+            val length = array.length
+	    if (blobOffset == 0) {
+              capacity = calculateBlobsCapacity(length * 8) 
+              bytes = capacity * size
+              byteBuffer = allocateBlob(bytes + blobBufferLenSize)
+              byteBuffer.putLong(0, bytes)
+              blobOffset = blobBufferLenSize
+            }
+            buf.putLong(blobOffset)
+
+            byteBuffer.putLong(blobOffset.toInt,   capacity)
+            byteBuffer.putLong(blobOffset.toInt+8, length)
+            var i = 0
+            while (i < length) {
+              byteBuffer.putDouble(blobOffset.toInt + blobMetaDataSize + i * 8, array(i))
+              i += 1
+            }
+            blobOffset += capacity
         }
+        colIndex += 1
       }
     }
   }
@@ -219,6 +297,20 @@ class ColumnPartitionData[T](
       case LONG_COLUMN => buf.getLong()
       case FLOAT_COLUMN => buf.getFloat()
       case DOUBLE_COLUMN => buf.getDouble()
+      case DOUBLE_ARRAY_COLUMN => {
+        val blobOffset = buf.getLong()
+        val byteBuffer = blobBuffers(0)
+
+        val capacity = byteBuffer.getLong(blobOffset.toInt + 0)
+        val length = byteBuffer.getLong(blobOffset.toInt + 8)
+        val array = new Array[Double](length.toInt)
+        var i = 0
+        while (i < length) {
+          array(i) = byteBuffer.getDouble(blobOffset.toInt + 128 + i * 8)
+          i = i + 1
+        }
+        array
+      }
     }
   }
 
@@ -271,6 +363,18 @@ class ColumnPartitionData[T](
       buf.get(bytes, 0, sizeToWrite)
       out.write(bytes, 0, sizeToWrite)
     }
+
+    if (blobBuffers != null) {
+      out.writeLong(blobBuffers.size)
+      val blobBytes = new Array[Byte](blobBuffers.map(_.capacity).max)
+      for (buf <- blobBuffers) {
+        val sizeToWrite = buf.capacity
+        buf.get(blobBytes, 0, sizeToWrite)
+        out.write(blobBytes, 0, sizeToWrite)
+      }
+    } else {
+      out.writeLong(0)
+    }
   }
 
   /**
@@ -290,6 +394,41 @@ class ColumnPartitionData[T](
         position += readBytes
       }
       buf.put(bytes, 0, sizeToRead)
+    }
+
+    val blobBuffersSize = in.readLong()
+    if (blobBuffersSize > 0) {
+      blobs = new Array[Pointer](blobBuffersSize.toInt)
+      blobBuffers = new Array[ByteBuffer](blobBuffersSize.toInt)
+      var i = 0
+      while (i < blobBuffersSize) { 
+        val blobSize = in.readLong()
+        var blobOffset: Long = 8 
+        val ptr = SparkEnv.get.executorMemoryManager.allocatePinnedMemory(blobSize)
+        blobs(i) = ptr
+        val byteBuffer = ptr.getByteBuffer(0, blobSize).order(ByteOrder.LITTLE_ENDIAN)
+        blobBuffers(i) = byteBuffer
+
+	while (blobOffset < blobSize) {
+          val capacity = in.readLong()
+          val length   = in.readLong()
+	  val bytes = new Array[Byte](capacity.toInt - 16)
+          var position = 0
+          val sizeToRead = capacity - 16
+          while (position < sizeToRead) {
+            val readBytes = in.read(bytes, position, sizeToRead.toInt - position)
+            assert(readBytes >= 0)
+            position += readBytes
+          }
+          byteBuffer.putLong(blobOffset.toInt,    capacity)
+          byteBuffer.putLong(blobOffset.toInt +8, length)
+          byteBuffer.put(bytes, blobOffset.toInt + 16, sizeToRead.toInt)
+          blobOffset += capacity
+        }
+        i += 1
+      }
+    } else {
+      blobBuffers = null
     }
   }
 
