@@ -32,7 +32,7 @@ case class DataPoint(x: Array[Double], y: Double)
 
 class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
 
-  private val conf = new SparkConf(false).set("spark.driver.maxResultSize", "2g").setMaster("local[1]")
+  private val conf = new SparkConf(false).set("spark.driver.maxResultSize", "2g")
 
   test("Ensure CUDA kernel is serializable", GPUTest) {
     sc = new SparkContext("local", "test", conf)
