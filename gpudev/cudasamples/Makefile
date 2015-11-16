@@ -1,8 +1,8 @@
 all : cpuLR gpuLR
 	
 
-cpuLR : lr1.c
-	cc -o cpuLR lr1.c -lm
+cpuLR : lrcpu.c
+	cc -o cpuLR lrcpu.c -lm
 
-gpuLR : lr1.cu
-	nvcc lr1.cu -o gpuLR
+gpuLR : lrgpu.cu lrgpu.h
+	nvcc lrgpu.cu -o gpuLR -arch=sm_35

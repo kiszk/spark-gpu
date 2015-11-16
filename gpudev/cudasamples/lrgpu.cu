@@ -5,80 +5,70 @@
 #define D 5
 #define N 2
 #define ITERATIONS 10
-#define thPerBlock  N
-#define noOfBlocks ((N + thPerBlock - 1)/thPerBlock)
+#define threadsPerBlock blockDim.x
+#define noOfBlocks      gridDim.x
+#include "lrgpu.h"
 
 
-typedef struct DataPoint {
-	double x[D];
- 	double y;
-}DataPoint;
+__global__
+void blockReduce(int count, double * result, double *data) {
+    int idx = blockDim.x * blockIdx.x + threadIdx.x;
+    int warpCnt = (threadsPerBlock + warpSize-1)/warpSize;
+    int laneId  = threadIdx.x % warpSize;
+    int warpId  = threadIdx.x / warpSize;
+    double *val = NULL;
+    double *val1 = NULL;
+    // shared memory is allocated per block, not per thread. All threads/warps inside a block share a single instance of variable. 
+    static __shared__ double warpResults[32][D]; // The maximum number of possible warps inside a block is 32 (since max thrdsPerBlock=1024 i.e 32 * 32)
 
-__device__
-double dot(double x[D], double y[D]) {
-    double ans = 0.0;
-    int i = 0;
-    while( i < D) {
-        ans += x[i] * y[i];
-        i += 1;
+    // All threads inside warp execute synchronously
+    if(idx < count)
+        val = data + (idx * D);
+
+    /* FOLD EACH WARP(Set of 32 threds/entries)
+        For each warpSet(32 entries),do the following steps
+        1) add last 16 entries into first 16 
+            If total launched thread is 17, then it would be like 0 + 16, 1+0, 2+0 .. size 
+            shufl_down would return zero when there is no thread.
+        2) add second 8 entries into first 8 entries
+        3) and so on... till you add second entry in first entry
+        4) The first thread's val variable in each  warp will contain the sum of all 32 val variable 
+    */
+    
+
+    for(int foldSize=warpSize/2; foldSize; foldSize/=2) {
+            val1 = __shfl_down_double(val, foldSize);
+            if(val1 != NULL)
+               for(int i=0;i<D;i++) val[i] += val1[i];
     }
-    return ans;
-}
 
-__device__ void
-muls(double result[D], double x[D], double c) {
-    int i=0;
-    for(i=0; i<D; i++) {
-        result[i] = x[i] * c;
+    // Lets sequentially store each warp's sum into array 'a' 
+    if(laneId==0) {
+        memcpy(warpResults[warpId],val,sizeof(*val) * D);
     }
-}
+
+    // Wait for all warps inside a block to complete.
+    __syncthreads();
+
+    if(idx==0) {
+        for(int w=0; w<warpCnt;w++)
+            for(int i=0; i<D;i++)
+                result[i]+=warpResults[w][i];
+    }
+
+   //Let each block copy the results into temp result array.
+} 
 
 __device__ void 
 map(double result[D], double x[D], double y, double w[D]) {
     muls(result, x, (1 / (1 + exp(-y * (dot(w, x)))) - 1) * y);
 }
 
-__device__ void 
-add(double result[D], double x[D], double y[D]) {
-    int i=0;
-    for(i=0; i<D; i++) {
-        result[i] = x[i] * y[i];
-    }
-}
-
-void
-subself(double x[D], double y[D]) {
-    int i;
-    for(i=0; i<D; i++)
-        x[i] -= y[i];
-}
-
 __global__ void
 mapAll(int count, double result[N * D], double x[N * D], double y[D], double w[D]) {
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
     if(idx < count)
-    map(&result[idx * D], &x[idx * D ], y[idx],w);
-}
-
-__global__ void
-reduceAll(int count, double result[D], double inp[N * D]) {
-    int idx = threadIdx.x + blockIdx.x * blockDim.x;
-    int j;
-    //if(idx < count)
-    for(idx=0;idx<2;idx++)
-    for(j=0;j<D;j++)
-    {
-        result[j] += inp[idx * D + j];
-    } 
-}
-
-void
-print(char a[], double p[D]) {
-    int i=0;
-    printf("%s",a);
-    for(i=0;i<D;i++)
-        printf("%e, ",p[i]);
-    printf("\n");
+        map(&result[idx * D], &x[idx * D ], y[idx],w);
 }
 
 int
@@ -117,15 +107,12 @@ main(int argc, char * argv[])
         cudaMemcpy( w_d, w, D * sizeof(double) , cudaMemcpyHostToDevice );
         cudaMemcpy( rr_d, rr, D * sizeof(double) , cudaMemcpyHostToDevice );
 
-        // TODO - findout how you were able to pass cnt - may be stack is passed??
-        mapAll<<<noOfBlocks,thPerBlock>>>(cnt,mr1_d,x1_d,y_d,w_d); 
+        mapAll<<<1,N>>>(cnt,mr1_d,x1_d,y_d,w_d); 
         cudaMemcpy(mr1, mr1_d, N * D * sizeof(double) , cudaMemcpyDeviceToHost );
         //print("MAP 0 ", mr1);
         //print("MAP 1 ", mr1 + D);
 
-        // TODO - need to find a way to do cuda thread syncs
-        // This reduce is in GPU is useless
-        reduceAll<<<1,1>>>(cnt,rr_d,mr1_d);
+        blockReduce<<<1,N>>>(cnt,rr_d,mr1_d);
         cudaMemcpy(rr, rr_d, D * sizeof(double) , cudaMemcpyDeviceToHost );
         //print("rr--->", rr);
         //print("W--->", w);
