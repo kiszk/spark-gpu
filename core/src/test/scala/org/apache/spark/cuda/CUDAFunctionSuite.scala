@@ -27,10 +27,12 @@ case class Vector2DDouble(x: Double, y: Double)
 case class VectorLength(len: Double)
 case class PlusMinus(base: Double, deviation: Float)
 case class FloatRange(a: Double, b: Float)
+case class IntDataPoint(x: Array[Int], y: Int)
+case class DataPoint(x: Array[Double], y: Double)
 
 class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
 
-  private val conf = new SparkConf(false).set("spark.driver.maxResultSize", "2g")
+  private val conf = new SparkConf(false).set("spark.driver.maxResultSize", "2g").setMaster("local[1]")
 
   test("Ensure CUDA kernel is serializable", GPUTest) {
     sc = new SparkContext("local", "test", conf)
@@ -58,7 +60,68 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
       val output = function.run[Int, Int](input)
       assert(output.size == n)
       assert(output.schema.isPrimitive)
-      assert(output.iterator.toIndexedSeq.sameElements(1 to n))
+      val outputItr  = output.iterator
+      assert(outputItr.toIndexedSeq.sameElements(1 to n))
+      assert(!outputItr.hasNext)
+      input.free
+      output.free
+    } else {
+      info("No CUDA devices, so skipping the test.")
+    }
+  }
+
+  test("Run identity CUDA kernel on a single primitive array column", GPUTest) {
+    sc = new SparkContext("local", "test", conf)
+    val manager = new CUDAManager
+    if (manager.deviceCount > 0) {
+      val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
+      val function = new CUDAFunction(
+        "_Z16intArrayIdentityPKlPKcPlPcl",
+        Array("this"),
+        Array("this"),
+        ptxURL)
+      val n = 16
+      val input = ColumnPartitionDataBuilder.
+                    build(Array(Array.range(0, n), Array.range(-(n-1), 1)))
+      val output = function.run[Array[Int], Array[Int]](input, outputArraySizes = Array(n))
+      assert(output.size == 2)
+      assert(output.schema.isPrimitive)
+      val outputItr = output.iterator
+      assert(outputItr.next.toIndexedSeq.sameElements(0 to n-1))
+      assert(outputItr.next.toIndexedSeq.sameElements(-(n-1) to 0))
+      assert(!outputItr.hasNext)
+      input.free
+      output.free
+    } else {
+      info("No CUDA devices, so skipping the test.")
+    }
+  }
+
+  test("Run identity CUDA kernel on a single primitive array in a structure", GPUTest) {
+    sc = new SparkContext("local", "test", conf)
+    val manager = new CUDAManager
+    if (manager.deviceCount > 0) {
+      val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
+      val function = new CUDAFunction(
+        "_Z20IntDataPointIdentityPKlPKiPKcPlPiPcl",
+        Array("this.x", "this.y"),
+        Array("this.x", "this.y"),
+        ptxURL)
+      val n = 5
+      val dataset = List(IntDataPoint(Array(  1,   2,   3,   4,   5), -10),
+                         IntDataPoint(Array( -5,  -4,  -3,  -2,  -1),  10))
+      val input = ColumnPartitionDataBuilder.build(dataset)
+      val output = function.run[IntDataPoint, IntDataPoint](input, outputArraySizes = Array(n))
+      assert(output.size == 2)
+      assert(!output.schema.isPrimitive)
+      val outputItr = output.iterator
+      val next1 = outputItr.next
+      assert(next1.x.toIndexedSeq.sameElements(1 to n))
+      assert(next1.y == -10)
+      val next2 = outputItr.next
+      assert(next2.x.toIndexedSeq.sameElements(-n to -1))
+      assert(next2.y ==  10)
+      assert(!outputItr.hasNext)
       input.free
       output.free
     } else {

@@ -59,15 +59,15 @@ object ColumnPartitionSchema {
         // 64-bit double-precision IEEE 754 floating point
         case t if t <:< typeOf[Double] => Vector(new ColumnSchema(DOUBLE_COLUMN))
         // array of 8-bit signed BE
-        case t if t <:< typeOf[Byte] => Vector(new ColumnSchema(BYTE_ARRAY_COLUMN))
+        case t if t <:< typeOf[Array[Byte]] => Vector(new ColumnSchema(BYTE_ARRAY_COLUMN))
         // array of 16-bit signed BE
-        case t if t <:< typeOf[Short] => Vector(new ColumnSchema(SHORT_ARRAY_COLUMN))
+        case t if t <:< typeOf[Array[Short]] => Vector(new ColumnSchema(SHORT_ARRAY_COLUMN))
         // array of 32-bit signed BE
-        case t if t <:< typeOf[Int] => Vector(new ColumnSchema(INT_ARRAY_COLUMN))
+        case t if t <:< typeOf[Array[Int]] => Vector(new ColumnSchema(INT_ARRAY_COLUMN))
         // array of 64-bit signed BE
-        case t if t <:< typeOf[Long] => Vector(new ColumnSchema(LONG_ARRAY_COLUMN))
+        case t if t <:< typeOf[Array[Long]] => Vector(new ColumnSchema(LONG_ARRAY_COLUMN))
         // array of 32-bit single-precision IEEE 754 floating point
-        case t if t <:< typeOf[Float] => Vector(new ColumnSchema(FLOAT_ARRAY_COLUMN))
+        case t if t <:< typeOf[Array[Float]] => Vector(new ColumnSchema(FLOAT_ARRAY_COLUMN))
         // array of 64-bit double-precision IEEE 754 floating point
         case t if t <:< typeOf[Array[Double]] => Vector(new ColumnSchema(DOUBLE_ARRAY_COLUMN))
         // TODO boolean - note that in JVM specification it does not have specified size
@@ -256,54 +256,68 @@ class ColumnSchema(
 }
 
 abstract class ColumnType {
-  /** How many bytes does a single property take. */
-  val bytes: Int
+  
+  val bytes: Int            /* How many bytes does a single property take. */
+  val elementLength: Int    /* length for each array element */
+  def isArray: Boolean = (elementLength > 0)
 }
 
 case object BYTE_COLUMN extends ColumnType {
   val bytes = 1
+  val elementLength = 0
 }
 
 case object SHORT_COLUMN extends ColumnType {
   val bytes = 2
+  val elementLength = 0
 }
 
 case object INT_COLUMN extends ColumnType {
   val bytes = 4
+  val elementLength = 0
 }
 
 case object LONG_COLUMN extends ColumnType {
   val bytes = 8
+  val elementLength = 0
 }
 
 case object FLOAT_COLUMN extends ColumnType {
   val bytes = 4
+  val elementLength = 0
 }
 
 case object DOUBLE_COLUMN extends ColumnType {
   val bytes = 8
+  val elementLength = 0
 }
 
 case object BYTE_ARRAY_COLUMN extends ColumnType {
   val bytes = 8         // size of offset in blob
+  val elementLength = 1
 }
 
 case object SHORT_ARRAY_COLUMN extends ColumnType {
   val bytes = 8         // size of offset in blob
+  val elementLength = 2
 }
 
 case object INT_ARRAY_COLUMN extends ColumnType {
   val bytes = 8         // size of offset in blob
+  val elementLength = 4
 }
 
 case object LONG_ARRAY_COLUMN extends ColumnType {
   val bytes = 8         // size of offset in blob
+  val elementLength = 8
 }
 
 case object FLOAT_ARRAY_COLUMN extends ColumnType {
   val bytes = 8         // size of offset in blob
+  val elementLength = 4
 }
 
 case object DOUBLE_ARRAY_COLUMN extends ColumnType {
   val bytes = 8         // size of offset in blob
+  val elementLength = 8
 }
