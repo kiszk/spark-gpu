@@ -193,9 +193,9 @@ class ColumnPartitionData[T](
     val getters = schema.getters
     rewind
 
+    // TODO support more than one primitive array in a RDD
     var blobOffset: Long = 0
     var byteBuffer: ByteBuffer = null
-    var bytes: Long = 0
     var capacity: Long = 0
     iter.take(size).foreach { obj =>
       var colIndex = 0
@@ -210,14 +210,53 @@ class ColumnPartitionData[T](
           case LONG_COLUMN => buf.putLong(getter(obj).asInstanceOf[Long])
           case FLOAT_COLUMN => buf.putFloat(getter(obj).asInstanceOf[Float])
           case DOUBLE_COLUMN => buf.putDouble(getter(obj).asInstanceOf[Double])
+          case BYTE_ARRAY_COLUMN =>
+            val elementSize = 1
+            val array = getter(obj).asInstanceOf[Array[Byte]]
+            val length = array.length
+	    if (blobOffset == 0) {
+              capacity = calculateBlobsCapacity(length * elementSize) 
+              byteBuffer = allocateBlob(capacity * size)
+              blobOffset = 0
+            }
+            buf.putLong(blobOffset)
+
+	    val blobOffsetInt = blobOffset.toInt
+            byteBuffer.putLong(blobOffsetInt,   capacity)
+            byteBuffer.putLong(blobOffsetInt+8, length)
+            var i = 0
+            while (i < length) {
+              byteBuffer.put(blobOffsetInt + blobMetaDataSize + i * elementSize, array(i))
+              i += 1
+            }
+            blobOffset += capacity
+          case SHORT_ARRAY_COLUMN =>
+            val elementSize = 2
+            val array = getter(obj).asInstanceOf[Array[Short]]
+            val length = array.length
+	    if (blobOffset == 0) {
+              capacity = calculateBlobsCapacity(length * elementSize) 
+              byteBuffer = allocateBlob(capacity * size)
+              blobOffset = 0
+            }
+            buf.putLong(blobOffset)
+
+	    val blobOffsetInt = blobOffset.toInt
+            byteBuffer.putLong(blobOffsetInt,   capacity)
+            byteBuffer.putLong(blobOffsetInt+8, length)
+            var i = 0
+            while (i < length) {
+              byteBuffer.putShort(blobOffsetInt + blobMetaDataSize + i * elementSize, array(i))
+              i += 1
+            }
+            blobOffset += capacity
           case INT_ARRAY_COLUMN =>
             val elementSize = 4
             val array = getter(obj).asInstanceOf[Array[Int]]
             val length = array.length
 	    if (blobOffset == 0) {
               capacity = calculateBlobsCapacity(length * elementSize) 
-              bytes = capacity * size
-              byteBuffer = allocateBlob(bytes)
+              byteBuffer = allocateBlob(capacity * size)
               blobOffset = 0
             }
             buf.putLong(blobOffset)
@@ -231,14 +270,53 @@ class ColumnPartitionData[T](
               i += 1
             }
             blobOffset += capacity
+          case LONG_ARRAY_COLUMN =>
+            val elementSize = 8
+            val array = getter(obj).asInstanceOf[Array[Long]]
+            val length = array.length
+	    if (blobOffset == 0) {
+              capacity = calculateBlobsCapacity(length * elementSize)
+              byteBuffer = allocateBlob(capacity * size)
+              blobOffset = 0
+            }
+            buf.putLong(blobOffset)
+
+            val blobOffsetInt = blobOffset.toInt
+            byteBuffer.putLong(blobOffsetInt,   capacity)
+            byteBuffer.putLong(blobOffsetInt+8, length)
+            var i = 0
+            while (i < length) {
+              byteBuffer.putLong(blobOffsetInt + blobMetaDataSize + i * elementSize, array(i))
+              i += 1
+            }
+            blobOffset += capacity
+          case FLOAT_ARRAY_COLUMN =>
+            val elementSize = 4
+            val array = getter(obj).asInstanceOf[Array[Float]]
+            val length = array.length
+	    if (blobOffset == 0) {
+              capacity = calculateBlobsCapacity(length * elementSize)
+              byteBuffer = allocateBlob(capacity * size)
+              blobOffset = 0
+            }
+            buf.putLong(blobOffset)
+
+            val blobOffsetInt = blobOffset.toInt
+            byteBuffer.putLong(blobOffsetInt,   capacity)
+            byteBuffer.putLong(blobOffsetInt+8, length)
+            var i = 0
+            while (i < length) {
+              byteBuffer.putFloat(blobOffsetInt + blobMetaDataSize + i * elementSize, array(i))
+              i += 1
+            }
+            blobOffset += capacity
           case DOUBLE_ARRAY_COLUMN =>
             val elementSize = 8
             val array = getter(obj).asInstanceOf[Array[Double]]
             val length = array.length
 	    if (blobOffset == 0) {
               capacity = calculateBlobsCapacity(length * elementSize)
-              bytes = capacity * size
-              byteBuffer = allocateBlob(bytes)
+              byteBuffer = allocateBlob(capacity * size)
               blobOffset = 0
             }
             buf.putLong(blobOffset)
@@ -317,28 +395,84 @@ class ColumnPartitionData[T](
       case LONG_COLUMN => buf.getLong()
       case FLOAT_COLUMN => buf.getFloat()
       case DOUBLE_COLUMN => buf.getDouble()
+      case BYTE_ARRAY_COLUMN => {
+        val blobOffset = buf.getLong().toInt
+        val byteBuffer = blobBuffers(0)
+
+        val length = byteBuffer.getLong(blobOffset + 8).toInt
+        var i = 0
+        val array = new Array[Byte](length)
+        val elementSize = 1
+        while (i < length) {
+          array(i) = byteBuffer.get(blobOffset + blobMetaDataSize + i * elementSize)
+          i = i + 1
+        }
+        array
+      }
+      case SHORT_ARRAY_COLUMN => {
+        val blobOffset = buf.getLong().toInt
+        val byteBuffer = blobBuffers(0)
+
+        val length = byteBuffer.getLong(blobOffset + 8).toInt
+        var i = 0
+        val array = new Array[Short](length)
+        val elementSize = 2
+        while (i < length) {
+          array(i) = byteBuffer.getShort(blobOffset + blobMetaDataSize + i * elementSize)
+          i = i + 1
+        }
+        array
+      }
       case INT_ARRAY_COLUMN => {
-        val elementSize = 4
         val blobOffset = buf.getLong().toInt
         val byteBuffer = blobBuffers(0)
 
         val length = byteBuffer.getLong(blobOffset + 8).toInt
         var i = 0
         val array = new Array[Int](length)
+        val elementSize = 4
         while (i < length) {
           array(i) = byteBuffer.getInt(blobOffset + blobMetaDataSize + i * elementSize)
           i = i + 1
         }
         array
       }
-      case DOUBLE_ARRAY_COLUMN => {
+      case LONG_ARRAY_COLUMN => {
+        val blobOffset = buf.getLong().toInt
+        val byteBuffer = blobBuffers(0)
+
+        val length = byteBuffer.getLong(blobOffset + 8).toInt
+        var i = 0
+        val array = new Array[Long](length)
         val elementSize = 8
+        while (i < length) {
+          array(i) = byteBuffer.getLong(blobOffset + blobMetaDataSize + i * elementSize)
+          i = i + 1
+        }
+        array
+      }
+      case FLOAT_ARRAY_COLUMN => {
+        val blobOffset = buf.getLong().toInt
+        val byteBuffer = blobBuffers(0)
+
+        val length = byteBuffer.getLong(blobOffset + 8).toInt
+        var i = 0
+        val array = new Array[Float](length)
+        val elementSize = 2
+        while (i < length) {
+          array(i) = byteBuffer.getFloat(blobOffset + blobMetaDataSize + i * elementSize)
+          i = i + 1
+        }
+        array
+      }
+      case DOUBLE_ARRAY_COLUMN => {
         val blobOffset = buf.getLong().toInt
         val byteBuffer = blobBuffers(0)
 
         val length = byteBuffer.getLong(blobOffset).toInt
         var i = 0
         val array = new Array[Double](length)
+        val elementSize = 8
         while (i < length) {
           array(i) = byteBuffer.getDouble(blobOffset + blobMetaDataSize + i * elementSize)
           i = i + 1
