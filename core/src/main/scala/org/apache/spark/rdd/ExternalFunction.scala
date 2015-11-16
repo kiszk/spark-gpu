@@ -31,5 +31,6 @@ import org.apache.spark.ColumnPartitionData
 @Experimental
 abstract class ExternalFunction extends Serializable {
   private[spark] def run[T, U: ClassTag](in: ColumnPartitionData[T],
-      outputSize: Option[Long] = None): ColumnPartitionData[U]
+      outputSize: Option[Long] = None,
+      outputArraySizes: Seq[Long] = null): ColumnPartitionData[U]
 }
