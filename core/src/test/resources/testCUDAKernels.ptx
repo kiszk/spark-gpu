@@ -21,6 +21,7 @@
 )
 ;
 .global .align 1 .b8 __T20[39] = {118, 111, 105, 100, 32, 115, 117, 109, 40, 105, 110, 116, 32, 42, 44, 32, 105, 110, 116, 32, 42, 44, 32, 108, 111, 110, 103, 44, 32, 105, 110, 116, 44, 32, 105, 110, 116, 41, 0};
+.global .align 1 .b8 __T21[77] = {118, 111, 105, 100, 32, 105, 110, 116, 65, 114, 114, 97, 121, 83, 117, 109, 40, 99, 111, 110, 115, 116, 32, 108, 111, 110, 103, 32, 42, 44, 32, 99, 111, 110, 115, 116, 32, 99, 104, 97, 114, 32, 42, 44, 32, 108, 111, 110, 103, 32, 42, 44, 32, 99, 104, 97, 114, 32, 42, 44, 32, 108, 111, 110, 103, 44, 32, 105, 110, 116, 44, 32, 105, 110, 116, 41, 0};
 .global .align 1 .b8 $str[31] = {106, 117, 109, 112, 32, 61, 61, 32, 98, 108, 111, 99, 107, 68, 105, 109, 46, 120, 32, 42, 32, 103, 114, 105, 100, 68, 105, 109, 46, 120, 0};
 .global .align 1 .b8 $str1[19] = {116, 101, 115, 116, 67, 85, 68, 65, 75, 101, 114, 110, 101, 108, 115, 46, 99, 117, 0};
 
@@ -429,16 +430,16 @@ BB7_2:
 	.param .u32 _Z3sumPiS_lii_param_4
 )
 {
-	.reg .pred 	%p<7>;
-	.reg .s32 	%r<82>;
-	.reg .s64 	%rd<36>;
+	.reg .pred 	%p<8>;
+	.reg .s32 	%r<22>;
+	.reg .s64 	%rd<38>;
 
 
 	ld.param.u64 	%rd15, [_Z3sumPiS_lii_param_0];
 	ld.param.u64 	%rd13, [_Z3sumPiS_lii_param_1];
 	ld.param.u64 	%rd14, [_Z3sumPiS_lii_param_2];
 	ld.param.u32 	%r9, [_Z3sumPiS_lii_param_3];
-	cvta.to.global.u64 	%rd32, %rd15;
+	cvta.to.global.u64 	%rd34, %rd15;
 	mov.u32 	%r1, %tid.x;
 	cvt.u64.u32	%rd16, %r1;
 	mov.u32 	%r2, %ctaid.x;
@@ -446,115 +447,64 @@ BB7_2:
 	mul.wide.u32 	%rd17, %r3, %r2;
 	add.s64 	%rd2, %rd17, %rd16;
 	setp.eq.s32	%p1, %r9, 0;
-	@%p1 bra 	BB8_4;
+	@%p1 bra 	BB8_5;
 
-	cvta.to.global.u64 	%rd3, %rd13;
-	mov.u32 	%r80, 0;
-	mov.u64 	%rd33, 16384;
 	setp.ne.s64	%p2, %rd2, 0;
-	@%p2 bra 	BB8_10;
+	@%p2 bra 	BB8_11;
 
-BB8_2:
-	ld.global.u32 	%r11, [%rd32];
-	add.s32 	%r12, %r11, %r80;
-	ld.global.u32 	%r13, [%rd32+4];
-	add.s32 	%r14, %r13, %r12;
-	ld.global.u32 	%r15, [%rd32+8];
-	add.s32 	%r16, %r15, %r14;
-	ld.global.u32 	%r17, [%rd32+12];
-	add.s32 	%r18, %r17, %r16;
-	ld.global.u32 	%r19, [%rd32+16];
-	add.s32 	%r20, %r19, %r18;
-	ld.global.u32 	%r21, [%rd32+20];
-	add.s32 	%r22, %r21, %r20;
-	ld.global.u32 	%r23, [%rd32+24];
-	add.s32 	%r24, %r23, %r22;
-	ld.global.u32 	%r25, [%rd32+28];
-	add.s32 	%r26, %r25, %r24;
-	ld.global.u32 	%r27, [%rd32+32];
-	add.s32 	%r28, %r27, %r26;
-	ld.global.u32 	%r29, [%rd32+36];
-	add.s32 	%r30, %r29, %r28;
-	ld.global.u32 	%r31, [%rd32+40];
-	add.s32 	%r32, %r31, %r30;
-	ld.global.u32 	%r33, [%rd32+44];
-	add.s32 	%r34, %r33, %r32;
-	ld.global.u32 	%r35, [%rd32+48];
-	add.s32 	%r36, %r35, %r34;
-	ld.global.u32 	%r37, [%rd32+52];
-	add.s32 	%r38, %r37, %r36;
-	ld.global.u32 	%r39, [%rd32+56];
-	add.s32 	%r40, %r39, %r38;
-	ld.global.u32 	%r41, [%rd32+60];
-	add.s32 	%r42, %r41, %r40;
-	ld.global.u32 	%r43, [%rd32+64];
-	add.s32 	%r44, %r43, %r42;
-	ld.global.u32 	%r45, [%rd32+68];
-	add.s32 	%r46, %r45, %r44;
-	ld.global.u32 	%r47, [%rd32+72];
-	add.s32 	%r48, %r47, %r46;
-	ld.global.u32 	%r49, [%rd32+76];
-	add.s32 	%r50, %r49, %r48;
-	ld.global.u32 	%r51, [%rd32+80];
-	add.s32 	%r52, %r51, %r50;
-	ld.global.u32 	%r53, [%rd32+84];
-	add.s32 	%r54, %r53, %r52;
-	ld.global.u32 	%r55, [%rd32+88];
-	add.s32 	%r56, %r55, %r54;
-	ld.global.u32 	%r57, [%rd32+92];
-	add.s32 	%r58, %r57, %r56;
-	ld.global.u32 	%r59, [%rd32+96];
-	add.s32 	%r60, %r59, %r58;
-	ld.global.u32 	%r61, [%rd32+100];
-	add.s32 	%r62, %r61, %r60;
-	ld.global.u32 	%r63, [%rd32+104];
-	add.s32 	%r64, %r63, %r62;
-	ld.global.u32 	%r65, [%rd32+108];
-	add.s32 	%r66, %r65, %r64;
-	ld.global.u32 	%r67, [%rd32+112];
-	add.s32 	%r68, %r67, %r66;
-	ld.global.u32 	%r69, [%rd32+116];
-	add.s32 	%r70, %r69, %r68;
-	ld.global.u32 	%r71, [%rd32+120];
-	add.s32 	%r72, %r71, %r70;
-	ld.global.u32 	%r73, [%rd32+124];
-	add.s32 	%r80, %r73, %r72;
-	add.s64 	%rd32, %rd32, 128;
-	add.s64 	%rd33, %rd33, -32;
-	setp.ne.s64	%p3, %rd33, 0;
-	@%p3 bra 	BB8_2;
+	mov.u64 	%rd19, 16384;
+	min.s64 	%rd3, %rd14, %rd19;
+	mov.u32 	%r19, 0;
+	mov.u32 	%r20, %r19;
+	mov.u64 	%rd35, 0;
+	setp.lt.s64	%p3, %rd3, 1;
+	@%p3 bra 	BB8_4;
 
-	st.global.u32 	[%rd3], %r80;
-	bra.uni 	BB8_10;
+BB8_3:
+	ld.global.u32 	%r12, [%rd34];
+	add.s32 	%r20, %r12, %r20;
+	add.s64 	%rd34, %rd34, 4;
+	add.s64 	%rd35, %rd35, 1;
+	setp.lt.s64	%p4, %rd35, %rd3;
+	mov.u32 	%r19, %r20;
+	@%p4 bra 	BB8_3;
 
 BB8_4:
-	mov.u32 	%r74, %nctaid.x;
-	mul.lo.s32 	%r75, %r74, %r3;
-	setp.eq.s32	%p4, %r75, 16384;
-	@%p4 bra 	BB8_6;
+	cvta.to.global.u64 	%rd20, %rd13;
+	st.global.u32 	[%rd20], %r19;
+	bra.uni 	BB8_11;
 
-	mov.u64 	%rd19, $str;
-	cvta.global.u64 	%rd20, %rd19;
-	mov.u64 	%rd21, $str1;
+BB8_5:
+	setp.ge.s64	%p5, %rd2, %rd14;
+	@%p5 bra 	BB8_11;
+
+	mov.u32 	%r13, %nctaid.x;
+	mul.lo.s32 	%r14, %r13, %r3;
+	setp.eq.s32	%p6, %r14, 16384;
+	@%p6 bra 	BB8_8;
+
+	mov.u64 	%rd21, $str;
 	cvta.global.u64 	%rd22, %rd21;
-	mov.u64 	%rd23, __T20;
+	mov.u64 	%rd23, $str1;
 	cvta.global.u64 	%rd24, %rd23;
-	mov.u32 	%r76, 112;
-	mov.u64 	%rd25, 1;
+	mov.u64 	%rd25, __T20;
+	cvta.global.u64 	%rd26, %rd25;
+	mov.u32 	%r15, 113;
+	mov.u64 	%rd27, 1;
 	// Callseq Start 0
 	{
 	.reg .b32 temp_param_reg;
 	// <end>}
 	.param .b64 param0;
-	st.param.b64	[param0+0], %rd20;
+	st.param.b64	[param0+0], %rd22;
 	.param .b64 param1;
-	st.param.b64	[param1+0], %rd22;
+	st.param.b64	[param1+0], %rd24;
 	.param .b32 param2;
-	st.param.b32	[param2+0], %r76;
+	st.param.b32	[param2+0], %r15;
 	.param .b64 param3;
-	st.param.b64	[param3+0], %rd24;
+	st.param.b64	[param3+0], %rd26;
 	.param .b64 param4;
-	st.param.b64	[param4+0], %rd25;
+	st.param.b64	[param4+0], %rd27;
 	call.uni 
 	__assertfail, 
 	(
@@ -568,33 +518,305 @@ BB8_4:
 	//{
 	}// Callseq End 0
 
-BB8_6:
-	mov.u32 	%r81, 0;
-	setp.ge.s64	%p5, %rd2, %rd14;
-	@%p5 bra 	BB8_9;
-
-	add.s64 	%rd28, %rd17, %rd16;
-	shl.b64 	%rd29, %rd28, 2;
-	add.s64 	%rd34, %rd32, %rd29;
-	mov.u32 	%r81, 0;
-	mov.u64 	%rd35, %rd2;
-
 BB8_8:
-	mov.u64 	%rd10, %rd35;
-	ld.global.u32 	%r79, [%rd34];
-	add.s32 	%r81, %r79, %r81;
-	add.s64 	%rd34, %rd34, 65536;
-	add.s64 	%rd12, %rd10, 16384;
-	setp.lt.s64	%p6, %rd12, %rd14;
-	mov.u64 	%rd35, %rd12;
-	@%p6 bra 	BB8_8;
+	add.s64 	%rd30, %rd17, %rd16;
+	shl.b64 	%rd31, %rd30, 2;
+	add.s64 	%rd36, %rd34, %rd31;
+	mov.u32 	%r21, 0;
+	mov.u64 	%rd37, %rd2;
 
 BB8_9:
-	shl.b64 	%rd30, %rd2, 2;
-	add.s64 	%rd31, %rd32, %rd30;
-	st.global.u32 	[%rd31], %r81;
+	mov.u64 	%rd10, %rd37;
+	ld.global.u32 	%r17, [%rd36];
+	add.s32 	%r21, %r17, %r21;
+	add.s64 	%rd36, %rd36, 65536;
+	add.s64 	%rd12, %rd10, 16384;
+	setp.lt.s64	%p7, %rd12, %rd14;
+	mov.u64 	%rd37, %rd12;
+	@%p7 bra 	BB8_9;
 
-BB8_10:
+	shl.b64 	%rd32, %rd2, 2;
+	add.s64 	%rd33, %rd34, %rd32;
+	st.global.u32 	[%rd33], %r21;
+
+BB8_11:
+	ret;
+}
+
+	// .globl	_Z11intArraySumPKlPKcPlPclii
+.visible .entry _Z11intArraySumPKlPKcPlPclii(
+	.param .u64 _Z11intArraySumPKlPKcPlPclii_param_0,
+	.param .u64 _Z11intArraySumPKlPKcPlPclii_param_1,
+	.param .u64 _Z11intArraySumPKlPKcPlPclii_param_2,
+	.param .u64 _Z11intArraySumPKlPKcPlPclii_param_3,
+	.param .u64 _Z11intArraySumPKlPKcPlPclii_param_4,
+	.param .u32 _Z11intArraySumPKlPKcPlPclii_param_5,
+	.param .u32 _Z11intArraySumPKlPKcPlPclii_param_6
+)
+{
+	.reg .pred 	%p<17>;
+	.reg .s32 	%r<15>;
+	.reg .s64 	%rd<89>;
+
+
+	ld.param.u64 	%rd40, [_Z11intArraySumPKlPKcPlPclii_param_0];
+	ld.param.u64 	%rd43, [_Z11intArraySumPKlPKcPlPclii_param_1];
+	ld.param.u64 	%rd41, [_Z11intArraySumPKlPKcPlPclii_param_2];
+	ld.param.u64 	%rd44, [_Z11intArraySumPKlPKcPlPclii_param_3];
+	ld.param.u64 	%rd42, [_Z11intArraySumPKlPKcPlPclii_param_4];
+	ld.param.u32 	%r2, [_Z11intArraySumPKlPKcPlPclii_param_5];
+	cvta.to.global.u64 	%rd1, %rd44;
+	cvta.to.global.u64 	%rd2, %rd43;
+	cvta.to.global.u64 	%rd3, %rd40;
+	mov.u32 	%r3, %tid.x;
+	cvt.u64.u32	%rd45, %r3;
+	mov.u32 	%r4, %ctaid.x;
+	mov.u32 	%r1, %ntid.x;
+	mul.wide.u32 	%rd46, %r1, %r4;
+	add.s64 	%rd4, %rd46, %rd45;
+	setp.eq.s32	%p1, %r2, 0;
+	@%p1 bra 	BB9_12;
+
+	setp.ne.s64	%p2, %rd4, 0;
+	@%p2 bra 	BB9_20;
+
+	mov.u64 	%rd49, 16384;
+	min.s64 	%rd5, %rd42, %rd49;
+	ldu.global.u64 	%rd6, [%rd3];
+	mov.u64 	%rd48, 0;
+	mov.u64 	%rd84, %rd48;
+	setp.lt.s64	%p3, %rd5, 1;
+	mov.u64 	%rd85, %rd48;
+	@%p3 bra 	BB9_10;
+
+	add.s64 	%rd51, %rd6, %rd1;
+	add.s64 	%rd7, %rd51, 128;
+	add.s64 	%rd8, %rd2, 128;
+	mov.u64 	%rd50, 0;
+	mov.u64 	%rd9, %rd7;
+	mov.u64 	%rd76, %rd6;
+	mov.u64 	%rd80, %rd50;
+	bra.uni 	BB9_4;
+
+BB9_11:
+	shl.b64 	%rd59, %rd80, 3;
+	add.s64 	%rd60, %rd3, %rd59;
+	ld.global.u64 	%rd28, [%rd60];
+	mov.u64 	%rd76, %rd28;
+
+BB9_4:
+	mov.u64 	%rd10, %rd76;
+	add.s64 	%rd53, %rd2, %rd10;
+	ld.global.u64 	%rd12, [%rd53];
+	ld.global.u64 	%rd84, [%rd53+8];
+	setp.gt.s64	%p4, %rd84, 0;
+	setp.eq.s64	%p5, %rd80, 0;
+	and.pred  	%p6, %p5, %p4;
+	mov.u64 	%rd77, %rd7;
+	mov.u64 	%rd79, %rd50;
+	@!%p6 bra 	BB9_6;
+	bra.uni 	BB9_5;
+
+BB9_5:
+	mov.u64 	%rd15, %rd79;
+	mov.u64 	%rd14, %rd77;
+	mov.u32 	%r5, 0;
+	st.global.u32 	[%rd14], %r5;
+	add.s64 	%rd16, %rd14, 4;
+	add.s64 	%rd17, %rd15, 1;
+	setp.lt.s64	%p7, %rd17, %rd84;
+	mov.u64 	%rd77, %rd16;
+	mov.u64 	%rd79, %rd17;
+	@%p7 bra 	BB9_5;
+
+BB9_6:
+	setp.lt.s64	%p8, %rd84, 1;
+	@%p8 bra 	BB9_9;
+
+	add.s64 	%rd82, %rd8, %rd10;
+	mov.u64 	%rd83, 0;
+	mov.u64 	%rd81, %rd9;
+
+BB9_8:
+	mov.u64 	%rd19, %rd81;
+	ld.global.u32 	%r6, [%rd19];
+	ld.global.u32 	%r7, [%rd82];
+	add.s32 	%r8, %r6, %r7;
+	st.global.u32 	[%rd19], %r8;
+	add.s64 	%rd82, %rd82, 4;
+	add.s64 	%rd23, %rd19, 4;
+	add.s64 	%rd83, %rd83, 1;
+	setp.lt.s64	%p9, %rd83, %rd84;
+	mov.u64 	%rd81, %rd23;
+	@%p9 bra 	BB9_8;
+
+BB9_9:
+	add.s64 	%rd80, %rd80, 1;
+	setp.lt.s64	%p10, %rd80, %rd5;
+	mov.u64 	%rd85, %rd12;
+	@%p10 bra 	BB9_11;
+
+BB9_10:
+	mov.u64 	%rd27, %rd85;
+	add.s64 	%rd55, %rd1, %rd6;
+	cvta.to.global.u64 	%rd56, %rd41;
+	st.global.u64 	[%rd56], %rd48;
+	st.global.u64 	[%rd55], %rd27;
+	st.global.u64 	[%rd55+8], %rd84;
+	bra.uni 	BB9_20;
+
+BB9_12:
+	setp.ge.s64	%p11, %rd4, %rd42;
+	@%p11 bra 	BB9_20;
+
+	mov.u32 	%r9, %nctaid.x;
+	mul.lo.s32 	%r10, %r9, %r1;
+	setp.eq.s32	%p12, %r10, 16384;
+	@%p12 bra 	BB9_15;
+
+	mov.u64 	%rd61, $str;
+	cvta.global.u64 	%rd62, %rd61;
+	mov.u64 	%rd63, $str1;
+	cvta.global.u64 	%rd64, %rd63;
+	mov.u64 	%rd65, __T21;
+	cvta.global.u64 	%rd66, %rd65;
+	mov.u32 	%r11, 136;
+	mov.u64 	%rd67, 1;
+	// Callseq Start 1
+	{
+	.reg .b32 temp_param_reg;
+	// <end>}
+	.param .b64 param0;
+	st.param.b64	[param0+0], %rd62;
+	.param .b64 param1;
+	st.param.b64	[param1+0], %rd64;
+	.param .b32 param2;
+	st.param.b32	[param2+0], %r11;
+	.param .b64 param3;
+	st.param.b64	[param3+0], %rd66;
+	.param .b64 param4;
+	st.param.b64	[param4+0], %rd67;
+	call.uni 
+	__assertfail, 
+	(
+	param0, 
+	param1, 
+	param2, 
+	param3, 
+	param4
+	);
+	
+	//{
+	}// Callseq End 1
+
+BB9_15:
+	add.s64 	%rd86, %rd4, 16384;
+	setp.ge.s64	%p13, %rd86, %rd42;
+	@%p13 bra 	BB9_20;
+
+	shl.b64 	%rd68, %rd4, 3;
+	add.s64 	%rd69, %rd3, %rd68;
+	ld.global.u64 	%rd30, [%rd69];
+	add.s64 	%rd31, %rd2, 128;
+
+BB9_17:
+	shl.b64 	%rd71, %rd86, 3;
+	add.s64 	%rd72, %rd3, %rd71;
+	ld.global.u64 	%rd33, [%rd72];
+	add.s64 	%rd73, %rd33, %rd2;
+	ld.global.u64 	%rd34, [%rd73+8];
+	mov.u64 	%rd88, 0;
+	setp.lt.s64	%p14, %rd34, 1;
+	mov.u64 	%rd87, %rd31;
+	@%p14 bra 	BB9_19;
+
+BB9_18:
+	mov.u64 	%rd35, %rd87;
+	add.s64 	%rd74, %rd35, %rd33;
+	add.s64 	%rd75, %rd35, %rd30;
+	ld.global.u32 	%r12, [%rd75];
+	ld.global.u32 	%r13, [%rd74];
+	add.s32 	%r14, %r12, %r13;
+	st.global.u32 	[%rd75], %r14;
+	add.s64 	%rd37, %rd35, 4;
+	add.s64 	%rd88, %rd88, 1;
+	setp.lt.s64	%p15, %rd88, %rd34;
+	mov.u64 	%rd87, %rd37;
+	@%p15 bra 	BB9_18;
+
+BB9_19:
+	add.s64 	%rd86, %rd86, 16384;
+	setp.lt.s64	%p16, %rd86, %rd42;
+	@%p16 bra 	BB9_17;
+
+BB9_20:
+	ret;
+}
+
+	// .globl	_Z12DataPointMapPKlPKiPKcPlPcl
+.visible .entry _Z12DataPointMapPKlPKiPKcPlPcl(
+	.param .u64 _Z12DataPointMapPKlPKiPKcPlPcl_param_0,
+	.param .u64 _Z12DataPointMapPKlPKiPKcPlPcl_param_1,
+	.param .u64 _Z12DataPointMapPKlPKiPKcPlPcl_param_2,
+	.param .u64 _Z12DataPointMapPKlPKiPKcPlPcl_param_3,
+	.param .u64 _Z12DataPointMapPKlPKiPKcPlPcl_param_4,
+	.param .u64 _Z12DataPointMapPKlPKiPKcPlPcl_param_5
+)
+{
+	.reg .pred 	%p<4>;
+	.reg .s32 	%r<4>;
+	.reg .f64 	%fd<2>;
+	.reg .s64 	%rd<32>;
+
+
+	ld.param.u64 	%rd12, [_Z12DataPointMapPKlPKiPKcPlPcl_param_0];
+	ld.param.u64 	%rd14, [_Z12DataPointMapPKlPKiPKcPlPcl_param_2];
+	ld.param.u64 	%rd13, [_Z12DataPointMapPKlPKiPKcPlPcl_param_3];
+	ld.param.u64 	%rd15, [_Z12DataPointMapPKlPKiPKcPlPcl_param_4];
+	ld.param.u64 	%rd16, [_Z12DataPointMapPKlPKiPKcPlPcl_param_5];
+	cvta.to.global.u64 	%rd1, %rd15;
+	cvta.to.global.u64 	%rd2, %rd14;
+	mov.u32 	%r1, %tid.x;
+	cvt.u64.u32	%rd17, %r1;
+	mov.u32 	%r2, %ctaid.x;
+	mov.u32 	%r3, %ntid.x;
+	mul.wide.u32 	%rd18, %r3, %r2;
+	add.s64 	%rd3, %rd18, %rd17;
+	setp.ge.s64	%p1, %rd3, %rd16;
+	@%p1 bra 	BB10_5;
+
+	cvta.to.global.u64 	%rd19, %rd12;
+	shl.b64 	%rd20, %rd3, 3;
+	add.s64 	%rd21, %rd19, %rd20;
+	ld.global.u64 	%rd4, [%rd21];
+	add.s64 	%rd22, %rd2, %rd4;
+	ld.global.u64 	%rd5, [%rd22];
+	ld.global.u64 	%rd6, [%rd22+8];
+	setp.lt.s64	%p2, %rd6, 1;
+	@%p2 bra 	BB10_4;
+
+	add.s64 	%rd30, %rd4, 128;
+	mov.u64 	%rd31, 0;
+
+BB10_3:
+	add.s64 	%rd24, %rd2, %rd30;
+	ld.global.f64 	%fd1, [%rd24];
+	add.s64 	%rd25, %rd1, %rd30;
+	st.global.f64 	[%rd25], %fd1;
+	add.s64 	%rd30, %rd30, 8;
+	add.s64 	%rd31, %rd31, 1;
+	setp.lt.s64	%p3, %rd31, %rd6;
+	@%p3 bra 	BB10_3;
+
+BB10_4:
+	cvta.to.global.u64 	%rd26, %rd13;
+	add.s64 	%rd27, %rd1, %rd4;
+	add.s64 	%rd29, %rd26, %rd20;
+	st.global.u64 	[%rd29], %rd4;
+	st.global.u64 	[%rd27], %rd5;
+	st.global.u64 	[%rd27+8], %rd6;
+
+BB10_5:
 	ret;
 }
 
