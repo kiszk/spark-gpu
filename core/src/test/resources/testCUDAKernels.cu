@@ -60,6 +60,28 @@ __global__ void IntDataPointIdentity(const long *inputX, const int *inputY, cons
     }
 }
 
+// very simple test kernel for int array with free var
+__global__ void intArrayAdd(const long *input, const char *inputBlob, long *output, char *outputBlob, long size, const int *inFreeArray) {
+    const long ix = threadIdx.x + blockIdx.x * (long)blockDim.x;
+    if (ix < size) {
+        // copy int array
+        long offset = input[ix];
+        const char *inArray = GET_BLOB_ADDRESS(inputBlob, offset);
+        const long capacity = GET_ARRAY_CAPACITY(inArray);
+        const long length   = GET_ARRAY_LENGTH(inArray);
+        const int *inArrayBody = (int *)GET_ARRAY_BODY(inArray);
+
+        char *outArray = GET_BLOB_ADDRESS(outputBlob, offset);
+        int *outArrayBody = (int *)GET_ARRAY_BODY(outArray);
+        for (long i = 0; i < length; i++) {
+          outArrayBody[i] = inArrayBody[i] + inFreeArray[i];
+        }
+        output[ix] = offset;
+        SET_ARRAY_CAPACITY(outArray, capacity);
+        SET_ARRAY_LENGTH(outArray, length);
+    }
+}
+
 // test kernel for multiple input columns
 __global__ void vectorLength(const double *x, const double *y, double *len, long size) {
     const long ix = threadIdx.x + blockIdx.x * (long)blockDim.x;
