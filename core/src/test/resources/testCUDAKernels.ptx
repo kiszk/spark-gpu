@@ -21,7 +21,8 @@
 )
 ;
 .global .align 1 .b8 __T20[39] = {118, 111, 105, 100, 32, 115, 117, 109, 40, 105, 110, 116, 32, 42, 44, 32, 105, 110, 116, 32, 42, 44, 32, 108, 111, 110, 103, 44, 32, 105, 110, 116, 44, 32, 105, 110, 116, 41, 0};
-.global .align 1 .b8 __T21[77] = {118, 111, 105, 100, 32, 105, 110, 116, 65, 114, 114, 97, 121, 83, 117, 109, 40, 99, 111, 110, 115, 116, 32, 108, 111, 110, 103, 32, 42, 44, 32, 99, 111, 110, 115, 116, 32, 99, 104, 97, 114, 32, 42, 44, 32, 108, 111, 110, 103, 32, 42, 44, 32, 99, 104, 97, 114, 32, 42, 44, 32, 108, 111, 110, 103, 44, 32, 105, 110, 116, 44, 32, 105, 110, 116, 41, 0};
+.global .align 1 .b8 __T21[75] = {118, 111, 105, 100, 32, 105, 110, 116, 65, 114, 114, 97, 121, 83, 117, 109, 40, 99, 111, 110, 115, 116, 32, 108, 111, 110, 103, 32, 42, 44, 32, 99, 111, 110, 115, 116, 32, 105, 110, 116, 32, 42, 44, 32, 108, 111, 110, 103, 32, 42, 44, 32, 105, 110, 116, 32, 42, 44, 32, 108, 111, 110, 103, 44, 32, 105, 110, 116, 44, 32, 105, 110, 116, 41, 0};
+.global .align 1 .b8 __T22[87] = {118, 111, 105, 100, 32, 68, 97, 116, 97, 80, 111, 105, 110, 116, 76, 82, 82, 101, 100, 117, 99, 101, 40, 99, 111, 110, 115, 116, 32, 108, 111, 110, 103, 32, 42, 44, 32, 99, 111, 110, 115, 116, 32, 100, 111, 117, 98, 108, 101, 32, 42, 44, 32, 108, 111, 110, 103, 32, 42, 44, 32, 100, 111, 117, 98, 108, 101, 32, 42, 44, 32, 108, 111, 110, 103, 44, 32, 105, 110, 116, 44, 32, 105, 110, 116, 41, 0};
 .global .align 1 .b8 $str[31] = {106, 117, 109, 112, 32, 61, 61, 32, 98, 108, 111, 99, 107, 68, 105, 109, 46, 120, 32, 42, 32, 103, 114, 105, 100, 68, 105, 109, 46, 120, 0};
 .global .align 1 .b8 $str1[19] = {116, 101, 115, 116, 67, 85, 68, 65, 75, 101, 114, 110, 101, 108, 115, 46, 99, 117, 0};
 
@@ -60,213 +61,222 @@ BB0_2:
 	ret;
 }
 
-	// .globl	_Z16intArrayIdentityPKlPKcPlPcl
-.visible .entry _Z16intArrayIdentityPKlPKcPlPcl(
-	.param .u64 _Z16intArrayIdentityPKlPKcPlPcl_param_0,
-	.param .u64 _Z16intArrayIdentityPKlPKcPlPcl_param_1,
-	.param .u64 _Z16intArrayIdentityPKlPKcPlPcl_param_2,
-	.param .u64 _Z16intArrayIdentityPKlPKcPlPcl_param_3,
-	.param .u64 _Z16intArrayIdentityPKlPKcPlPcl_param_4
+	// .globl	_Z16intArrayIdentityPKlPKiPlPil
+.visible .entry _Z16intArrayIdentityPKlPKiPlPil(
+	.param .u64 _Z16intArrayIdentityPKlPKiPlPil_param_0,
+	.param .u64 _Z16intArrayIdentityPKlPKiPlPil_param_1,
+	.param .u64 _Z16intArrayIdentityPKlPKiPlPil_param_2,
+	.param .u64 _Z16intArrayIdentityPKlPKiPlPil_param_3,
+	.param .u64 _Z16intArrayIdentityPKlPKiPlPil_param_4
 )
 {
 	.reg .pred 	%p<4>;
 	.reg .s32 	%r<5>;
-	.reg .s64 	%rd<32>;
+	.reg .s64 	%rd<38>;
 
 
-	ld.param.u64 	%rd12, [_Z16intArrayIdentityPKlPKcPlPcl_param_0];
-	ld.param.u64 	%rd14, [_Z16intArrayIdentityPKlPKcPlPcl_param_1];
-	ld.param.u64 	%rd13, [_Z16intArrayIdentityPKlPKcPlPcl_param_2];
-	ld.param.u64 	%rd15, [_Z16intArrayIdentityPKlPKcPlPcl_param_3];
-	ld.param.u64 	%rd16, [_Z16intArrayIdentityPKlPKcPlPcl_param_4];
-	cvta.to.global.u64 	%rd1, %rd15;
-	cvta.to.global.u64 	%rd2, %rd14;
+	ld.param.u64 	%rd15, [_Z16intArrayIdentityPKlPKiPlPil_param_0];
+	ld.param.u64 	%rd16, [_Z16intArrayIdentityPKlPKiPlPil_param_1];
+	ld.param.u64 	%rd17, [_Z16intArrayIdentityPKlPKiPlPil_param_2];
+	ld.param.u64 	%rd18, [_Z16intArrayIdentityPKlPKiPlPil_param_3];
+	ld.param.u64 	%rd19, [_Z16intArrayIdentityPKlPKiPlPil_param_4];
 	mov.u32 	%r1, %tid.x;
-	cvt.u64.u32	%rd17, %r1;
+	cvt.u64.u32	%rd20, %r1;
 	mov.u32 	%r2, %ctaid.x;
 	mov.u32 	%r3, %ntid.x;
-	mul.wide.u32 	%rd18, %r3, %r2;
-	add.s64 	%rd3, %rd18, %rd17;
-	setp.ge.s64	%p1, %rd3, %rd16;
+	mul.wide.u32 	%rd21, %r3, %r2;
+	add.s64 	%rd1, %rd21, %rd20;
+	setp.ge.s64	%p1, %rd1, %rd19;
 	@%p1 bra 	BB1_5;
 
-	cvta.to.global.u64 	%rd19, %rd12;
-	shl.b64 	%rd20, %rd3, 3;
-	add.s64 	%rd21, %rd19, %rd20;
-	ld.global.u64 	%rd4, [%rd21];
-	add.s64 	%rd22, %rd2, %rd4;
-	ld.global.u64 	%rd5, [%rd22];
-	ld.global.u64 	%rd6, [%rd22+8];
-	setp.lt.s64	%p2, %rd6, 1;
+	cvta.to.global.u64 	%rd2, %rd18;
+	cvta.to.global.u64 	%rd3, %rd16;
+	cvta.to.global.u64 	%rd22, %rd15;
+	shl.b64 	%rd23, %rd1, 3;
+	add.s64 	%rd24, %rd22, %rd23;
+	ld.global.u64 	%rd4, [%rd24];
+	shr.u64 	%rd5, %rd4, 2;
+	shl.b64 	%rd25, %rd5, 2;
+	add.s64 	%rd26, %rd3, %rd25;
+	ld.global.u64 	%rd6, [%rd26];
+	ld.global.u64 	%rd7, [%rd26+8];
+	setp.lt.s64	%p2, %rd7, 1;
 	@%p2 bra 	BB1_4;
 
-	add.s64 	%rd30, %rd4, 128;
-	mov.u64 	%rd31, 0;
+	and.b64  	%rd28, %rd4, -4;
+	add.s64 	%rd36, %rd28, 128;
+	mov.u64 	%rd37, 0;
 
 BB1_3:
-	add.s64 	%rd24, %rd2, %rd30;
-	ld.global.u32 	%r4, [%rd24];
-	add.s64 	%rd25, %rd1, %rd30;
-	st.global.u32 	[%rd25], %r4;
-	add.s64 	%rd30, %rd30, 4;
-	add.s64 	%rd31, %rd31, 1;
-	setp.lt.s64	%p3, %rd31, %rd6;
+	add.s64 	%rd29, %rd3, %rd36;
+	ld.global.u32 	%r4, [%rd29];
+	add.s64 	%rd30, %rd2, %rd36;
+	st.global.u32 	[%rd30], %r4;
+	add.s64 	%rd36, %rd36, 4;
+	add.s64 	%rd37, %rd37, 1;
+	setp.lt.s64	%p3, %rd37, %rd7;
 	@%p3 bra 	BB1_3;
 
 BB1_4:
-	cvta.to.global.u64 	%rd26, %rd13;
-	add.s64 	%rd27, %rd1, %rd4;
-	add.s64 	%rd29, %rd26, %rd20;
-	st.global.u64 	[%rd29], %rd4;
-	st.global.u64 	[%rd27], %rd5;
-	st.global.u64 	[%rd27+8], %rd6;
+	cvta.to.global.u64 	%rd31, %rd17;
+	add.s64 	%rd33, %rd2, %rd25;
+	add.s64 	%rd35, %rd31, %rd23;
+	st.global.u64 	[%rd35], %rd4;
+	st.global.u64 	[%rd33], %rd6;
+	st.global.u64 	[%rd33+8], %rd7;
 
 BB1_5:
 	ret;
 }
 
-	// .globl	_Z20IntDataPointIdentityPKlPKiPKcPlPiPcl
-.visible .entry _Z20IntDataPointIdentityPKlPKiPKcPlPiPcl(
-	.param .u64 _Z20IntDataPointIdentityPKlPKiPKcPlPiPcl_param_0,
-	.param .u64 _Z20IntDataPointIdentityPKlPKiPKcPlPiPcl_param_1,
-	.param .u64 _Z20IntDataPointIdentityPKlPKiPKcPlPiPcl_param_2,
-	.param .u64 _Z20IntDataPointIdentityPKlPKiPKcPlPiPcl_param_3,
-	.param .u64 _Z20IntDataPointIdentityPKlPKiPKcPlPiPcl_param_4,
-	.param .u64 _Z20IntDataPointIdentityPKlPKiPKcPlPiPcl_param_5,
-	.param .u64 _Z20IntDataPointIdentityPKlPKiPKcPlPiPcl_param_6
+	// .globl	_Z20IntDataPointIdentityPKlPKiS2_PlPiS4_l
+.visible .entry _Z20IntDataPointIdentityPKlPKiS2_PlPiS4_l(
+	.param .u64 _Z20IntDataPointIdentityPKlPKiS2_PlPiS4_l_param_0,
+	.param .u64 _Z20IntDataPointIdentityPKlPKiS2_PlPiS4_l_param_1,
+	.param .u64 _Z20IntDataPointIdentityPKlPKiS2_PlPiS4_l_param_2,
+	.param .u64 _Z20IntDataPointIdentityPKlPKiS2_PlPiS4_l_param_3,
+	.param .u64 _Z20IntDataPointIdentityPKlPKiS2_PlPiS4_l_param_4,
+	.param .u64 _Z20IntDataPointIdentityPKlPKiS2_PlPiS4_l_param_5,
+	.param .u64 _Z20IntDataPointIdentityPKlPKiS2_PlPiS4_l_param_6
 )
 {
 	.reg .pred 	%p<4>;
 	.reg .s32 	%r<6>;
-	.reg .s64 	%rd<39>;
+	.reg .s64 	%rd<45>;
 
 
-	ld.param.u64 	%rd12, [_Z20IntDataPointIdentityPKlPKiPKcPlPiPcl_param_0];
-	ld.param.u64 	%rd13, [_Z20IntDataPointIdentityPKlPKiPKcPlPiPcl_param_1];
-	ld.param.u64 	%rd16, [_Z20IntDataPointIdentityPKlPKiPKcPlPiPcl_param_2];
-	ld.param.u64 	%rd14, [_Z20IntDataPointIdentityPKlPKiPKcPlPiPcl_param_3];
-	ld.param.u64 	%rd15, [_Z20IntDataPointIdentityPKlPKiPKcPlPiPcl_param_4];
-	ld.param.u64 	%rd17, [_Z20IntDataPointIdentityPKlPKiPKcPlPiPcl_param_5];
-	ld.param.u64 	%rd18, [_Z20IntDataPointIdentityPKlPKiPKcPlPiPcl_param_6];
-	cvta.to.global.u64 	%rd1, %rd17;
-	cvta.to.global.u64 	%rd2, %rd16;
+	ld.param.u64 	%rd15, [_Z20IntDataPointIdentityPKlPKiS2_PlPiS4_l_param_0];
+	ld.param.u64 	%rd16, [_Z20IntDataPointIdentityPKlPKiS2_PlPiS4_l_param_1];
+	ld.param.u64 	%rd17, [_Z20IntDataPointIdentityPKlPKiS2_PlPiS4_l_param_2];
+	ld.param.u64 	%rd18, [_Z20IntDataPointIdentityPKlPKiS2_PlPiS4_l_param_3];
+	ld.param.u64 	%rd19, [_Z20IntDataPointIdentityPKlPKiS2_PlPiS4_l_param_4];
+	ld.param.u64 	%rd20, [_Z20IntDataPointIdentityPKlPKiS2_PlPiS4_l_param_5];
+	ld.param.u64 	%rd21, [_Z20IntDataPointIdentityPKlPKiS2_PlPiS4_l_param_6];
 	mov.u32 	%r1, %tid.x;
-	cvt.u64.u32	%rd19, %r1;
+	cvt.u64.u32	%rd22, %r1;
 	mov.u32 	%r2, %ctaid.x;
 	mov.u32 	%r3, %ntid.x;
-	mul.wide.u32 	%rd20, %r3, %r2;
-	add.s64 	%rd3, %rd20, %rd19;
-	setp.ge.s64	%p1, %rd3, %rd18;
+	mul.wide.u32 	%rd23, %r3, %r2;
+	add.s64 	%rd1, %rd23, %rd22;
+	setp.ge.s64	%p1, %rd1, %rd21;
 	@%p1 bra 	BB2_5;
 
-	cvta.to.global.u64 	%rd21, %rd12;
-	shl.b64 	%rd22, %rd3, 3;
-	add.s64 	%rd23, %rd21, %rd22;
-	ld.global.u64 	%rd4, [%rd23];
-	add.s64 	%rd24, %rd2, %rd4;
-	ld.global.u64 	%rd5, [%rd24];
-	ld.global.u64 	%rd6, [%rd24+8];
-	setp.lt.s64	%p2, %rd6, 1;
+	cvta.to.global.u64 	%rd2, %rd20;
+	cvta.to.global.u64 	%rd3, %rd17;
+	cvta.to.global.u64 	%rd24, %rd15;
+	shl.b64 	%rd25, %rd1, 3;
+	add.s64 	%rd26, %rd24, %rd25;
+	ld.global.u64 	%rd4, [%rd26];
+	shr.u64 	%rd5, %rd4, 2;
+	shl.b64 	%rd27, %rd5, 2;
+	add.s64 	%rd28, %rd3, %rd27;
+	ld.global.u64 	%rd6, [%rd28];
+	ld.global.u64 	%rd7, [%rd28+8];
+	setp.lt.s64	%p2, %rd7, 1;
 	@%p2 bra 	BB2_4;
 
-	add.s64 	%rd37, %rd4, 128;
-	mov.u64 	%rd38, 0;
+	and.b64  	%rd30, %rd4, -4;
+	add.s64 	%rd43, %rd30, 128;
+	mov.u64 	%rd44, 0;
 
 BB2_3:
-	add.s64 	%rd26, %rd2, %rd37;
-	ld.global.u32 	%r4, [%rd26];
-	add.s64 	%rd27, %rd1, %rd37;
-	st.global.u32 	[%rd27], %r4;
-	add.s64 	%rd37, %rd37, 4;
-	add.s64 	%rd38, %rd38, 1;
-	setp.lt.s64	%p3, %rd38, %rd6;
+	add.s64 	%rd31, %rd3, %rd43;
+	ld.global.u32 	%r4, [%rd31];
+	add.s64 	%rd32, %rd2, %rd43;
+	st.global.u32 	[%rd32], %r4;
+	add.s64 	%rd43, %rd43, 4;
+	add.s64 	%rd44, %rd44, 1;
+	setp.lt.s64	%p3, %rd44, %rd7;
 	@%p3 bra 	BB2_3;
 
 BB2_4:
-	cvta.to.global.u64 	%rd28, %rd15;
-	cvta.to.global.u64 	%rd29, %rd13;
-	cvta.to.global.u64 	%rd30, %rd14;
-	add.s64 	%rd31, %rd1, %rd4;
-	add.s64 	%rd33, %rd30, %rd22;
-	st.global.u64 	[%rd33], %rd4;
-	st.global.u64 	[%rd31], %rd5;
-	st.global.u64 	[%rd31+8], %rd6;
-	shl.b64 	%rd34, %rd3, 2;
-	add.s64 	%rd35, %rd29, %rd34;
-	ld.global.u32 	%r5, [%rd35];
-	add.s64 	%rd36, %rd28, %rd34;
-	st.global.u32 	[%rd36], %r5;
+	cvta.to.global.u64 	%rd33, %rd19;
+	cvta.to.global.u64 	%rd34, %rd16;
+	cvta.to.global.u64 	%rd35, %rd18;
+	add.s64 	%rd37, %rd2, %rd27;
+	add.s64 	%rd39, %rd35, %rd25;
+	st.global.u64 	[%rd39], %rd4;
+	st.global.u64 	[%rd37], %rd6;
+	st.global.u64 	[%rd37+8], %rd7;
+	shl.b64 	%rd40, %rd1, 2;
+	add.s64 	%rd41, %rd34, %rd40;
+	ld.global.u32 	%r5, [%rd41];
+	add.s64 	%rd42, %rd33, %rd40;
+	st.global.u32 	[%rd42], %r5;
 
 BB2_5:
 	ret;
 }
 
-	// .globl	_Z11intArrayAddPKlPKcPlPclPKi
-.visible .entry _Z11intArrayAddPKlPKcPlPclPKi(
-	.param .u64 _Z11intArrayAddPKlPKcPlPclPKi_param_0,
-	.param .u64 _Z11intArrayAddPKlPKcPlPclPKi_param_1,
-	.param .u64 _Z11intArrayAddPKlPKcPlPclPKi_param_2,
-	.param .u64 _Z11intArrayAddPKlPKcPlPclPKi_param_3,
-	.param .u64 _Z11intArrayAddPKlPKcPlPclPKi_param_4,
-	.param .u64 _Z11intArrayAddPKlPKcPlPclPKi_param_5
+	// .globl	_Z11intArrayAddPKlPKiPlPilS2_
+.visible .entry _Z11intArrayAddPKlPKiPlPilS2_(
+	.param .u64 _Z11intArrayAddPKlPKiPlPilS2__param_0,
+	.param .u64 _Z11intArrayAddPKlPKiPlPilS2__param_1,
+	.param .u64 _Z11intArrayAddPKlPKiPlPilS2__param_2,
+	.param .u64 _Z11intArrayAddPKlPKiPlPilS2__param_3,
+	.param .u64 _Z11intArrayAddPKlPKiPlPilS2__param_4,
+	.param .u64 _Z11intArrayAddPKlPKiPlPilS2__param_5
 )
 {
 	.reg .pred 	%p<4>;
 	.reg .s32 	%r<7>;
-	.reg .s64 	%rd<37>;
+	.reg .s64 	%rd<43>;
 
 
-	ld.param.u64 	%rd15, [_Z11intArrayAddPKlPKcPlPclPKi_param_0];
-	ld.param.u64 	%rd18, [_Z11intArrayAddPKlPKcPlPclPKi_param_1];
-	ld.param.u64 	%rd16, [_Z11intArrayAddPKlPKcPlPclPKi_param_2];
-	ld.param.u64 	%rd19, [_Z11intArrayAddPKlPKcPlPclPKi_param_3];
-	ld.param.u64 	%rd20, [_Z11intArrayAddPKlPKcPlPclPKi_param_4];
-	ld.param.u64 	%rd17, [_Z11intArrayAddPKlPKcPlPclPKi_param_5];
-	cvta.to.global.u64 	%rd1, %rd19;
-	cvta.to.global.u64 	%rd2, %rd18;
+	ld.param.u64 	%rd18, [_Z11intArrayAddPKlPKiPlPilS2__param_0];
+	ld.param.u64 	%rd19, [_Z11intArrayAddPKlPKiPlPilS2__param_1];
+	ld.param.u64 	%rd20, [_Z11intArrayAddPKlPKiPlPilS2__param_2];
+	ld.param.u64 	%rd21, [_Z11intArrayAddPKlPKiPlPilS2__param_3];
+	ld.param.u64 	%rd23, [_Z11intArrayAddPKlPKiPlPilS2__param_4];
+	ld.param.u64 	%rd22, [_Z11intArrayAddPKlPKiPlPilS2__param_5];
 	mov.u32 	%r1, %tid.x;
-	cvt.u64.u32	%rd21, %r1;
+	cvt.u64.u32	%rd24, %r1;
 	mov.u32 	%r2, %ctaid.x;
 	mov.u32 	%r3, %ntid.x;
-	mul.wide.u32 	%rd22, %r3, %r2;
-	add.s64 	%rd3, %rd22, %rd21;
-	setp.ge.s64	%p1, %rd3, %rd20;
+	mul.wide.u32 	%rd25, %r3, %r2;
+	add.s64 	%rd1, %rd25, %rd24;
+	setp.ge.s64	%p1, %rd1, %rd23;
 	@%p1 bra 	BB3_5;
 
-	cvta.to.global.u64 	%rd23, %rd15;
-	shl.b64 	%rd24, %rd3, 3;
-	add.s64 	%rd25, %rd23, %rd24;
-	ld.global.u64 	%rd4, [%rd25];
-	add.s64 	%rd26, %rd2, %rd4;
-	ld.global.u64 	%rd5, [%rd26];
-	ld.global.u64 	%rd6, [%rd26+8];
-	setp.lt.s64	%p2, %rd6, 1;
+	cvta.to.global.u64 	%rd2, %rd21;
+	cvta.to.global.u64 	%rd3, %rd19;
+	cvta.to.global.u64 	%rd26, %rd18;
+	shl.b64 	%rd27, %rd1, 3;
+	add.s64 	%rd28, %rd26, %rd27;
+	ld.global.u64 	%rd4, [%rd28];
+	shr.u64 	%rd5, %rd4, 2;
+	shl.b64 	%rd29, %rd5, 2;
+	add.s64 	%rd30, %rd3, %rd29;
+	ld.global.u64 	%rd6, [%rd30];
+	ld.global.u64 	%rd7, [%rd30+8];
+	setp.lt.s64	%p2, %rd7, 1;
 	@%p2 bra 	BB3_4;
 
-	cvta.to.global.u64 	%rd34, %rd17;
-	add.s64 	%rd35, %rd4, 128;
-	mov.u64 	%rd36, 0;
+	cvta.to.global.u64 	%rd40, %rd22;
+	and.b64  	%rd32, %rd4, -4;
+	add.s64 	%rd41, %rd32, 128;
+	mov.u64 	%rd42, 0;
 
 BB3_3:
-	add.s64 	%rd28, %rd2, %rd35;
-	ld.global.u32 	%r4, [%rd34];
-	ld.global.u32 	%r5, [%rd28];
+	add.s64 	%rd33, %rd3, %rd41;
+	ld.global.u32 	%r4, [%rd40];
+	ld.global.u32 	%r5, [%rd33];
 	add.s32 	%r6, %r4, %r5;
-	add.s64 	%rd29, %rd1, %rd35;
-	st.global.u32 	[%rd29], %r6;
-	add.s64 	%rd35, %rd35, 4;
-	add.s64 	%rd34, %rd34, 4;
-	add.s64 	%rd36, %rd36, 1;
-	setp.lt.s64	%p3, %rd36, %rd6;
+	add.s64 	%rd34, %rd2, %rd41;
+	st.global.u32 	[%rd34], %r6;
+	add.s64 	%rd41, %rd41, 4;
+	add.s64 	%rd40, %rd40, 4;
+	add.s64 	%rd42, %rd42, 1;
+	setp.lt.s64	%p3, %rd42, %rd7;
 	@%p3 bra 	BB3_3;
 
 BB3_4:
-	cvta.to.global.u64 	%rd30, %rd16;
-	add.s64 	%rd31, %rd1, %rd4;
-	add.s64 	%rd33, %rd30, %rd24;
-	st.global.u64 	[%rd33], %rd4;
-	st.global.u64 	[%rd31], %rd5;
-	st.global.u64 	[%rd31+8], %rd6;
+	cvta.to.global.u64 	%rd35, %rd20;
+	add.s64 	%rd37, %rd2, %rd29;
+	add.s64 	%rd39, %rd35, %rd27;
+	st.global.u64 	[%rd39], %rd4;
+	st.global.u64 	[%rd37], %rd6;
+	st.global.u64 	[%rd37+8], %rd7;
 
 BB3_5:
 	ret;
@@ -614,159 +624,162 @@ BB9_11:
 	ret;
 }
 
-	// .globl	_Z11intArraySumPKlPKcPlPclii
-.visible .entry _Z11intArraySumPKlPKcPlPclii(
-	.param .u64 _Z11intArraySumPKlPKcPlPclii_param_0,
-	.param .u64 _Z11intArraySumPKlPKcPlPclii_param_1,
-	.param .u64 _Z11intArraySumPKlPKcPlPclii_param_2,
-	.param .u64 _Z11intArraySumPKlPKcPlPclii_param_3,
-	.param .u64 _Z11intArraySumPKlPKcPlPclii_param_4,
-	.param .u32 _Z11intArraySumPKlPKcPlPclii_param_5,
-	.param .u32 _Z11intArraySumPKlPKcPlPclii_param_6
+	// .globl	_Z11intArraySumPKlPKiPlPilii
+.visible .entry _Z11intArraySumPKlPKiPlPilii(
+	.param .u64 _Z11intArraySumPKlPKiPlPilii_param_0,
+	.param .u64 _Z11intArraySumPKlPKiPlPilii_param_1,
+	.param .u64 _Z11intArraySumPKlPKiPlPilii_param_2,
+	.param .u64 _Z11intArraySumPKlPKiPlPilii_param_3,
+	.param .u64 _Z11intArraySumPKlPKiPlPilii_param_4,
+	.param .u32 _Z11intArraySumPKlPKiPlPilii_param_5,
+	.param .u32 _Z11intArraySumPKlPKiPlPilii_param_6
 )
 {
 	.reg .pred 	%p<17>;
 	.reg .s32 	%r<15>;
-	.reg .s64 	%rd<89>;
+	.reg .s64 	%rd<100>;
 
 
-	ld.param.u64 	%rd40, [_Z11intArraySumPKlPKcPlPclii_param_0];
-	ld.param.u64 	%rd43, [_Z11intArraySumPKlPKcPlPclii_param_1];
-	ld.param.u64 	%rd41, [_Z11intArraySumPKlPKcPlPclii_param_2];
-	ld.param.u64 	%rd44, [_Z11intArraySumPKlPKcPlPclii_param_3];
-	ld.param.u64 	%rd42, [_Z11intArraySumPKlPKcPlPclii_param_4];
-	ld.param.u32 	%r2, [_Z11intArraySumPKlPKcPlPclii_param_5];
-	cvta.to.global.u64 	%rd1, %rd44;
-	cvta.to.global.u64 	%rd2, %rd43;
-	cvta.to.global.u64 	%rd3, %rd40;
+	ld.param.u64 	%rd43, [_Z11intArraySumPKlPKiPlPilii_param_0];
+	ld.param.u64 	%rd46, [_Z11intArraySumPKlPKiPlPilii_param_1];
+	ld.param.u64 	%rd44, [_Z11intArraySumPKlPKiPlPilii_param_2];
+	ld.param.u64 	%rd47, [_Z11intArraySumPKlPKiPlPilii_param_3];
+	ld.param.u64 	%rd45, [_Z11intArraySumPKlPKiPlPilii_param_4];
+	ld.param.u32 	%r2, [_Z11intArraySumPKlPKiPlPilii_param_5];
+	cvta.to.global.u64 	%rd1, %rd47;
+	cvta.to.global.u64 	%rd2, %rd46;
+	cvta.to.global.u64 	%rd3, %rd43;
 	mov.u32 	%r3, %tid.x;
-	cvt.u64.u32	%rd45, %r3;
+	cvt.u64.u32	%rd48, %r3;
 	mov.u32 	%r4, %ctaid.x;
 	mov.u32 	%r1, %ntid.x;
-	mul.wide.u32 	%rd46, %r1, %r4;
-	add.s64 	%rd4, %rd46, %rd45;
+	mul.wide.u32 	%rd49, %r1, %r4;
+	add.s64 	%rd4, %rd49, %rd48;
 	setp.eq.s32	%p1, %r2, 0;
 	@%p1 bra 	BB10_12;
 
 	setp.ne.s64	%p2, %rd4, 0;
-	@%p2 bra 	BB10_20;
+	@%p2 bra 	BB10_21;
 
-	mov.u64 	%rd49, 16384;
-	min.s64 	%rd5, %rd42, %rd49;
+	mov.u64 	%rd52, 16384;
+	min.s64 	%rd5, %rd45, %rd52;
 	ldu.global.u64 	%rd6, [%rd3];
-	mov.u64 	%rd48, 0;
-	mov.u64 	%rd84, %rd48;
+	mov.u64 	%rd51, 0;
+	mov.u64 	%rd94, %rd51;
 	setp.lt.s64	%p3, %rd5, 1;
-	mov.u64 	%rd85, %rd48;
+	mov.u64 	%rd95, %rd51;
 	@%p3 bra 	BB10_10;
 
-	add.s64 	%rd51, %rd6, %rd1;
-	add.s64 	%rd7, %rd51, 128;
+	and.b64  	%rd54, %rd6, -4;
+	add.s64 	%rd55, %rd54, %rd1;
+	add.s64 	%rd7, %rd55, 128;
 	add.s64 	%rd8, %rd2, 128;
-	mov.u64 	%rd50, 0;
+	mov.u64 	%rd53, 0;
 	mov.u64 	%rd9, %rd7;
-	mov.u64 	%rd76, %rd6;
-	mov.u64 	%rd80, %rd50;
+	mov.u64 	%rd86, %rd6;
+	mov.u64 	%rd90, %rd53;
 	bra.uni 	BB10_4;
 
 BB10_11:
-	shl.b64 	%rd59, %rd80, 3;
-	add.s64 	%rd60, %rd3, %rd59;
-	ld.global.u64 	%rd28, [%rd60];
-	mov.u64 	%rd76, %rd28;
+	shl.b64 	%rd66, %rd90, 3;
+	add.s64 	%rd67, %rd3, %rd66;
+	ld.global.u64 	%rd28, [%rd67];
+	mov.u64 	%rd86, %rd28;
 
 BB10_4:
-	mov.u64 	%rd10, %rd76;
-	add.s64 	%rd53, %rd2, %rd10;
-	ld.global.u64 	%rd12, [%rd53];
-	ld.global.u64 	%rd84, [%rd53+8];
-	setp.gt.s64	%p4, %rd84, 0;
-	setp.eq.s64	%p5, %rd80, 0;
+	mov.u64 	%rd10, %rd86;
+	and.b64  	%rd57, %rd10, -4;
+	add.s64 	%rd58, %rd2, %rd57;
+	ld.global.u64 	%rd12, [%rd58];
+	ld.global.u64 	%rd94, [%rd58+8];
+	setp.gt.s64	%p4, %rd94, 0;
+	setp.eq.s64	%p5, %rd90, 0;
 	and.pred  	%p6, %p5, %p4;
-	mov.u64 	%rd77, %rd7;
-	mov.u64 	%rd79, %rd50;
+	mov.u64 	%rd87, %rd7;
+	mov.u64 	%rd89, %rd53;
 	@!%p6 bra 	BB10_6;
 	bra.uni 	BB10_5;
 
 BB10_5:
-	mov.u64 	%rd15, %rd79;
-	mov.u64 	%rd14, %rd77;
+	mov.u64 	%rd15, %rd89;
+	mov.u64 	%rd14, %rd87;
 	mov.u32 	%r5, 0;
 	st.global.u32 	[%rd14], %r5;
 	add.s64 	%rd16, %rd14, 4;
 	add.s64 	%rd17, %rd15, 1;
-	setp.lt.s64	%p7, %rd17, %rd84;
-	mov.u64 	%rd77, %rd16;
-	mov.u64 	%rd79, %rd17;
+	setp.lt.s64	%p7, %rd17, %rd94;
+	mov.u64 	%rd87, %rd16;
+	mov.u64 	%rd89, %rd17;
 	@%p7 bra 	BB10_5;
 
 BB10_6:
-	setp.lt.s64	%p8, %rd84, 1;
+	setp.lt.s64	%p8, %rd94, 1;
 	@%p8 bra 	BB10_9;
 
-	add.s64 	%rd82, %rd8, %rd10;
-	mov.u64 	%rd83, 0;
-	mov.u64 	%rd81, %rd9;
+	add.s64 	%rd92, %rd8, %rd57;
+	mov.u64 	%rd93, 0;
+	mov.u64 	%rd91, %rd9;
 
 BB10_8:
-	mov.u64 	%rd19, %rd81;
+	mov.u64 	%rd19, %rd91;
 	ld.global.u32 	%r6, [%rd19];
-	ld.global.u32 	%r7, [%rd82];
+	ld.global.u32 	%r7, [%rd92];
 	add.s32 	%r8, %r6, %r7;
 	st.global.u32 	[%rd19], %r8;
-	add.s64 	%rd82, %rd82, 4;
+	add.s64 	%rd92, %rd92, 4;
 	add.s64 	%rd23, %rd19, 4;
-	add.s64 	%rd83, %rd83, 1;
-	setp.lt.s64	%p9, %rd83, %rd84;
-	mov.u64 	%rd81, %rd23;
+	add.s64 	%rd93, %rd93, 1;
+	setp.lt.s64	%p9, %rd93, %rd94;
+	mov.u64 	%rd91, %rd23;
 	@%p9 bra 	BB10_8;
 
 BB10_9:
-	add.s64 	%rd80, %rd80, 1;
-	setp.lt.s64	%p10, %rd80, %rd5;
-	mov.u64 	%rd85, %rd12;
+	add.s64 	%rd90, %rd90, 1;
+	setp.lt.s64	%p10, %rd90, %rd5;
+	mov.u64 	%rd95, %rd12;
 	@%p10 bra 	BB10_11;
 
 BB10_10:
-	mov.u64 	%rd27, %rd85;
-	add.s64 	%rd55, %rd1, %rd6;
-	cvta.to.global.u64 	%rd56, %rd41;
-	st.global.u64 	[%rd56], %rd48;
-	st.global.u64 	[%rd55], %rd27;
-	st.global.u64 	[%rd55+8], %rd84;
-	bra.uni 	BB10_20;
+	mov.u64 	%rd27, %rd95;
+	and.b64  	%rd61, %rd6, -4;
+	add.s64 	%rd62, %rd1, %rd61;
+	cvta.to.global.u64 	%rd63, %rd44;
+	st.global.u64 	[%rd63], %rd51;
+	st.global.u64 	[%rd62], %rd27;
+	st.global.u64 	[%rd62+8], %rd94;
+	bra.uni 	BB10_21;
 
 BB10_12:
-	setp.ge.s64	%p11, %rd4, %rd42;
-	@%p11 bra 	BB10_20;
+	setp.ge.s64	%p11, %rd4, %rd45;
+	@%p11 bra 	BB10_21;
 
 	mov.u32 	%r9, %nctaid.x;
 	mul.lo.s32 	%r10, %r9, %r1;
 	setp.eq.s32	%p12, %r10, 16384;
 	@%p12 bra 	BB10_15;
 
-	mov.u64 	%rd61, $str;
-	cvta.global.u64 	%rd62, %rd61;
-	mov.u64 	%rd63, $str1;
-	cvta.global.u64 	%rd64, %rd63;
-	mov.u64 	%rd65, __T21;
-	cvta.global.u64 	%rd66, %rd65;
+	mov.u64 	%rd68, $str;
+	cvta.global.u64 	%rd69, %rd68;
+	mov.u64 	%rd70, $str1;
+	cvta.global.u64 	%rd71, %rd70;
+	mov.u64 	%rd72, __T21;
+	cvta.global.u64 	%rd73, %rd72;
 	mov.u32 	%r11, 158;
-	mov.u64 	%rd67, 1;
+	mov.u64 	%rd74, 1;
 	// Callseq Start 1
 	{
 	.reg .b32 temp_param_reg;
 	// <end>}
 	.param .b64 param0;
-	st.param.b64	[param0+0], %rd62;
+	st.param.b64	[param0+0], %rd69;
 	.param .b64 param1;
-	st.param.b64	[param1+0], %rd64;
+	st.param.b64	[param1+0], %rd71;
 	.param .b32 param2;
 	st.param.b32	[param2+0], %r11;
 	.param .b64 param3;
-	st.param.b64	[param3+0], %rd66;
+	st.param.b64	[param3+0], %rd73;
 	.param .b64 param4;
-	st.param.b64	[param4+0], %rd67;
+	st.param.b64	[param4+0], %rd74;
 	call.uni 
 	__assertfail, 
 	(
@@ -781,113 +794,345 @@ BB10_12:
 	}// Callseq End 1
 
 BB10_15:
-	add.s64 	%rd86, %rd4, 16384;
-	setp.ge.s64	%p13, %rd86, %rd42;
-	@%p13 bra 	BB10_20;
+	add.s64 	%rd96, %rd4, 16384;
+	setp.ge.s64	%p13, %rd96, %rd45;
+	@%p13 bra 	BB10_21;
 
-	shl.b64 	%rd68, %rd4, 3;
-	add.s64 	%rd69, %rd3, %rd68;
-	ld.global.u64 	%rd30, [%rd69];
-	add.s64 	%rd31, %rd2, 128;
+	shl.b64 	%rd75, %rd4, 3;
+	add.s64 	%rd76, %rd3, %rd75;
+	ld.global.u64 	%rd77, [%rd76];
+	and.b64  	%rd78, %rd77, -4;
+	add.s64 	%rd79, %rd78, %rd2;
+	add.s64 	%rd30, %rd2, 128;
+	add.s64 	%rd31, %rd79, 128;
 
 BB10_17:
-	shl.b64 	%rd71, %rd86, 3;
-	add.s64 	%rd72, %rd3, %rd71;
-	ld.global.u64 	%rd33, [%rd72];
-	add.s64 	%rd73, %rd33, %rd2;
-	ld.global.u64 	%rd34, [%rd73+8];
-	mov.u64 	%rd88, 0;
+	shl.b64 	%rd80, %rd96, 3;
+	add.s64 	%rd81, %rd3, %rd80;
+	ld.global.u64 	%rd33, [%rd81];
+	and.b64  	%rd82, %rd33, -4;
+	add.s64 	%rd83, %rd82, %rd2;
+	ld.global.u64 	%rd34, [%rd83+8];
 	setp.lt.s64	%p14, %rd34, 1;
-	mov.u64 	%rd87, %rd31;
-	@%p14 bra 	BB10_19;
+	@%p14 bra 	BB10_20;
 
-BB10_18:
-	mov.u64 	%rd35, %rd87;
-	add.s64 	%rd74, %rd35, %rd33;
-	add.s64 	%rd75, %rd35, %rd30;
-	ld.global.u32 	%r12, [%rd75];
-	ld.global.u32 	%r13, [%rd74];
-	add.s32 	%r14, %r12, %r13;
-	st.global.u32 	[%rd75], %r14;
-	add.s64 	%rd37, %rd35, 4;
-	add.s64 	%rd88, %rd88, 1;
-	setp.lt.s64	%p15, %rd88, %rd34;
-	mov.u64 	%rd87, %rd37;
-	@%p15 bra 	BB10_18;
+	add.s64 	%rd98, %rd30, %rd82;
+	mov.u64 	%rd99, 0;
+	mov.u64 	%rd97, %rd31;
 
 BB10_19:
-	add.s64 	%rd86, %rd86, 16384;
-	setp.lt.s64	%p16, %rd86, %rd42;
-	@%p16 bra 	BB10_17;
+	mov.u64 	%rd36, %rd97;
+	ld.global.u32 	%r12, [%rd36];
+	ld.global.u32 	%r13, [%rd98];
+	add.s32 	%r14, %r12, %r13;
+	st.global.u32 	[%rd36], %r14;
+	add.s64 	%rd98, %rd98, 4;
+	add.s64 	%rd40, %rd36, 4;
+	add.s64 	%rd99, %rd99, 1;
+	setp.lt.s64	%p15, %rd99, %rd34;
+	mov.u64 	%rd97, %rd40;
+	@%p15 bra 	BB10_19;
 
 BB10_20:
+	add.s64 	%rd96, %rd96, 16384;
+	setp.lt.s64	%p16, %rd96, %rd45;
+	@%p16 bra 	BB10_17;
+
+BB10_21:
 	ret;
 }
 
-	// .globl	_Z12DataPointMapPKlPKiPKcPlPcl
-.visible .entry _Z12DataPointMapPKlPKiPKcPlPcl(
-	.param .u64 _Z12DataPointMapPKlPKiPKcPlPcl_param_0,
-	.param .u64 _Z12DataPointMapPKlPKiPKcPlPcl_param_1,
-	.param .u64 _Z12DataPointMapPKlPKiPKcPlPcl_param_2,
-	.param .u64 _Z12DataPointMapPKlPKiPKcPlPcl_param_3,
-	.param .u64 _Z12DataPointMapPKlPKiPKcPlPcl_param_4,
-	.param .u64 _Z12DataPointMapPKlPKiPKcPlPcl_param_5
+	// .globl	_Z14DataPointLRMapPKlPKiPKdPlPdlS4_
+.visible .entry _Z14DataPointLRMapPKlPKiPKdPlPdlS4_(
+	.param .u64 _Z14DataPointLRMapPKlPKiPKdPlPdlS4__param_0,
+	.param .u64 _Z14DataPointLRMapPKlPKiPKdPlPdlS4__param_1,
+	.param .u64 _Z14DataPointLRMapPKlPKiPKdPlPdlS4__param_2,
+	.param .u64 _Z14DataPointLRMapPKlPKiPKdPlPdlS4__param_3,
+	.param .u64 _Z14DataPointLRMapPKlPKiPKdPlPdlS4__param_4,
+	.param .u64 _Z14DataPointLRMapPKlPKiPKdPlPdlS4__param_5,
+	.param .u64 _Z14DataPointLRMapPKlPKiPKdPlPdlS4__param_6
 )
 {
 	.reg .pred 	%p<4>;
 	.reg .s32 	%r<4>;
-	.reg .f64 	%fd<2>;
-	.reg .s64 	%rd<32>;
+	.reg .f64 	%fd<4>;
+	.reg .s64 	%rd<43>;
 
 
-	ld.param.u64 	%rd12, [_Z12DataPointMapPKlPKiPKcPlPcl_param_0];
-	ld.param.u64 	%rd14, [_Z12DataPointMapPKlPKiPKcPlPcl_param_2];
-	ld.param.u64 	%rd13, [_Z12DataPointMapPKlPKiPKcPlPcl_param_3];
-	ld.param.u64 	%rd15, [_Z12DataPointMapPKlPKiPKcPlPcl_param_4];
-	ld.param.u64 	%rd16, [_Z12DataPointMapPKlPKiPKcPlPcl_param_5];
-	cvta.to.global.u64 	%rd1, %rd15;
-	cvta.to.global.u64 	%rd2, %rd14;
+	ld.param.u64 	%rd18, [_Z14DataPointLRMapPKlPKiPKdPlPdlS4__param_0];
+	ld.param.u64 	%rd19, [_Z14DataPointLRMapPKlPKiPKdPlPdlS4__param_2];
+	ld.param.u64 	%rd20, [_Z14DataPointLRMapPKlPKiPKdPlPdlS4__param_3];
+	ld.param.u64 	%rd21, [_Z14DataPointLRMapPKlPKiPKdPlPdlS4__param_4];
+	ld.param.u64 	%rd23, [_Z14DataPointLRMapPKlPKiPKdPlPdlS4__param_5];
+	ld.param.u64 	%rd22, [_Z14DataPointLRMapPKlPKiPKdPlPdlS4__param_6];
 	mov.u32 	%r1, %tid.x;
-	cvt.u64.u32	%rd17, %r1;
+	cvt.u64.u32	%rd24, %r1;
 	mov.u32 	%r2, %ctaid.x;
 	mov.u32 	%r3, %ntid.x;
-	mul.wide.u32 	%rd18, %r3, %r2;
-	add.s64 	%rd3, %rd18, %rd17;
-	setp.ge.s64	%p1, %rd3, %rd16;
+	mul.wide.u32 	%rd25, %r3, %r2;
+	add.s64 	%rd1, %rd25, %rd24;
+	setp.ge.s64	%p1, %rd1, %rd23;
 	@%p1 bra 	BB11_5;
 
-	cvta.to.global.u64 	%rd19, %rd12;
-	shl.b64 	%rd20, %rd3, 3;
-	add.s64 	%rd21, %rd19, %rd20;
-	ld.global.u64 	%rd4, [%rd21];
-	add.s64 	%rd22, %rd2, %rd4;
-	ld.global.u64 	%rd5, [%rd22];
-	ld.global.u64 	%rd6, [%rd22+8];
-	setp.lt.s64	%p2, %rd6, 1;
+	cvta.to.global.u64 	%rd2, %rd21;
+	cvta.to.global.u64 	%rd3, %rd19;
+	cvta.to.global.u64 	%rd26, %rd18;
+	shl.b64 	%rd27, %rd1, 3;
+	add.s64 	%rd28, %rd26, %rd27;
+	ld.global.u64 	%rd4, [%rd28];
+	shr.u64 	%rd5, %rd4, 3;
+	shl.b64 	%rd29, %rd5, 3;
+	add.s64 	%rd30, %rd3, %rd29;
+	ld.global.u64 	%rd6, [%rd30];
+	ld.global.u64 	%rd7, [%rd30+8];
+	setp.lt.s64	%p2, %rd7, 1;
 	@%p2 bra 	BB11_4;
 
-	add.s64 	%rd30, %rd4, 128;
-	mov.u64 	%rd31, 0;
+	cvta.to.global.u64 	%rd40, %rd22;
+	and.b64  	%rd32, %rd4, -8;
+	add.s64 	%rd41, %rd32, 128;
+	mov.u64 	%rd42, 0;
 
 BB11_3:
-	add.s64 	%rd24, %rd2, %rd30;
-	ld.global.f64 	%fd1, [%rd24];
-	add.s64 	%rd25, %rd1, %rd30;
-	st.global.f64 	[%rd25], %fd1;
-	add.s64 	%rd30, %rd30, 8;
-	add.s64 	%rd31, %rd31, 1;
-	setp.lt.s64	%p3, %rd31, %rd6;
+	add.s64 	%rd33, %rd3, %rd41;
+	ld.global.f64 	%fd1, [%rd40];
+	ld.global.f64 	%fd2, [%rd33];
+	add.f64 	%fd3, %fd2, %fd1;
+	add.s64 	%rd34, %rd2, %rd41;
+	st.global.f64 	[%rd34], %fd3;
+	add.s64 	%rd41, %rd41, 8;
+	add.s64 	%rd40, %rd40, 8;
+	add.s64 	%rd42, %rd42, 1;
+	setp.lt.s64	%p3, %rd42, %rd7;
 	@%p3 bra 	BB11_3;
 
 BB11_4:
-	cvta.to.global.u64 	%rd26, %rd13;
-	add.s64 	%rd27, %rd1, %rd4;
-	add.s64 	%rd29, %rd26, %rd20;
-	st.global.u64 	[%rd29], %rd4;
-	st.global.u64 	[%rd27], %rd5;
-	st.global.u64 	[%rd27+8], %rd6;
+	cvta.to.global.u64 	%rd35, %rd20;
+	add.s64 	%rd37, %rd2, %rd29;
+	add.s64 	%rd39, %rd35, %rd27;
+	st.global.u64 	[%rd39], %rd4;
+	st.global.u64 	[%rd37], %rd6;
+	st.global.u64 	[%rd37+8], %rd7;
 
 BB11_5:
+	ret;
+}
+
+	// .globl	_Z17DataPointLRReducePKlPKdPlPdlii
+.visible .entry _Z17DataPointLRReducePKlPKdPlPdlii(
+	.param .u64 _Z17DataPointLRReducePKlPKdPlPdlii_param_0,
+	.param .u64 _Z17DataPointLRReducePKlPKdPlPdlii_param_1,
+	.param .u64 _Z17DataPointLRReducePKlPKdPlPdlii_param_2,
+	.param .u64 _Z17DataPointLRReducePKlPKdPlPdlii_param_3,
+	.param .u64 _Z17DataPointLRReducePKlPKdPlPdlii_param_4,
+	.param .u32 _Z17DataPointLRReducePKlPKdPlPdlii_param_5,
+	.param .u32 _Z17DataPointLRReducePKlPKdPlPdlii_param_6
+)
+{
+	.reg .pred 	%p<17>;
+	.reg .s32 	%r<8>;
+	.reg .f64 	%fd<7>;
+	.reg .s64 	%rd<101>;
+
+
+	ld.param.u64 	%rd43, [_Z17DataPointLRReducePKlPKdPlPdlii_param_0];
+	ld.param.u64 	%rd46, [_Z17DataPointLRReducePKlPKdPlPdlii_param_1];
+	ld.param.u64 	%rd44, [_Z17DataPointLRReducePKlPKdPlPdlii_param_2];
+	ld.param.u64 	%rd47, [_Z17DataPointLRReducePKlPKdPlPdlii_param_3];
+	ld.param.u64 	%rd45, [_Z17DataPointLRReducePKlPKdPlPdlii_param_4];
+	ld.param.u32 	%r2, [_Z17DataPointLRReducePKlPKdPlPdlii_param_5];
+	cvta.to.global.u64 	%rd1, %rd47;
+	cvta.to.global.u64 	%rd2, %rd46;
+	cvta.to.global.u64 	%rd3, %rd43;
+	mov.u32 	%r3, %tid.x;
+	cvt.u64.u32	%rd48, %r3;
+	mov.u32 	%r4, %ctaid.x;
+	mov.u32 	%r1, %ntid.x;
+	mul.wide.u32 	%rd49, %r1, %r4;
+	add.s64 	%rd4, %rd49, %rd48;
+	setp.eq.s32	%p1, %r2, 0;
+	@%p1 bra 	BB12_12;
+
+	setp.ne.s64	%p2, %rd4, 0;
+	@%p2 bra 	BB12_21;
+
+	mov.u64 	%rd52, 16384;
+	min.s64 	%rd5, %rd45, %rd52;
+	ldu.global.u64 	%rd6, [%rd3];
+	mov.u64 	%rd51, 0;
+	mov.u64 	%rd95, %rd51;
+	setp.lt.s64	%p3, %rd5, 1;
+	mov.u64 	%rd96, %rd51;
+	@%p3 bra 	BB12_10;
+
+	and.b64  	%rd54, %rd6, -8;
+	add.s64 	%rd55, %rd54, %rd1;
+	add.s64 	%rd7, %rd55, 128;
+	add.s64 	%rd8, %rd2, 128;
+	mov.u64 	%rd53, 0;
+	mov.u64 	%rd9, %rd7;
+	mov.u64 	%rd87, %rd6;
+	mov.u64 	%rd91, %rd53;
+	bra.uni 	BB12_4;
+
+BB12_11:
+	shl.b64 	%rd67, %rd91, 3;
+	add.s64 	%rd68, %rd3, %rd67;
+	ld.global.u64 	%rd28, [%rd68];
+	mov.u64 	%rd87, %rd28;
+
+BB12_4:
+	mov.u64 	%rd10, %rd87;
+	and.b64  	%rd57, %rd10, -8;
+	add.s64 	%rd58, %rd2, %rd57;
+	ld.global.u64 	%rd12, [%rd58];
+	ld.global.u64 	%rd95, [%rd58+8];
+	setp.gt.s64	%p4, %rd95, 0;
+	setp.eq.s64	%p5, %rd91, 0;
+	and.pred  	%p6, %p5, %p4;
+	mov.u64 	%rd88, %rd7;
+	mov.u64 	%rd90, %rd53;
+	@!%p6 bra 	BB12_6;
+	bra.uni 	BB12_5;
+
+BB12_5:
+	mov.u64 	%rd15, %rd90;
+	mov.u64 	%rd14, %rd88;
+	st.global.u64 	[%rd14], %rd53;
+	add.s64 	%rd16, %rd14, 8;
+	add.s64 	%rd17, %rd15, 1;
+	setp.lt.s64	%p7, %rd17, %rd95;
+	mov.u64 	%rd88, %rd16;
+	mov.u64 	%rd90, %rd17;
+	@%p7 bra 	BB12_5;
+
+BB12_6:
+	setp.lt.s64	%p8, %rd95, 1;
+	@%p8 bra 	BB12_9;
+
+	add.s64 	%rd93, %rd8, %rd57;
+	mov.u64 	%rd94, 0;
+	mov.u64 	%rd92, %rd9;
+
+BB12_8:
+	mov.u64 	%rd19, %rd92;
+	ld.global.f64 	%fd1, [%rd19];
+	ld.global.f64 	%fd2, [%rd93];
+	add.f64 	%fd3, %fd2, %fd1;
+	st.global.f64 	[%rd19], %fd3;
+	add.s64 	%rd93, %rd93, 8;
+	add.s64 	%rd23, %rd19, 8;
+	add.s64 	%rd94, %rd94, 1;
+	setp.lt.s64	%p9, %rd94, %rd95;
+	mov.u64 	%rd92, %rd23;
+	@%p9 bra 	BB12_8;
+
+BB12_9:
+	add.s64 	%rd91, %rd91, 1;
+	setp.lt.s64	%p10, %rd91, %rd5;
+	mov.u64 	%rd96, %rd12;
+	@%p10 bra 	BB12_11;
+
+BB12_10:
+	mov.u64 	%rd27, %rd96;
+	and.b64  	%rd62, %rd6, -8;
+	add.s64 	%rd63, %rd1, %rd62;
+	cvta.to.global.u64 	%rd64, %rd44;
+	st.global.u64 	[%rd64], %rd51;
+	st.global.u64 	[%rd63], %rd27;
+	st.global.u64 	[%rd63+8], %rd95;
+	bra.uni 	BB12_21;
+
+BB12_12:
+	setp.ge.s64	%p11, %rd4, %rd45;
+	@%p11 bra 	BB12_21;
+
+	mov.u32 	%r5, %nctaid.x;
+	mul.lo.s32 	%r6, %r5, %r1;
+	setp.eq.s32	%p12, %r6, 16384;
+	@%p12 bra 	BB12_15;
+
+	mov.u64 	%rd69, $str;
+	cvta.global.u64 	%rd70, %rd69;
+	mov.u64 	%rd71, $str1;
+	cvta.global.u64 	%rd72, %rd71;
+	mov.u64 	%rd73, __T22;
+	cvta.global.u64 	%rd74, %rd73;
+	mov.u32 	%r7, 227;
+	mov.u64 	%rd75, 1;
+	// Callseq Start 2
+	{
+	.reg .b32 temp_param_reg;
+	// <end>}
+	.param .b64 param0;
+	st.param.b64	[param0+0], %rd70;
+	.param .b64 param1;
+	st.param.b64	[param1+0], %rd72;
+	.param .b32 param2;
+	st.param.b32	[param2+0], %r7;
+	.param .b64 param3;
+	st.param.b64	[param3+0], %rd74;
+	.param .b64 param4;
+	st.param.b64	[param4+0], %rd75;
+	call.uni 
+	__assertfail, 
+	(
+	param0, 
+	param1, 
+	param2, 
+	param3, 
+	param4
+	);
+	
+	//{
+	}// Callseq End 2
+
+BB12_15:
+	add.s64 	%rd97, %rd4, 16384;
+	setp.ge.s64	%p13, %rd97, %rd45;
+	@%p13 bra 	BB12_21;
+
+	shl.b64 	%rd76, %rd4, 3;
+	add.s64 	%rd77, %rd3, %rd76;
+	ld.global.u64 	%rd78, [%rd77];
+	and.b64  	%rd79, %rd78, -8;
+	add.s64 	%rd80, %rd79, %rd2;
+	add.s64 	%rd30, %rd2, 128;
+	add.s64 	%rd31, %rd80, 128;
+
+BB12_17:
+	shl.b64 	%rd81, %rd97, 3;
+	add.s64 	%rd82, %rd3, %rd81;
+	ld.global.u64 	%rd33, [%rd82];
+	and.b64  	%rd83, %rd33, -8;
+	add.s64 	%rd84, %rd83, %rd2;
+	ld.global.u64 	%rd34, [%rd84+8];
+	setp.lt.s64	%p14, %rd34, 1;
+	@%p14 bra 	BB12_20;
+
+	add.s64 	%rd99, %rd30, %rd83;
+	mov.u64 	%rd100, 0;
+	mov.u64 	%rd98, %rd31;
+
+BB12_19:
+	mov.u64 	%rd36, %rd98;
+	ld.global.f64 	%fd4, [%rd36];
+	ld.global.f64 	%fd5, [%rd99];
+	add.f64 	%fd6, %fd5, %fd4;
+	st.global.f64 	[%rd36], %fd6;
+	add.s64 	%rd99, %rd99, 8;
+	add.s64 	%rd40, %rd36, 8;
+	add.s64 	%rd100, %rd100, 1;
+	setp.lt.s64	%p15, %rd100, %rd34;
+	mov.u64 	%rd98, %rd40;
+	@%p15 bra 	BB12_19;
+
+BB12_20:
+	add.s64 	%rd97, %rd97, 16384;
+	setp.lt.s64	%p16, %rd97, %rd45;
+	@%p16 bra 	BB12_17;
+
+BB12_21:
 	ret;
 }
 

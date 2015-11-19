@@ -76,7 +76,7 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
     if (manager.deviceCount > 0) {
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val function = new CUDAFunction(
-        "_Z16intArrayIdentityPKlPKcPlPcl",
+        "_Z16intArrayIdentityPKlPKiPlPil",
         Array("this"),
         Array("this"),
         ptxURL)
@@ -103,7 +103,7 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
     if (manager.deviceCount > 0) {
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val function = new CUDAFunction(
-        "_Z20IntDataPointIdentityPKlPKiPKcPlPiPcl",
+        "_Z20IntDataPointIdentityPKlPKiS2_PlPiS4_l",
         Array("this.x", "this.y"),
         Array("this.x", "this.y"),
         ptxURL)
@@ -135,7 +135,7 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
     if (manager.deviceCount > 0) {
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val function = new CUDAFunction(
-        "_Z11intArrayAddPKlPKcPlPclPKi",
+        "_Z11intArrayAddPKlPKiPlPilS2_",
         Array("this"),
         Array("this"),
         ptxURL)
@@ -561,7 +561,7 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
     if (manager.deviceCount > 0) {
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val mapFunction = new CUDAFunction(
-        "_Z16intArrayIdentityPKlPKcPlPcl",
+        "_Z16intArrayIdentityPKlPKiPlPil",
         Array("this"),
         Array("this"),
         ptxURL)
@@ -585,7 +585,7 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
     if (manager.deviceCount > 0) {
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val mapFunction = new CUDAFunction(
-        "_Z11intArrayAddPKlPKcPlPclPKi",
+        "_Z11intArrayAddPKlPKiPlPilS2_",
         Array("this"),
         Array("this"),
         ptxURL)
@@ -595,15 +595,7 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
       val output = sc.parallelize(dataset, 1)
         .convert(ColumnFormat)
         .mapExtFunc((x: Array[Int]) => {
-                      //(0 until x.length).map(i => x(i) + v(i))
-                      val length = x.length
-                      val r = new Array[Int](length)
-                      var i = 0
-                      while (i < length) {
-                        r(i) = x(i) + v(i)
-                        i = i + 1
-                      }
-                      r 
+                      (0 until x.length).map(i => x(i) + v(i)).toArray
                     }, mapFunction, outputArraySizes = Array(n),
                     inputFreeVariables = Array(v))
         .collect()
@@ -615,7 +607,6 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
     }
   }
 
-
   test("Run reduce on rdd with a single primitive array column", GPUTest) {
     sc = new SparkContext("local", "test", conf)
     val manager = new CUDAManager
@@ -626,7 +617,7 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
         case 1 => (1, 1)
       }
       val reduceFunction = new CUDAFunction(
-        "_Z11intArraySumPKlPKcPlPclii",
+        "_Z11intArraySumPKlPKiPlPilii",
         Array("this"),
         Array("this"),
         ptxURL,
@@ -639,15 +630,7 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
       val output = sc.parallelize(dataset, 1)
         .convert(ColumnFormat)
         .reduceExtFunc((x: Array[Int], y: Array[Int]) => {
-                         //(0 until x.length).map(i => x(i) + y(i)) 
-                         val length = x.length
-                         val r = new Array[Int](length)
-                         var i = 0
-                         while (i < length) {
-                           r(i) = x(i) + y(i)
-                           i = i + 1
-                         }
-                         r 
+                         (0 until x.length).map(i => x(i) + y(i)).toArray
                        }, reduceFunction, outputArraySizes = Array(n))
       assert(output.toIndexedSeq.sameElements((n to 2*n-1).map(_ * 2)))
     } else {
@@ -655,29 +638,45 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
     }
   }
 
-/*
   test("Run map & reduce on a single primitive array in a structure", GPUTest) {
     sc = new SparkContext("local", "test", conf)
     val manager = new CUDAManager
     if (manager.deviceCount > 0) {
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val mapFunction = new CUDAFunction(
-        "_Z12DataPointMapPKlPKiPKcPlPcl",
+        "_Z14DataPointLRMapPKlPKiPKdPlPdlS4_",
         Array("this.x", "this.y"),
         Array("this"),
         ptxURL)
+      val dimensions = (size: Long, stage: Int) => stage match {
+        case 0 => (64, 256)
+        case 1 => (1, 1)
+      }
+      val reduceFunction = new CUDAFunction(
+        "_Z17DataPointLRReducePKlPKdPlPdlii",
+        Array("this"),
+        Array("this"),
+        ptxURL,
+        Seq(),
+        Some((size: Long) => 2),
+        Some(dimensions))
       val n = 5
+      val w = Array.fill(n)(2.0)
       val dataset = List(DataPoint(Array(  1.0,   2.0,   3.0,   4.0,   5.0), -1),
                          DataPoint(Array( -5.0,  -4.0,  -3.0,  -2.0,  -1.0),  1))
-      val input = sc.parallelize(dataset, 2).convert(ColumnFormat).cache()
-      val output = input.mapExtFunc(p => p.x, mapFunction)
-                        .collect()
-      assert(output.sameElements((1 to n).map((x: Int) => if (x <= 5) x * 1.0 else (11 - x) * -1.0)))
+      val input = sc.parallelize(dataset, 2).convert(ColumnFormat)/*.cache()*/
+      val output = input.mapExtFunc((p: DataPoint) => (0 until p.x.length).map(i => p.x(i) + w(i)).toArray,
+                                    mapFunction, outputArraySizes = Array(n),
+                                    inputFreeVariables = Array(w))
+                        .reduceExtFunc((x: Array[Double], y: Array[Double]) => {
+                                         (0 until x.length).map(i => x(i) + y(i)).toArray
+                                       }, reduceFunction, outputArraySizes = Array(n))
+      assert(output.sameElements((0 to 4).map((x: Int) => x * 2.0)))
     } else {
       info("No CUDA devices, so skipping the test.")
     }
   }
-*/
+
   // TODO check other formats - cubin and fatbin
   // TODO make the test somehow work on multiple platforms, preferably without recompilation
 
