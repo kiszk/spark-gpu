@@ -525,6 +525,68 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
     }
   }
 
+  test("Run map on rdd with a single primitive array column", GPUTest) {
+    sc = new SparkContext("local", "test", conf)
+    val manager = new CUDAManager
+    if (manager.deviceCount > 0) {
+      val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
+      val mapFunction = new CUDAFunction(
+        "_Z16intArrayIdentityPKlPKcPlPcl",
+        Array("this"),
+        Array("this"),
+        ptxURL)
+      val n = 16
+      val dataset = List(Array.range(0, n), Array.range(-(n-1), 1))
+      val output = sc.parallelize(dataset, 1)
+        .convert(ColumnFormat)
+        .mapExtFunc((x: Array[Int]) => x, mapFunction, outputArraySizes = Array(n))
+        .collect()
+      val outputItr = output.iterator
+      assert(outputItr.next.toIndexedSeq.sameElements(0 to n-1))
+      assert(outputItr.next.toIndexedSeq.sameElements(-(n-1) to 0))
+    } else {
+      info("No CUDA devices, so skipping the test.")
+    }
+  }
+
+  test("Run reduce on rdd with a single primitive array column", GPUTest) {
+    sc = new SparkContext("local", "test", conf)
+    val manager = new CUDAManager
+    if (manager.deviceCount > 0) {
+      val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
+      val dimensions = (size: Long, stage: Int) => stage match {
+        case 0 => (64, 256)
+        case 1 => (1, 1)
+      }
+      val reduceFunction = new CUDAFunction(
+        "_Z11intArraySumPKlPKcPlPclii",
+        Array("this"),
+        Array("this"),
+        ptxURL,
+        Seq(),
+        Some((size: Long) => 2),
+        Some(dimensions))
+
+      val n = 8
+      val dataset = List(Array.range(0, n), Array.range(2*n, 3*n))
+      val output = sc.parallelize(dataset, 1)
+        .convert(ColumnFormat)
+        .reduceExtFunc((x: Array[Int], y: Array[Int]) => {
+                         val length = x.length
+                         val r = new Array[Int](length)
+                         var i = 0
+                         while (i < length) {
+                           r(i) = x(i) + y(i)
+                           i = i + 1
+                         }
+                         r 
+                       }, reduceFunction, outputArraySizes = Array(n))
+      assert(output.toIndexedSeq.sameElements((n to 2*n-1).map(_ * 2)))
+    } else {
+      info("No CUDA devices, so skipping the test.")
+    }
+  }
+
   // TODO check other formats - cubin and fatbin
   // TODO make the test somehow work on multiple platforms, preferably without recompilation
 

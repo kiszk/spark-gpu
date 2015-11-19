@@ -109,17 +109,89 @@ __global__ void sum(int *input, int *output, long size, int stage, int totalStag
     const long ix = threadIdx.x + blockIdx.x * (long)blockDim.x;
     const int jump = 64 * 256;
     if (stage == 0) {
-        assert(jump == blockDim.x * gridDim.x);
-        int result = 0;
-        for (long i = ix; i < size; i += jump) {
-            result += input[i];
-        }
-        input[ix] = result;
+        if (ix < size) {
+            assert(jump == blockDim.x * gridDim.x);
+            int result = 0;
+            for (long i = ix; i < size; i += jump) {
+                result += input[i];
+            }
+            input[ix] = result;
+        } 
     } else if (ix == 0) {
+        const long count = (size < (long)jump) ? size : (long)jump;
         int result = 0;
-        for (long i = 0; i < jump; ++i) {
+        for (long i = 0; i < count; ++i) {
             result += input[i];
         }
         output[0] = result;
+    }
+}
+
+// test reduce kernel that sums elements
+__global__ void intArraySum(const long *input, const char *inputBlob, long *output, char *outputBlob, long size, int stage, int totalStages) {
+    const long ix = threadIdx.x + blockIdx.x * (long)blockDim.x;
+    const int jump = 64 * 256;
+    if (stage == 0) {
+        if (ix < size) {
+            assert(jump == blockDim.x * gridDim.x);
+            const char *accArray = GET_BLOB_ADDRESS(inputBlob, input[ix]);
+            int *accArrayBody = (int *)GET_ARRAY_BODY(accArray);
+            for (long i = ix + jump; i < size; i += jump) {
+                long offset = input[i];
+                const char *inArray = GET_BLOB_ADDRESS(inputBlob, offset);
+                const long length   = GET_ARRAY_LENGTH(inArray);
+                const int *inArrayBody = (int *)GET_ARRAY_BODY(inArray);
+
+                for (long j = 0; j < length; j++) {
+                     accArrayBody[j] += inArrayBody[j];
+                }
+            }
+        }
+    } else if (ix == 0) {
+        const long count = (size < (long)jump) ? size : (long)jump;
+        const char *outArray = GET_BLOB_ADDRESS(outputBlob, input[ix]);
+        int *outArrayBody = (int *)GET_ARRAY_BODY(outArray);
+        long capacity = 0, length = 0;
+        for (long i = 0; i < count; i++) { 
+            const long offset = input[i];
+            const char *inArray = GET_BLOB_ADDRESS(inputBlob, offset);
+            capacity = GET_ARRAY_CAPACITY(inArray);
+            length   = GET_ARRAY_LENGTH(inArray);
+            const int *inArrayBody = (int *)GET_ARRAY_BODY(inArray);
+
+            if (i == 0) {
+                for (long j = 0; j < length; j++) {
+                    outArrayBody[j] = 0;
+                }
+            } 
+            for (long j = 0; j < length; j++) {
+                outArrayBody[j] += inArrayBody[j];
+            }
+        } 
+        output[ix] = 0;
+        SET_ARRAY_CAPACITY(outArray, capacity);
+        SET_ARRAY_LENGTH(outArray, length);
+   } 
+}
+
+// map for DataPoint class
+__global__ void DataPointMap(const long *inputX, const int *inputY, const char *inputBlob, long *output, char *outputBlob, long size) {
+    const long ix = threadIdx.x + blockIdx.x * (long)blockDim.x;
+    if (ix < size) {
+        // copy int array
+        long offset = inputX[ix];
+        const char *inArray = GET_BLOB_ADDRESS(inputBlob, offset);
+        const long capacity = GET_ARRAY_CAPACITY(inArray);
+        const long length   = GET_ARRAY_LENGTH(inArray);
+        const double *inArrayBody = (double *)GET_ARRAY_BODY(inArray);
+
+        char *outArray = GET_BLOB_ADDRESS(outputBlob, offset);
+        double *outArrayBody = (double *)GET_ARRAY_BODY(outArray);
+        for (long i = 0; i < length; i++) {
+          outArrayBody[i] = inArrayBody[i];
+        }
+        output[ix] = offset;
+        SET_ARRAY_CAPACITY(outArray, capacity);
+        SET_ARRAY_LENGTH(outArray, length);
     }
 }
