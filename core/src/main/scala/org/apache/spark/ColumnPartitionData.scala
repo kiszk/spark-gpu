@@ -469,7 +469,7 @@ class ColumnPartitionData[T](
         val blobOffset = buf.getLong().toInt
         val byteBuffer = blobBuffers(0)
 
-        val length = byteBuffer.getLong(blobOffset).toInt
+        val length = byteBuffer.getLong(blobOffset + 8).toInt
         var i = 0
         val array = new Array[Double](length)
         val elementSize = 8
