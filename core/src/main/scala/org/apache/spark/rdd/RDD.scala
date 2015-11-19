@@ -349,10 +349,12 @@ abstract class RDD[T: ClassTag](
    * external function for column-based partitions.
    */
   def mapExtFunc[U: ClassTag](f: T => U, extfunc: ExternalFunction,
-                              outputArraySizes: Seq[Long] = null): RDD[U] = withScope {
+                              outputArraySizes: Seq[Long] = null,
+                              inputFreeVariables: Seq[Any] = null): RDD[U] = withScope {
     val cleanF = sc.clean(f)
     new MapPartitionsRDD[U, T](this, (context, pid, iter) => iter.map(cleanF),
-      extfunc = Some(extfunc), outputArraySizes = outputArraySizes)
+      extfunc = Some(extfunc), outputArraySizes = outputArraySizes,
+                               inputFreeVariables = inputFreeVariables)
   }
 
   /**
@@ -1051,7 +1053,8 @@ abstract class RDD[T: ClassTag](
    * on column-based partitions.
    */
   def reduceExtFunc(f: (T, T) => T, extfunc: ExternalFunction,
-                    outputArraySizes: Seq[Long] = null): T = withScope {
+                    outputArraySizes: Seq[Long] = null,
+                    inputFreeVariables: Seq[Any] = null): T = withScope {
     val cleanF = sc.clean(f)
     val reducePartition: (TaskContext, PartitionData[T]) => Option[T] =
       (ctx: TaskContext, data: PartitionData[T]) => data match {
@@ -1064,7 +1067,8 @@ abstract class RDD[T: ClassTag](
 
         case col: ColumnPartitionData[T] =>
           if (col.size != 0) {
-            Some(extfunc.run[T, T](col, Some(1), outputArraySizes).iterator.next)
+            Some(extfunc.run[T, T](col, Some(1), outputArraySizes,
+                                   inputFreeVariables).iterator.next)
           } else {
             None
           }

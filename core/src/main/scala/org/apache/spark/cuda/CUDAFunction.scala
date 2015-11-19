@@ -81,7 +81,8 @@ class CUDAFunction(
    */
   private[spark] def run[T, U: ClassTag](in: ColumnPartitionData[T],
       outputSize: Option[Long] = None,
-      outputArraySizes: Seq[Long] = null): ColumnPartitionData[U] = {
+      outputArraySizes: Seq[Long] = null,
+      inputFreeVariables: Seq[Any] = null): ColumnPartitionData[U] = {
     val outputSchema = ColumnPartitionSchema.schemaFor[U]
 
     // TODO add array size
@@ -113,6 +114,7 @@ class CUDAFunction(
       var gpuOutputPtrs = Vector[Pointer]()
       var gpuInputBlobs = Vector[Pointer]()
       var gpuOutputBlobs = Vector[Pointer]()
+      var cpuInputFreeVars = Vector[(Pointer, Int)]()
       Utils.tryWithSafeFinally {
         val inColumns = in.schema.orderedColumns(inputColumnsOrder)
         for (col <- inColumns) {
@@ -133,6 +135,48 @@ class CUDAFunction(
             SparkEnv.get.cudaManager.allocGPUMemory(col.memoryUsage(out.size))
         }
 
+	val inputFreeVarPtrs = if (inputFreeVariables == null) { Seq() } else { 
+          inputFreeVariables.map {
+            case v: Byte => Pointer.to(Array(v))
+            case v: Char => Pointer.to(Array(v))
+            case v: Short => Pointer.to(Array(v))
+            case v: Int => Pointer.to(Array(v))
+            case v: Long => Pointer.to(Array(v))
+            case v: Float => Pointer.to(Array(v))
+            case v: Double => Pointer.to(Array(v))
+            case v: Array[Byte] =>
+              val len = v.length
+              cpuInputFreeVars = cpuInputFreeVars :+ (Pointer.to(v), len)
+              SparkEnv.get.cudaManager.allocGPUMemory(len)
+            case v: Array[Char] =>
+              val len = v.length * 2
+              cpuInputFreeVars = cpuInputFreeVars :+ (Pointer.to(v), len)
+              SparkEnv.get.cudaManager.allocGPUMemory(len)
+            case v: Array[Short] => 
+              val len = v.length * 2
+              cpuInputFreeVars = cpuInputFreeVars :+ (Pointer.to(v), len)
+              SparkEnv.get.cudaManager.allocGPUMemory(len)
+            case v: Array[Int] =>
+              val len = v.length * 4
+              cpuInputFreeVars = cpuInputFreeVars :+ (Pointer.to(v), len)
+              SparkEnv.get.cudaManager.allocGPUMemory(len)
+            case v: Array[Long] =>
+              val len = v.length * 8
+              cpuInputFreeVars = cpuInputFreeVars :+ (Pointer.to(v), len)
+              SparkEnv.get.cudaManager.allocGPUMemory(len)
+            case v: Array[Float] =>
+              val len = v.length * 4
+              cpuInputFreeVars = cpuInputFreeVars :+ (Pointer.to(v), len)
+              SparkEnv.get.cudaManager.allocGPUMemory(len)
+            case v: Array[Double] =>
+              val len = v.length * 8
+              cpuInputFreeVars = cpuInputFreeVars :+ (Pointer.to(v), len)
+              SparkEnv.get.cudaManager.allocGPUMemory(len)
+            case _ => throw new SparkException("Unsupported type passed to kernel as a free variable "
+            + "argument")
+          }
+        }
+
         // TODO support more than one blobs
 	val outBlobs = if (out.blobs != null) {out.blobs} else {Array[Pointer]()}
 	val outBlobBuffers = if (out.blobBuffers != null) {out.blobBuffers} else {Array[ByteBuffer]()}
@@ -149,6 +193,11 @@ class CUDAFunction(
 
         for ((cpuPtr, gpuPtr, blob) <- (inBlobs, gpuInputBlobs, inBlobBuffers).zipped) {
           JCuda.cudaMemcpyAsync(gpuPtr, cpuPtr, blob.capacity(),
+            cudaMemcpyKind.cudaMemcpyHostToDevice, stream)
+        }
+
+        for (((cpuPtr, size), gpuPtr) <- (cpuInputFreeVars zip inputFreeVarPtrs)) {
+          JCuda.cudaMemcpyAsync(gpuPtr, cpuPtr, size,
             cudaMemcpyKind.cudaMemcpyHostToDevice, stream)
         }
 
@@ -172,7 +221,9 @@ class CUDAFunction(
         stagesCount match {
           // normal launch, no stages, suitable for map
           case None =>
-            val params = gpuPtrParams ++ sizeParam ++ constArgParams
+            val params = gpuPtrParams ++ sizeParam ++
+                           inputFreeVarPtrs.map(Pointer.to(_)) ++
+                           constArgParams
             val kernelParameters = Pointer.to(params: _*)
 
             val (gpuGridSize, gpuBlockSize) = dimensions match {
@@ -197,7 +248,9 @@ class CUDAFunction(
             (0 to totalStages - 1).foreach { stageNumber =>
               val stageParams =
                 List(Pointer.to(Array[Int](stageNumber)), Pointer.to(Array[Int](totalStages)))
-              val params = gpuPtrParams ++ sizeParam ++ constArgParams ++ stageParams
+              val params = gpuPtrParams ++ sizeParam ++
+                             inputFreeVarPtrs.map(Pointer.to(_)) ++
+                             constArgParams ++ stageParams
               val kernelParameters = Pointer.to(params: _*)
 
               val (gpuGridSize, gpuBlockSize) = dimensions match {
@@ -254,5 +307,4 @@ class CUDAFunction(
         throw ex
     }
   }
-
 }
