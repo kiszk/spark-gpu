@@ -1,7 +1,7 @@
-#define	GET_BLOB_ADDRESS(ptr, offset)	(&(((char *)(ptr))[(offset)]))
+#define	GET_BLOB_ADDRESS(ptr, offset)	(&((ptr)[(offset)/sizeof((ptr)[0])]))
 #define	GET_ARRAY_CAPACITY(ptr)		(((long *)(ptr))[0])
 #define	GET_ARRAY_LENGTH(ptr)		(((long *)(ptr))[1])
-#define	GET_ARRAY_BODY(ptr)		(&(((char *)(ptr))[128]))
+#define	GET_ARRAY_BODY(ptr)		(&((ptr)[128/sizeof((ptr)[0])]))
 #define	SET_ARRAY_CAPACITY(ptr, val)	{ (((long *)(ptr))[0]) = (val); }
 #define	SET_ARRAY_LENGTH(ptr, val)	{ (((long *)(ptr))[1]) = (val); }
 
@@ -14,18 +14,18 @@ __global__ void identity(const int *input, int *output, long size) {
 }
 
 // very simple test kernel for int array
-__global__ void intArrayIdentity(const long *input, const char *inputBlob, long *output, char *outputBlob, long size) {
+__global__ void intArrayIdentity(const long *input, const int *inputBlob, long *output, int *outputBlob, long size) {
     const long ix = threadIdx.x + blockIdx.x * (long)blockDim.x;
     if (ix < size) {
         // copy int array
         long offset = input[ix];
-        const char *inArray = GET_BLOB_ADDRESS(inputBlob, offset);
+        const int *inArray = GET_BLOB_ADDRESS(inputBlob, offset);
         const long capacity = GET_ARRAY_CAPACITY(inArray);
         const long length   = GET_ARRAY_LENGTH(inArray);
-        const int *inArrayBody = (int *)GET_ARRAY_BODY(inArray);
+        const int *inArrayBody = GET_ARRAY_BODY(inArray);
 
-        char *outArray = GET_BLOB_ADDRESS(outputBlob, offset);
-        int *outArrayBody = (int *)GET_ARRAY_BODY(outArray);
+        int *outArray = GET_BLOB_ADDRESS(outputBlob, offset);
+        int *outArrayBody = GET_ARRAY_BODY(outArray);
         for (long i = 0; i < length; i++) {
           outArrayBody[i] = inArrayBody[i];
         }
@@ -36,18 +36,18 @@ __global__ void intArrayIdentity(const long *input, const char *inputBlob, long 
 }
 
 // very simple test kernel for IntDataPoint class
-__global__ void IntDataPointIdentity(const long *inputX, const int *inputY, const char *inputBlob, long *outputX, int *outputY, char *outputBlob, long size) {
+__global__ void IntDataPointIdentity(const long *inputX, const int *inputY, const int *inputBlob, long *outputX, int *outputY, int *outputBlob, long size) {
     const long ix = threadIdx.x + blockIdx.x * (long)blockDim.x;
     if (ix < size) {
         // copy int array
         long offset = inputX[ix];
-        const char *inArray = GET_BLOB_ADDRESS(inputBlob, offset);
+        const int *inArray = GET_BLOB_ADDRESS(inputBlob, offset);
         const long capacity = GET_ARRAY_CAPACITY(inArray);
         const long length   = GET_ARRAY_LENGTH(inArray);
-        const int *inArrayBody = (int *)GET_ARRAY_BODY(inArray);
+        const int *inArrayBody = GET_ARRAY_BODY(inArray);
 
-        char *outArray = GET_BLOB_ADDRESS(outputBlob, offset);
-        int *outArrayBody = (int *)GET_ARRAY_BODY(outArray);
+        int *outArray = GET_BLOB_ADDRESS(outputBlob, offset);
+        int *outArrayBody = GET_ARRAY_BODY(outArray);
         for (long i = 0; i < length; i++) {
           outArrayBody[i] = inArrayBody[i];
         }
@@ -61,18 +61,18 @@ __global__ void IntDataPointIdentity(const long *inputX, const int *inputY, cons
 }
 
 // very simple test kernel for int array with free var
-__global__ void intArrayAdd(const long *input, const char *inputBlob, long *output, char *outputBlob, long size, const int *inFreeArray) {
+__global__ void intArrayAdd(const long *input, const int *inputBlob, long *output, int *outputBlob, long size, const int *inFreeArray) {
     const long ix = threadIdx.x + blockIdx.x * (long)blockDim.x;
     if (ix < size) {
         // copy int array
         long offset = input[ix];
-        const char *inArray = GET_BLOB_ADDRESS(inputBlob, offset);
+        const int *inArray = GET_BLOB_ADDRESS(inputBlob, offset);
         const long capacity = GET_ARRAY_CAPACITY(inArray);
         const long length   = GET_ARRAY_LENGTH(inArray);
-        const int *inArrayBody = (int *)GET_ARRAY_BODY(inArray);
+        const int *inArrayBody = GET_ARRAY_BODY(inArray);
 
-        char *outArray = GET_BLOB_ADDRESS(outputBlob, offset);
-        int *outArrayBody = (int *)GET_ARRAY_BODY(outArray);
+        int *outArray = GET_BLOB_ADDRESS(outputBlob, offset);
+        int *outArrayBody = GET_ARRAY_BODY(outArray);
         for (long i = 0; i < length; i++) {
           outArrayBody[i] = inArrayBody[i] + inFreeArray[i];
         }
@@ -150,19 +150,19 @@ __global__ void sum(int *input, int *output, long size, int stage, int totalStag
 }
 
 // test reduce kernel that sums elements
-__global__ void intArraySum(const long *input, const char *inputBlob, long *output, char *outputBlob, long size, int stage, int totalStages) {
+__global__ void intArraySum(const long *input, const int *inputBlob, long *output, int *outputBlob, long size, int stage, int totalStages) {
     const long ix = threadIdx.x + blockIdx.x * (long)blockDim.x;
     const int jump = 64 * 256;
     if (stage == 0) {
         if (ix < size) {
             assert(jump == blockDim.x * gridDim.x);
-            const char *accArray = GET_BLOB_ADDRESS(inputBlob, input[ix]);
-            int *accArrayBody = (int *)GET_ARRAY_BODY(accArray);
+            const int *accArray = GET_BLOB_ADDRESS(inputBlob, input[ix]);
+            int *accArrayBody = const_cast<int *>GET_ARRAY_BODY(accArray);
             for (long i = ix + jump; i < size; i += jump) {
                 long offset = input[i];
-                const char *inArray = GET_BLOB_ADDRESS(inputBlob, offset);
-                const long length   = GET_ARRAY_LENGTH(inArray);
-                const int *inArrayBody = (int *)GET_ARRAY_BODY(inArray);
+                const int *inArray = GET_BLOB_ADDRESS(inputBlob, offset);
+                const long length = GET_ARRAY_LENGTH(inArray);
+                const int *inArrayBody = GET_ARRAY_BODY(inArray);
 
                 for (long j = 0; j < length; j++) {
                      accArrayBody[j] += inArrayBody[j];
@@ -171,15 +171,15 @@ __global__ void intArraySum(const long *input, const char *inputBlob, long *outp
         }
     } else if (ix == 0) {
         const long count = (size < (long)jump) ? size : (long)jump;
-        const char *outArray = GET_BLOB_ADDRESS(outputBlob, input[ix]);
-        int *outArrayBody = (int *)GET_ARRAY_BODY(outArray);
+        int *outArray = GET_BLOB_ADDRESS(outputBlob, input[ix]);
+        int *outArrayBody = GET_ARRAY_BODY(outArray);
         long capacity = 0, length = 0;
         for (long i = 0; i < count; i++) { 
             const long offset = input[i];
-            const char *inArray = GET_BLOB_ADDRESS(inputBlob, offset);
+            const int *inArray = GET_BLOB_ADDRESS(inputBlob, offset);
             capacity = GET_ARRAY_CAPACITY(inArray);
             length   = GET_ARRAY_LENGTH(inArray);
-            const int *inArrayBody = (int *)GET_ARRAY_BODY(inArray);
+            const int *inArrayBody = GET_ARRAY_BODY(inArray);
 
             if (i == 0) {
                 for (long j = 0; j < length; j++) {
@@ -197,23 +197,71 @@ __global__ void intArraySum(const long *input, const char *inputBlob, long *outp
 }
 
 // map for DataPoint class
-__global__ void DataPointMap(const long *inputX, const int *inputY, const char *inputBlob, long *output, char *outputBlob, long size) {
+__global__ void DataPointLRMap(const long *inputX, const int *inputY, const double *inputBlob, long *output, double *outputBlob, long size, const double *inFreeArray) {
     const long ix = threadIdx.x + blockIdx.x * (long)blockDim.x;
     if (ix < size) {
         // copy int array
         long offset = inputX[ix];
-        const char *inArray = GET_BLOB_ADDRESS(inputBlob, offset);
+        const double *inArray = GET_BLOB_ADDRESS(inputBlob, offset);
         const long capacity = GET_ARRAY_CAPACITY(inArray);
         const long length   = GET_ARRAY_LENGTH(inArray);
-        const double *inArrayBody = (double *)GET_ARRAY_BODY(inArray);
+        const double *inArrayBody = GET_ARRAY_BODY(inArray);
 
-        char *outArray = GET_BLOB_ADDRESS(outputBlob, offset);
-        double *outArrayBody = (double *)GET_ARRAY_BODY(outArray);
+        double *outArray = GET_BLOB_ADDRESS(outputBlob, offset);
+        double *outArrayBody = GET_ARRAY_BODY(outArray);
         for (long i = 0; i < length; i++) {
-          outArrayBody[i] = inArrayBody[i];
+          outArrayBody[i] = inArrayBody[i] + inFreeArray[i];
         }
         output[ix] = offset;
         SET_ARRAY_CAPACITY(outArray, capacity);
         SET_ARRAY_LENGTH(outArray, length);
     }
 }
+
+// reduce for DataPoint class
+__global__ void DataPointLRReduce(const long *input, const double *inputBlob, long *output, double *outputBlob, long size, int stage, int totalStages) {
+    const long ix = threadIdx.x + blockIdx.x * (long)blockDim.x;
+    const int jump = 64 * 256;
+    if (stage == 0) {
+        if (ix < size) {
+            assert(jump == blockDim.x * gridDim.x);
+            const double *accArray = GET_BLOB_ADDRESS(inputBlob, input[ix]);
+            double *accArrayBody = const_cast<double *>GET_ARRAY_BODY(accArray);
+            for (long i = ix + jump; i < size; i += jump) {
+                long offset = input[i];
+                const double *inArray = GET_BLOB_ADDRESS(inputBlob, offset);
+                const long length   = GET_ARRAY_LENGTH(inArray);
+                const double *inArrayBody = GET_ARRAY_BODY(inArray);
+
+                for (long j = 0; j < length; j++) {
+                     accArrayBody[j] += inArrayBody[j];
+                }
+            }
+        }
+    } else if (ix == 0) {
+        const long count = (size < (long)jump) ? size : (long)jump;
+        double *outArray = GET_BLOB_ADDRESS(outputBlob, input[ix]);
+        double *outArrayBody = GET_ARRAY_BODY(outArray);
+        long capacity = 0, length = 0;
+        for (long i = 0; i < count; i++) { 
+            const long offset = input[i];
+            const double *inArray = GET_BLOB_ADDRESS(inputBlob, offset);
+            capacity = GET_ARRAY_CAPACITY(inArray);
+            length   = GET_ARRAY_LENGTH(inArray);
+            const double *inArrayBody = GET_ARRAY_BODY(inArray);
+
+            if (i == 0) {
+                for (long j = 0; j < length; j++) {
+                    outArrayBody[j] = 0;
+                }
+            } 
+            for (long j = 0; j < length; j++) {
+                outArrayBody[j] += inArrayBody[j];
+            }
+        } 
+        output[ix] = 0;
+        SET_ARRAY_CAPACITY(outArray, capacity);
+        SET_ARRAY_LENGTH(outArray, length);
+   } 
+}
+
