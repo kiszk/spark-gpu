@@ -6,6 +6,7 @@
 # ./compile.sh clean full install - package and install everything ("normal" clean install)
 
 source args.sh
+echo $DIR
 cd $DIR
 
 if [[ "$1" == "clean" ]]; then
@@ -28,6 +29,6 @@ if [[ !("$@" =~ "-pl") ]]; then
 	SKIP_MODULES='-pl !examples,!assembly,!extras/kinesis-asl-assembly,!external/flume-assembly,!external/kafka-assembly'
     fi
 fi
-
+echo "$MVN_CMD -T $MVN_COMPILE_PARALLEL_THREADS $MVN_ARGS $SKIP_MODULES -DskipTests $CLEAN_ARGS package $@"
 $MVN_CMD -T $MVN_COMPILE_PARALLEL_THREADS $MVN_ARGS $SKIP_MODULES -DskipTests $CLEAN_ARGS package $@ 2>&1 | tee ~/compile.txt
 killZinc

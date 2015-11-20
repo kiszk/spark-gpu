@@ -139,7 +139,6 @@ class CUDAManager {
       s"($memoryUsage bytes needed)")
   }
 
-  private val cachedModules = new HashMap[(String, Int), CUmodule]
 
   private[spark] def cachedLoadModule(filename: String,
     moduleBinaryData: Array[Byte]): CUmodule = {

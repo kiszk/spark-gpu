@@ -17,11 +17,13 @@
 
 package org.apache.spark
 
+import jcuda.driver.CUmodule
+import jcuda.runtime.{cudaStream_t, cudaMemcpyKind, JCuda}
+
 import math._
 import scala.reflect.ClassTag
 import scala.language.existentials
-import scala.collection.immutable.HashMap
-import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.{HashMap, ListBuffer}
 
 import java.nio.{ByteBuffer, ByteOrder}
 import java.io.{ObjectInputStream, ObjectOutputStream}
@@ -47,6 +49,7 @@ class ColumnPartitionData[T](
     private var _outputArrayInfo: Option[Seq[(Long, ColumnSchema)]] = None
   ) extends PartitionData[T] with Serializable {
 
+
   def schema: ColumnPartitionSchema = _schema
 
   def size: Long = _size
@@ -54,6 +57,9 @@ class ColumnPartitionData[T](
   private[spark] var pointers: Array[Pointer] = null
 
   private var refCounter = 1
+
+  var gpuCache : Boolean = false
+  private val cachedGPUPointers = new HashMap[String, Pointer]()
 
   /*private[spark]*/ var blobs:    Array[Pointer] = null
   var blobBuffers: Array[ByteBuffer] = null
@@ -127,6 +133,7 @@ class ColumnPartitionData[T](
     refCounter += 1
   }
 
+
   /**
    * Decrement reference counter and if it reaches zero, deallocate internal memory. The buffers may
    * not be used by the object owner after this call.
@@ -139,6 +146,8 @@ class ColumnPartitionData[T](
       if (blobs != null) {
         blobs.foreach(SparkEnv.get.executorMemoryManager.freePinnedMemory(_))
       }
+      gpuCache = false;
+      freeGPUPointers()
     }
   }
 
@@ -174,6 +183,47 @@ class ColumnPartitionData[T](
     val kvs = (schema.columns zip pointers).map { case (col, ptr) => col.prettyAccessor -> ptr }
     val columnsByAccessors = HashMap(kvs: _*)
     order.map(columnsByAccessors(_))
+  }
+
+  private[spark] def orderedGPUPointers(order: Seq[String],stream : cudaStream_t): Vector[Pointer] = {
+    var gpuPtrs = Vector[Pointer]()
+    var gpuBlobs = Vector[Pointer]()
+
+
+    val inColumns = schema.orderedColumns(order)
+    val inPointers = orderedPointers(order)
+    for ((col,name) <- inColumns zip order) {
+      gpuPtrs = gpuPtrs :+ cachedGPUPointers.getOrElseUpdate(name, {
+        SparkEnv.get.cudaManager.allocGPUMemory(col.memoryUsage(size))
+      })
+    }
+    for ((cpuPtr, gpuPtr, col) <- (inPointers, gpuPtrs, inColumns).zipped) {
+      JCuda.cudaMemcpyAsync(gpuPtr, cpuPtr, col.memoryUsage(size),
+        cudaMemcpyKind.cudaMemcpyHostToDevice, stream)
+    }
+
+    val inBlobs       = if (blobs != null) {blobs} else {Array[Pointer]()}
+    val inBlobBuffers = if (blobBuffers != null) {blobBuffers} else {Array[ByteBuffer]()}
+    for ((blob,name) <- inBlobBuffers zip (1 to inBlobBuffers.length).map(_.toString)) {
+      gpuBlobs = gpuBlobs :+ cachedGPUPointers.getOrElseUpdate(name, {
+        SparkEnv.get.cudaManager.allocGPUMemory(blob.capacity())
+      })
+    }
+    for ((cpuPtr, gpuPtr, blob) <- (inBlobs, gpuBlobs, inBlobBuffers).zipped) {
+      JCuda.cudaMemcpyAsync(gpuPtr, cpuPtr, blob.capacity(),
+        cudaMemcpyKind.cudaMemcpyHostToDevice, stream)
+    }
+
+    gpuPtrs ++ gpuBlobs
+  }
+
+  def freeGPUPointers() = {
+    if(!gpuCache && cachedGPUPointers.size > 0) {
+      for ((name,ptr) <- cachedGPUPointers) {
+        SparkEnv.get.cudaManager.freeGPUMemory(ptr)
+        cachedGPUPointers.remove(name)
+      }
+    }
   }
 
   private def calculateBlobsCapacity(sz: Long): Long = {
@@ -507,13 +557,13 @@ class ColumnPartitionData[T](
    */
   override def iterator: Iterator[T] = deserialize
 
-  override def convert(format: PartitionFormat)(implicit ct: ClassTag[T]): PartitionData[T] = {
+  override def convert(format: PartitionFormat, gpuCache : Boolean = false)(implicit ct: ClassTag[T]): PartitionData[T] = {
     format match {
       // Converting from column-based format to iterator-based format.
       case IteratorFormat => IteratorPartitionData(deserialize)
 
       // We already have column format.
-      case ColumnFormat => this
+      case ColumnFormat => { this.gpuCache = gpuCache; this }
     }
   }
 

@@ -202,6 +202,10 @@ abstract class RDD[T: ClassTag](
   /** Persist this RDD with the default storage level (`MEMORY_ONLY`). */
   def cache(): this.type = persist()
 
+  var gpuCache = false
+  def cacheGpu(): this.type = { this.gpuCache = true; cache();}
+  def unCacheGpu(): this.type = { this.gpuCache = false; unpersist();}
+
   /**
    * Mark the RDD as non-persistent, and remove all blocks for it from memory and disk.
    *
