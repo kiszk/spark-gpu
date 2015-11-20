@@ -192,26 +192,23 @@ class ColumnPartitionData[T](
 
     val inColumns = schema.orderedColumns(order)
     val inPointers = orderedPointers(order)
-    for ((col,name) <- inColumns zip order) {
+    for ((col,name,cpuPtr) <- (inColumns,order,inPointers).zipped) {
       gpuPtrs = gpuPtrs :+ cachedGPUPointers.getOrElseUpdate(name, {
-        SparkEnv.get.cudaManager.allocGPUMemory(col.memoryUsage(size))
+        val gpuPtr = SparkEnv.get.cudaManager.allocGPUMemory(col.memoryUsage(size))
+        JCuda.cudaMemcpyAsync(gpuPtr, cpuPtr, col.memoryUsage(size),cudaMemcpyKind.cudaMemcpyHostToDevice, stream)
+        gpuPtr
       })
-    }
-    for ((cpuPtr, gpuPtr, col) <- (inPointers, gpuPtrs, inColumns).zipped) {
-      JCuda.cudaMemcpyAsync(gpuPtr, cpuPtr, col.memoryUsage(size),
-        cudaMemcpyKind.cudaMemcpyHostToDevice, stream)
     }
 
     val inBlobs       = if (blobs != null) {blobs} else {Array[Pointer]()}
     val inBlobBuffers = if (blobBuffers != null) {blobBuffers} else {Array[ByteBuffer]()}
-    for ((blob,name) <- inBlobBuffers zip (1 to inBlobBuffers.length).map(_.toString)) {
+    for ((blob,name,cpuPtr) <- (inBlobBuffers,(1 to inBlobBuffers.length).map(_.toString),inBlobs).zipped) {
       gpuBlobs = gpuBlobs :+ cachedGPUPointers.getOrElseUpdate(name, {
-        SparkEnv.get.cudaManager.allocGPUMemory(blob.capacity())
+        val gpuPtr = SparkEnv.get.cudaManager.allocGPUMemory(blob.capacity())
+        JCuda.cudaMemcpyAsync(gpuPtr, cpuPtr, blob.capacity(),
+          cudaMemcpyKind.cudaMemcpyHostToDevice, stream)
+        gpuPtr
       })
-    }
-    for ((cpuPtr, gpuPtr, blob) <- (inBlobs, gpuBlobs, inBlobBuffers).zipped) {
-      JCuda.cudaMemcpyAsync(gpuPtr, cpuPtr, blob.capacity(),
-        cudaMemcpyKind.cudaMemcpyHostToDevice, stream)
     }
 
     gpuPtrs ++ gpuBlobs

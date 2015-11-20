@@ -17,7 +17,7 @@
 
 package org.apache.spark.cuda
 
-import java.util.Random
+import java.util.{Calendar, Random}
 
 import org.apache.commons.io.IOUtils
 
@@ -758,6 +758,129 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
          //printf("%d: %15.12f %15.12f\n", i, wGPU(i), wCPU(i))
          assert(wGPU(i) - wCPU(i) < 1e-12) 
       })
+    } else {
+      info("No CUDA devices, so skipping the test.")
+    }
+  }
+
+  test("Run logistic regression with GPU Memory Persistance", GPUTest) {
+    sc = new SparkContext("local", "test", conf)
+    val manager = new CUDAManager
+    if (manager.deviceCount > 0) {
+      def dmulvs(x: Array[Double], c: Double) : Array[Double] =
+        Array.tabulate(x.length)(i => x(i) * c)
+      def daddvv(x: Array[Double], y: Array[Double]) : Array[Double] =
+        Array.tabulate(x.length)(i => x(i) + y(i))
+      def dsubvv(x: Array[Double], y: Array[Double]) : Array[Double] =
+        Array.tabulate(x.length)(i => x(i) - y(i))
+      def ddotvv(x: Array[Double], y: Array[Double]) : Double =
+        (x zip y).foldLeft(0.0)((a, b) => a + (b._1 * b._2))
+
+      val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
+      val mapFunction = new CUDAFunction(
+        "_Z5LRMapPKlPKdS2_PlPdlS2_",
+        Array("this.x", "this.y"),
+        Array("this"),
+        ptxURL)
+      val reduceFunction = new CUDAFunction(
+        "_Z8LRReducePKlPKdPlPdl",
+        Array("this"),
+        Array("this"),
+        ptxURL)
+
+      val N = 1024  // Number of data points
+      val D = 10   // Numer of dimensions
+      val R = 0.7  // Scaling factor
+      val ITERATIONS = 5
+      val rand = new Random(42)
+      val numSlices = 10
+
+      def generateData: Array[DataPoint] = {
+        def generatePoint(i: Int): DataPoint = {
+          val y = if (i % 2 == 0) -1 else 1
+          val x = Array.fill(D){rand.nextGaussian + y * R}
+          DataPoint(x, y)
+        }
+        Array.tabulate(N)(generatePoint)
+      }
+
+      val points = sc.parallelize(generateData, numSlices)
+      val pointsColumnCached = points.convert(ColumnFormat).cache()
+      val pointsCached = points.cache()
+
+      val w = Array.fill(D){2 * rand.nextDouble - 1}
+
+      var wCPU = Array.tabulate(D)(i => w(i))
+      var wGPU = Array.tabulate(D)(i => w(i))
+      var wGPUCache = Array.tabulate(D)(i => w(i))
+
+      var startTime = Calendar.getInstance().getTimeInMillis
+      for (i <- 1 to ITERATIONS) {
+        val gradient = pointsCached.map { p =>
+          dmulvs(p.x,  (1 / (1 + exp(-p.y * (ddotvv(wCPU, p.x)))) - 1) * p.y)
+        }.reduce((x: Array[Double], y: Array[Double]) => daddvv(x, y))
+        wCPU = dsubvv(wCPU, gradient)
+      }
+      info("CPU Processing(1) time in milliseconds = " + (Calendar.getInstance().getTimeInMillis - startTime));
+
+      wCPU = Array.tabulate(D)(i => w(i))
+      startTime = Calendar.getInstance().getTimeInMillis
+      for (i <- 1 to ITERATIONS) {
+        val gradient = pointsCached.map { p =>
+          dmulvs(p.x,  (1 / (1 + exp(-p.y * (ddotvv(wCPU, p.x)))) - 1) * p.y)
+        }.reduce((x: Array[Double], y: Array[Double]) => daddvv(x, y))
+        wCPU = dsubvv(wCPU, gradient)
+      }
+      info("CPU Processing(2) time in milliseconds = " + (Calendar.getInstance().getTimeInMillis - startTime));
+
+
+      startTime = Calendar.getInstance().getTimeInMillis
+      for (i <- 1 to ITERATIONS) {
+        val gradient = pointsColumnCached.mapExtFunc((p: DataPoint) =>
+          dmulvs(p.x,  (1 / (1 + exp(-p.y * (ddotvv(wGPU, p.x)))) - 1) * p.y),
+          mapFunction, outputArraySizes = Array(D),
+          inputFreeVariables = Array(wGPU)
+        ).reduceExtFunc((x: Array[Double], y: Array[Double]) => daddvv(x, y),
+            reduceFunction, outputArraySizes = Array(D))
+        wGPU = dsubvv(wGPU, gradient)
+      }
+      info("GPU Processing(1) time in milliseconds = " + (Calendar.getInstance().getTimeInMillis - startTime));
+
+
+      wGPU = Array.tabulate(D)(i => w(i))
+      startTime = Calendar.getInstance().getTimeInMillis
+      for (i <- 1 to ITERATIONS) {
+        val gradient = pointsColumnCached.mapExtFunc((p: DataPoint) =>
+          dmulvs(p.x,  (1 / (1 + exp(-p.y * (ddotvv(wGPU, p.x)))) - 1) * p.y),
+          mapFunction, outputArraySizes = Array(D),
+          inputFreeVariables = Array(wGPU)
+        ).reduceExtFunc((x: Array[Double], y: Array[Double]) => daddvv(x, y),
+            reduceFunction, outputArraySizes = Array(D))
+        wGPU = dsubvv(wGPU, gradient)
+      }
+      info("GPU Processing(2) time in milliseconds = " + (Calendar.getInstance().getTimeInMillis - startTime));
+
+      startTime = Calendar.getInstance().getTimeInMillis
+      pointsColumnCached.gpuCache
+      for (i <- 1 to ITERATIONS) {
+        val gradient = pointsColumnCached.mapExtFunc((p: DataPoint) =>
+          dmulvs(p.x,  (1 / (1 + exp(-p.y * (ddotvv(wGPUCache, p.x)))) - 1) * p.y),
+          mapFunction, outputArraySizes = Array(D),
+          inputFreeVariables = Array(wGPUCache)
+        ).reduceExtFunc((x: Array[Double], y: Array[Double]) => daddvv(x, y),
+            reduceFunction, outputArraySizes = Array(D))
+        wGPUCache = dsubvv(wGPUCache, gradient)
+      }
+      pointsColumnCached.unCacheGpu()
+      info("GPU Cache Processing time in milliseconds = " + (Calendar.getInstance().getTimeInMillis - startTime));
+
+      (0 until wGPU.length-1).map(i => {
+        //printf("%d: %15.12f %15.12f\n", i, wGPU(i), wCPU(i))
+        assert(wGPU(i) - wCPU(i) < 1e-12)
+      })
+
+      assert(wGPU.sameElements(wGPUCache))
+
     } else {
       info("No CUDA devices, so skipping the test.")
     }
