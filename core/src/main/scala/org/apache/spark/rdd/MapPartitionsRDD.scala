@@ -27,7 +27,8 @@ private[spark] class MapPartitionsRDD[U: ClassTag, T: ClassTag](
     f: (TaskContext, Int, Iterator[T]) => Iterator[U],  // (TaskContext, partition index, iterator)
     preservesPartitioning: Boolean = false,
     extfunc: Option[ExternalFunction] = None,
-    outputArraySizes: Seq[Long] = null)
+    outputArraySizes: Seq[Long] = null,
+    inputFreeVariables: Seq[Any] = null)
   extends RDD[U](prev) {
 
   override val partitioner = if (preservesPartitioning) firstParent[T].partitioner else None
@@ -42,8 +43,8 @@ private[spark] class MapPartitionsRDD[U: ClassTag, T: ClassTag](
     (firstParent[T].partitionData(split, context), extfunc) match {
       // computing column-based partition on GPU
       case (col: ColumnPartitionData[T], Some(extfun)) =>
-        extfun.run(col, outputArraySizes = outputArraySizes)
-
+        extfun.run(col, outputArraySizes = outputArraySizes,
+                        inputFreeVariables = inputFreeVariables)
       // computing  iterator-based partition on CPU
       case (data, _) =>
         IteratorPartitionData(f(context, split.index, data.iterator))

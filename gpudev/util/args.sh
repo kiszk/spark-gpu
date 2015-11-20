@@ -21,8 +21,6 @@ org.apache.spark.PPCIBMJDKFailingTest
 NCORES=`lscpu | awk ' /^Core\(s\)/ { print $4 }'`
 NSOCKETS=`lscpu | awk ' /^Socket\(s\)/ { print $2 }'`
 MVN_COMPILE_PARALLEL_THREADS=`expr $NCORES \* $NSOCKETS`
-#MVN_COMPILE_PARALLEL_THREADS=1
-
 MVN_CMD="./build/mvn --force"
 
 DBG_PORT=5004

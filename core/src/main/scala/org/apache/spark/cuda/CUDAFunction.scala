@@ -81,7 +81,8 @@ class CUDAFunction(
    */
   private[spark] def run[T, U: ClassTag](in: ColumnPartitionData[T],
       outputSize: Option[Long] = None,
-      outputArraySizes: Seq[Long] = null): ColumnPartitionData[U] = {
+      outputArraySizes: Seq[Long] = null,
+      inputFreeVariables: Seq[Any] = null): ColumnPartitionData[U] = {
     val outputSchema = ColumnPartitionSchema.schemaFor[U]
 
     // TODO add array size
@@ -111,12 +112,55 @@ class CUDAFunction(
     try {
       var gpuOutputPtrs = Vector[Pointer]()
       var gpuOutputBlobs = Vector[Pointer]()
+      var cpuInputFreeVars = Vector[(Pointer, Int)]()
       Utils.tryWithSafeFinally {
 
         val outColumns = out.schema.orderedColumns(outputColumnsOrder)
         for (col <- outColumns) {
           gpuOutputPtrs = gpuOutputPtrs :+
             SparkEnv.get.cudaManager.allocGPUMemory(col.memoryUsage(out.size))
+        }
+
+	val inputFreeVarPtrs = if (inputFreeVariables == null) { Seq() } else { 
+          inputFreeVariables.map {
+            case v: Byte => Pointer.to(Array(v))
+            case v: Char => Pointer.to(Array(v))
+            case v: Short => Pointer.to(Array(v))
+            case v: Int => Pointer.to(Array(v))
+            case v: Long => Pointer.to(Array(v))
+            case v: Float => Pointer.to(Array(v))
+            case v: Double => Pointer.to(Array(v))
+            case v: Array[Byte] =>
+              val len = v.length
+              cpuInputFreeVars = cpuInputFreeVars :+ (Pointer.to(v), len)
+              SparkEnv.get.cudaManager.allocGPUMemory(len)
+            case v: Array[Char] =>
+              val len = v.length * 2
+              cpuInputFreeVars = cpuInputFreeVars :+ (Pointer.to(v), len)
+              SparkEnv.get.cudaManager.allocGPUMemory(len)
+            case v: Array[Short] => 
+              val len = v.length * 2
+              cpuInputFreeVars = cpuInputFreeVars :+ (Pointer.to(v), len)
+              SparkEnv.get.cudaManager.allocGPUMemory(len)
+            case v: Array[Int] =>
+              val len = v.length * 4
+              cpuInputFreeVars = cpuInputFreeVars :+ (Pointer.to(v), len)
+              SparkEnv.get.cudaManager.allocGPUMemory(len)
+            case v: Array[Long] =>
+              val len = v.length * 8
+              cpuInputFreeVars = cpuInputFreeVars :+ (Pointer.to(v), len)
+              SparkEnv.get.cudaManager.allocGPUMemory(len)
+            case v: Array[Float] =>
+              val len = v.length * 4
+              cpuInputFreeVars = cpuInputFreeVars :+ (Pointer.to(v), len)
+              SparkEnv.get.cudaManager.allocGPUMemory(len)
+            case v: Array[Double] =>
+              val len = v.length * 8
+              cpuInputFreeVars = cpuInputFreeVars :+ (Pointer.to(v), len)
+              SparkEnv.get.cudaManager.allocGPUMemory(len)
+            case _ => throw new SparkException("Unsupported type passed to kernel as a free variable "
+            + "argument")
+          }
         }
 
         // TODO support more than one blobs
@@ -127,43 +171,12 @@ class CUDAFunction(
             SparkEnv.get.cudaManager.allocGPUMemory(blob.capacity())
         }
 
-        /*
-        var gpuInputPtrs = Vector[Pointer]()
-        val inColumns = in.schema.orderedColumns(inputColumnsOrder)
-        val inPointers = in.orderedPointers(inputColumnsOrder)
-        for (col <- inColumns) {
-          gpuInputPtrs = gpuInputPtrs :+
-            SparkEnv.get.cudaManager.allocGPUMemory(col.memoryUsage(in.size))
-        }
-        for ((cpuPtr, gpuPtr, col) <- (inPointers, gpuInputPtrs, inColumns).zipped) {
-          JCuda.cudaMemcpyAsync(gpuPtr, cpuPtr, col.memoryUsage(in.size),
+        for (((cpuPtr, size), gpuPtr) <- (cpuInputFreeVars zip inputFreeVarPtrs)) {
+          JCuda.cudaMemcpyAsync(gpuPtr, cpuPtr, size,
             cudaMemcpyKind.cudaMemcpyHostToDevice, stream)
         }
-        // TODO support more than one blobs
-        //var gpuInputBlobs = Vector[Pointer]()
-        val inBlobs = if (in.blobs != null) {
-          in.blobs
-        } else {
-          Array[Pointer]()
-        }
-        val inBlobBuffers = if (in.blobBuffers != null) {
-          in.blobBuffers
-        } else {
-          Array[ByteBuffer]()
-        }
-        for (blob <- inBlobBuffers) {
-          //println("Blob capacity =" + blob.capacity())
-          gpuInputBlobs = gpuInputBlobs :+
-            SparkEnv.get.cudaManager.allocGPUMemory(blob.capacity())
-        }
-        for ((cpuPtr, gpuPtr, blob) <- (inBlobs, gpuInputBlobs, inBlobBuffers).zipped) {
-          JCuda.cudaMemcpyAsync(gpuPtr, cpuPtr, blob.capacity(),
-            cudaMemcpyKind.cudaMemcpyHostToDevice, stream)
-        }
-        */
 
         val gpuInputPtrs = in.orderedGPUPointers(inputColumnsOrder,stream)
-
 
         val gpuPtrParams = (gpuInputPtrs ++
                             gpuOutputPtrs ++ gpuOutputBlobs).map(Pointer.to(_))
@@ -185,7 +198,9 @@ class CUDAFunction(
         stagesCount match {
           // normal launch, no stages, suitable for map
           case None =>
-            val params = gpuPtrParams ++ sizeParam ++ constArgParams
+            val params = gpuPtrParams ++ sizeParam ++
+                           inputFreeVarPtrs.map(Pointer.to(_)) ++
+                           constArgParams
             val kernelParameters = Pointer.to(params: _*)
 
             val (gpuGridSize, gpuBlockSize) = dimensions match {
@@ -210,7 +225,9 @@ class CUDAFunction(
             (0 to totalStages - 1).foreach { stageNumber =>
               val stageParams =
                 List(Pointer.to(Array[Int](stageNumber)), Pointer.to(Array[Int](totalStages)))
-              val params = gpuPtrParams ++ sizeParam ++ constArgParams ++ stageParams
+              val params = gpuPtrParams ++ sizeParam ++
+                             inputFreeVarPtrs.map(Pointer.to(_)) ++
+                             constArgParams ++ stageParams
               val kernelParameters = Pointer.to(params: _*)
 
               val (gpuGridSize, gpuBlockSize) = dimensions match {
@@ -262,5 +279,4 @@ class CUDAFunction(
         throw ex
     }
   }
-
 }
