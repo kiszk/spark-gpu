@@ -1,3 +1,4 @@
+#include<assert.h>
 #include<math.h>
 
 #define	GET_BLOB_ADDRESS(ptr, offset)	(&((ptr)[(offset)/sizeof((ptr)[0])]))
@@ -305,18 +306,163 @@ __global__ void LRMap(const long * __restrict__ inputX, const double *  __restri
     }
 }
 
-__device__ inline double *  __shfl_down_double(double *var, unsigned int srcLane, int width=32) {
-    int2 a = *reinterpret_cast<int2*>(&var);
-    a.x = __shfl_down(a.x, srcLane, width);
-    a.y = __shfl_down(a.y, srcLane, width);
-    return *reinterpret_cast<double**>(&a);
+#define	WARPSIZE	32
+
+__device__ inline double atomicAddDouble(double *address, double val) {
+  unsigned long long int *address_as_ull = (unsigned long long int *)address;
+  unsigned long long int old = *address_as_ull, assumed;
+
+  do {
+    assumed  = old;
+    old = atomicCAS(address_as_ull, assumed,
+                    __double_as_longlong(val + 
+                      __longlong_as_double(assumed)));
+  } while (assumed != old);
+
+  return __longlong_as_double(old);
 }
 
-__global__ void LRReduce(const long * __restrict__ input, const double * __restrict__ inputBlob, long *output, double *outputBlob, long size/*, int stage, int totalStages*/) {
-    int idx = blockDim.x * blockIdx.x + threadIdx.x;
+__device__ inline double __shfl_double(double d, int lane) {
+  // Split the double number into 2 32b registers.
+  int lo, hi;
+  asm volatile("mov.b64 {%0,%1}, %2;" : "=r"(lo), "=r"(hi) : "d"(d));
 
-    if (idx == 0) {
-        double *outArray = GET_BLOB_ADDRESS(outputBlob, input[idx]);
+  // Shuffle the two 32b registers.
+  lo = __shfl(lo, lane);
+  hi = __shfl(hi, lane);
+
+  // Recreate the 64b number.
+  asm volatile("mov.b64 %0, {%1,%2};" : "=d"(d) : "r"(lo), "r"(hi));
+  return d;
+}
+
+__device__ inline double warpReduceSum(double val) {
+  int i = blockIdx.x  * blockDim.x + threadIdx.x;
+#pragma unroll
+  for (int offset = WARPSIZE / 2; offset > 0; offset /= 2) {
+     val += __shfl_double(val, (i + offset) % WARPSIZE);
+  }
+  return val;
+}
+
+__device__ inline double4 __shfl_double4(double4 d, int lane) {
+  // Split the double number into 2 32b registers.
+  int lox, loy, loz, low, hix, hiy, hiz, hiw;
+  asm volatile("mov.b64 {%0,%1}, %2;" : "=r"(lox), "=r"(hix) : "d"(d.x));
+  asm volatile("mov.b64 {%0,%1}, %2;" : "=r"(loy), "=r"(hiy) : "d"(d.y));
+  asm volatile("mov.b64 {%0,%1}, %2;" : "=r"(loz), "=r"(hiz) : "d"(d.z));
+  asm volatile("mov.b64 {%0,%1}, %2;" : "=r"(low), "=r"(hiw) : "d"(d.w));
+
+  // Shuffle the two 32b registers.
+  lox = __shfl(lox, lane);
+  hix = __shfl(hix, lane);
+  loy = __shfl(loy, lane);
+  hiy = __shfl(hiy, lane);
+  loz = __shfl(loz, lane);
+  hiz = __shfl(hiz, lane);
+  low = __shfl(low, lane);
+  hiw = __shfl(hiw, lane);
+
+  // Recreate the 64b number.
+  asm volatile("mov.b64 %0, {%1,%2};" : "=d"(d.x) : "r"(lox), "r"(hix));
+  asm volatile("mov.b64 %0, {%1,%2};" : "=d"(d.y) : "r"(loy), "r"(hiy));
+  asm volatile("mov.b64 %0, {%1,%2};" : "=d"(d.z) : "r"(loz), "r"(hiz));
+  asm volatile("mov.b64 %0, {%1,%2};" : "=d"(d.w) : "r"(low), "r"(hiw));
+  return d;
+}
+
+__device__ inline double4 warpReduceVSum(double4 val4) {
+  int i = blockIdx.x  * blockDim.x + threadIdx.x;
+#pragma unroll
+  for (int offset = WARPSIZE / 2; offset > 0; offset /= 2) {
+     double4 shiftedVal4 = __shfl_double4(val4, (i + offset) % WARPSIZE);
+     val4.x += shiftedVal4.x;
+     val4.y += shiftedVal4.y;
+     val4.z += shiftedVal4.z;
+     val4.w += shiftedVal4.w;
+  }
+  return val4;
+}
+
+__device__ double* deviceReduceKernel(const long * __restrict__ input, const double * __restrict__ inputBlob, double *out, long i, long n) {
+    int thridx = blockDim.x * blockIdx.x + threadIdx.x;
+    double sum = 0;
+    for (long idx = blockIdx.x * blockDim.x + threadIdx.x; idx < n; idx += blockDim.x * gridDim.x) {
+        const long offset = input[idx];
+        const double * __restrict__ inArray = GET_BLOB_ADDRESS(inputBlob, offset);
+        const double * __restrict__ inArrayBody = GET_ARRAY_BODY(inArray);
+        sum += inArrayBody[i];
+    }
+
+    sum = warpReduceSum(sum);
+
+    if ((threadIdx.x & (WARPSIZE - 1)) == 0) { 
+        atomicAddDouble(out, sum);
+    }
+    return out;
+}
+
+__device__ void deviceReduceArrayKernal(const long * __restrict__ input, const double * __restrict__ inputBlob, double *outputArrayBody, long length, long n) {
+    long i = 0;
+
+    // unrolled version
+    while ((length - i) >= 4) {
+        double4 sum4;
+        sum4.x = 0; sum4.y = 0; sum4.z = 0; sum4.w = 0;
+        for (long idx = blockIdx.x * blockDim.x + threadIdx.x; idx < n; idx += blockDim.x * gridDim.x) {
+            const long offset = input[idx];
+            const double * __restrict__ inArray = GET_BLOB_ADDRESS(inputBlob, offset);
+            const double * __restrict__ inArrayBody = GET_ARRAY_BODY(inArray);
+            sum4.x += inArrayBody[i];
+            sum4.y += inArrayBody[i+1];
+            sum4.z += inArrayBody[i+2];
+            sum4.w += inArrayBody[i+3];
+        }
+
+        sum4 = warpReduceVSum(sum4);
+
+        double *outx = &outputArrayBody[i];
+        double *outy = &outputArrayBody[i+1];
+        double *outz = &outputArrayBody[i+2];
+        double *outw = &outputArrayBody[i+3];
+        if ((threadIdx.x & (WARPSIZE - 1)) == 0) { 
+            atomicAddDouble(outx, sum4.x);
+            atomicAddDouble(outy, sum4.y);
+            atomicAddDouble(outz, sum4.z);
+            atomicAddDouble(outw, sum4.w);
+        }
+        i += 4;
+    }
+
+    for (; i < length; i++) {
+        deviceReduceKernel(input, inputBlob, &outputArrayBody[i], i, n);
+    }
+}
+
+__global__ void LRReduce(const long * __restrict__ input, const double * __restrict__ inputBlob, long *output, double *outputBlob, long size, int stage, int totalStages) {
+    int idx = blockDim.x * blockIdx.x + threadIdx.x;
+#if (__CUDA_ARCH__ >= 300)
+    if ((stage == 0) && (idx < size)) {
+        const double * __restrict__ inArray = GET_BLOB_ADDRESS(inputBlob, input[idx]);
+        const long inArrayCapacity = GET_ARRAY_CAPACITY(inArray);
+        const long inArrayLength = GET_ARRAY_LENGTH(inArray);
+        const double * __restrict__ inArrayBody = GET_ARRAY_BODY(inArray);
+        output[0] = 0;
+        double *outArray = GET_BLOB_ADDRESS(outputBlob, output[0]);
+        double *outArrayBody = GET_ARRAY_BODY(outArray);
+        if (idx < inArrayLength) {
+          outArrayBody[idx] = 0;
+        }
+
+        deviceReduceArrayKernal(input, inputBlob, outArrayBody, inArrayLength, size);
+
+        SET_ARRAY_CAPACITY(outArray, inArrayCapacity);
+        SET_ARRAY_LENGTH(outArray, inArrayLength);
+    }
+#else
+    if ((stage == 0) && (idx == 0)) {
+        output[idx] = 0;
+        double *outArray = GET_BLOB_ADDRESS(outputBlob, output[idx]);
         double *outArrayBody = GET_ARRAY_BODY(outArray);
  
         long capacity = 0, length = 0;
@@ -337,55 +483,9 @@ __global__ void LRReduce(const long * __restrict__ input, const double * __restr
                 outArrayBody[j] += inArrayBody[j];
             }
         }
-        output[idx] = 0;
         SET_ARRAY_CAPACITY(outArray, capacity);
         SET_ARRAY_LENGTH(outArray, length);
     }
-
-#if 0
-    int warpCnt = (threadsPerBlock + warpSize-1)/warpSize;
-    int laneId  = threadIdx.x % warpSize;
-    int warpId  = threadIdx.x / warpSize;
-    double *val = NULL;
-    double *val1 = NULL;
-    // shared memory is allocated per block, not per thread. All threads/warps inside a block share a single instance of variable. 
-    static __shared__ double warpResults[32][D]; // The maximum number of possible warps inside a block is 32 (since max thrdsPerBlock=1024 i.e 32 * 32)
-
-    // All threads inside warp execute synchronously
-    if (idx < size) {
-        const double *accArray = GET_BLOB_ADDRESS(inputBlob, input[idx]);
-        double *accArrayBody = const_cast<double *>GET_ARRAY_BODY(accArray);
-
-        /* FOLD EACH WARP(Set of 32 threds/entries)
-            For each warpSet(32 entries),do the following steps
-            1) add last 16 entries into first 16 
-                If total launched thread is 17, then it would be like 0 + 16, 1+0, 2+0 .. size
-                shufl_down would return zero when there is no thread.
-            2) add second 8 entries into first 8 entries
-            3) and so on... till you add second entry in first entry
-            4) The first thread's val variable in each  warp will contain the sum of all 32 val variable 
-        */
-
-        for (int foldSize = warpSize/2; foldSize; foldSize/=2) {
-            val1 = __shfl_down_double(val, foldSize);
-            if (val1 != NULL)
-                for(int i = 0; i < D; i++) val[i] += val1[i];
-    }
-
-    // Lets sequentially store each warp's sum into array 'a' 
-    if (laneId == 0) {
-        memcpy(warpResults[warpId], val, sizeof(*val) * D);
-    }
-}
-    // Wait for all warps inside a block to complete.
-    __syncthreads();
-
-    if (idx == 0) {
-        for (int w = 0; w < warpCnt;w++)
-            for (int i = 0; i < D;i++)
-                result[i] += warpResults[w][i];
-    }
-
-   //Let each block copy the results into temp result array.
 #endif
+
 }
