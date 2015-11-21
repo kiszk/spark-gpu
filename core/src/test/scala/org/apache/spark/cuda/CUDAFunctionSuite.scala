@@ -701,24 +701,34 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
       def ddotvv(x: Array[Double], y: Array[Double]) : Double =
         (x zip y).foldLeft(0.0)((a, b) => a + (b._1 * b._2))
 
+      val N = 32768  // Number of data points
+      val D = 32   // Numer of dimensions
+      val R = 0.7  // Scaling factor
+      val ITERATIONS = 5
+//      val ITERATIONS = 1
+//      val numSlices = 32
+      val numSlices = 1
+      val rand = new Random(42)
+
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val mapFunction = new CUDAFunction(
         "_Z5LRMapPKlPKdS2_PlPdlS2_",
         Array("this.x", "this.y"),
         Array("this"),
         ptxURL)
+      val threads = 1024
+      val blocks = min((N + threads- 1) / threads, 1024) 
+      val dimensions = (size: Long, stage: Int) => stage match {
+        case 0 => (blocks, threads)
+      }
       val reduceFunction = new CUDAFunction(
-        "_Z8LRReducePKlPKdPlPdl",
+        "_Z8LRReducePKlPKdPlPdlii",
         Array("this"),
         Array("this"),
-        ptxURL)
-
-      val N = 100  // Number of data points
-      val D = 10   // Numer of dimensions
-      val R = 0.7  // Scaling factor
-      val ITERATIONS = 5
-      val rand = new Random(42)
-      val numSlices = 10
+        ptxURL,
+        Seq(),
+        Some((size: Long) => 1),
+        Some(dimensions))
 
       def generateData: Array[DataPoint] = {
         def generatePoint(i: Int): DataPoint = {
@@ -737,6 +747,7 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
       var wCPU = Array.fill(D){2 * rand.nextDouble - 1}
       var wGPU = Array.tabulate(D)(i => wCPU(i))
 
+      pointsColumnCached.gpuCache
       for (i <- 1 to ITERATIONS) {
         val gradient = pointsColumnCached.mapExtFunc((p: DataPoint) =>
           dmulvs(p.x,  (1 / (1 + exp(-p.y * (ddotvv(wGPU, p.x)))) - 1) * p.y),
@@ -746,6 +757,7 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
           reduceFunction, outputArraySizes = Array(D))
         wGPU = dsubvv(wGPU, gradient)
       }
+      pointsColumnCached.unCacheGpu()
 
       for (i <- 1 to ITERATIONS) {
         val gradient = pointsCached.map { p =>
@@ -754,10 +766,10 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
         wCPU = dsubvv(wCPU, gradient)
       }
 
-      (0 until wGPU.length-1).map(i => {
-         //printf("%d: %15.12f %15.12f\n", i, wGPU(i), wCPU(i))
-         assert(wGPU(i) - wCPU(i) < 1e-12) 
+      (0 until wGPU.length).map(i => {
+         assert(abs(wGPU(i) - wCPU(i)) < 1e-7) 
       })
+
     } else {
       info("No CUDA devices, so skipping the test.")
     }
@@ -776,24 +788,32 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
       def ddotvv(x: Array[Double], y: Array[Double]) : Double =
         (x zip y).foldLeft(0.0)((a, b) => a + (b._1 * b._2))
 
-      val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
-      val mapFunction = new CUDAFunction(
-        "_Z5LRMapPKlPKdS2_PlPdlS2_",
-        Array("this.x", "this.y"),
-        Array("this"),
-        ptxURL)
-      val reduceFunction = new CUDAFunction(
-        "_Z8LRReducePKlPKdPlPdl",
-        Array("this"),
-        Array("this"),
-        ptxURL)
-
       val N = 1024  // Number of data points
       val D = 10   // Numer of dimensions
       val R = 0.7  // Scaling factor
       val ITERATIONS = 5
       val rand = new Random(42)
       val numSlices = 10
+
+      val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
+      val mapFunction = new CUDAFunction(
+        "_Z5LRMapPKlPKdS2_PlPdlS2_",
+        Array("this.x", "this.y"),
+        Array("this"),
+        ptxURL)
+      val threads = 1024
+      val blocks = min((N + threads- 1) / threads, 1024) 
+      val dimensions = (size: Long, stage: Int) => stage match {
+        case 0 => (blocks, threads)
+      }
+      val reduceFunction = new CUDAFunction(
+        "_Z8LRReducePKlPKdPlPdlii",
+        Array("this"),
+        Array("this"),
+        ptxURL,
+        Seq(),
+        Some((size: Long) => 1),
+        Some(dimensions))
 
       def generateData: Array[DataPoint] = {
         def generatePoint(i: Int): DataPoint = {
@@ -875,8 +895,7 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
       info("GPU Cache Processing time in milliseconds = " + (Calendar.getInstance().getTimeInMillis - startTime));
 
       (0 until wGPU.length-1).map(i => {
-        //printf("%d: %15.12f %15.12f\n", i, wGPU(i), wCPU(i))
-        assert(wGPU(i) - wCPU(i) < 1e-12)
+        assert(abs(wGPUCache(i) - wCPU(i)) < 1e-7)
       })
 
       assert(wGPU.sameElements(wGPUCache))
