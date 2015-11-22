@@ -100,7 +100,6 @@ class CUDAFunction(
     JCudaDriver.cuModuleGetFunction(function, module, kernelSignature)
 
     val actualOutputSize = outputSize.getOrElse(in.size)
-    //val out = new ColumnPartitionData[U](outputSchema, actualOutputSize)
     val out = if (outputArraySizes == null) {
         new ColumnPartitionData[U](outputSchema, actualOutputSize)
     } else {
@@ -121,7 +120,7 @@ class CUDAFunction(
             SparkEnv.get.cudaManager.allocGPUMemory(col.memoryUsage(out.size))
         }
 
-	val inputFreeVarPtrs = if (inputFreeVariables == null) { Seq() } else { 
+        val inputFreeVarPtrs = if (inputFreeVariables == null) { Seq() } else {
           inputFreeVariables.map {
             case v: Byte => Pointer.to(Array(v))
             case v: Char => Pointer.to(Array(v))
@@ -138,7 +137,7 @@ class CUDAFunction(
               val len = v.length * 2
               cpuInputFreeVars = cpuInputFreeVars :+ (Pointer.to(v), len)
               SparkEnv.get.cudaManager.allocGPUMemory(len)
-            case v: Array[Short] => 
+            case v: Array[Short] =>
               val len = v.length * 2
               cpuInputFreeVars = cpuInputFreeVars :+ (Pointer.to(v), len)
               SparkEnv.get.cudaManager.allocGPUMemory(len)
@@ -158,14 +157,15 @@ class CUDAFunction(
               val len = v.length * 8
               cpuInputFreeVars = cpuInputFreeVars :+ (Pointer.to(v), len)
               SparkEnv.get.cudaManager.allocGPUMemory(len)
-            case _ => throw new SparkException("Unsupported type passed to kernel as a free variable "
-            + "argument")
+            case _ => throw new SparkException("Unsupported type passed to kernel "
+            + "as a free variable argument")
           }
         }
 
         // TODO support more than one blobs
-	      val outBlobs = if (out.blobs != null) {out.blobs} else {Array[Pointer]()}
-	      val outBlobBuffers = if (out.blobBuffers != null) {out.blobBuffers} else {Array[ByteBuffer]()}
+        val outBlobs = if (out.blobs != null) {out.blobs} else {Array[Pointer]()}
+        val outBlobBuffers =
+           if (out.blobBuffers != null) {out.blobBuffers} else {Array[ByteBuffer]()}
         for (blob <- outBlobBuffers) {
           gpuOutputBlobs = gpuOutputBlobs :+
             SparkEnv.get.cudaManager.allocGPUMemory(blob.capacity())
@@ -206,14 +206,14 @@ class CUDAFunction(
         }
         */
 
-        val gpuInputPtrs = in.orderedGPUPointers(inputColumnsOrder,stream)
+        val gpuInputPtrs = in.orderedGPUPointers(inputColumnsOrder, stream)
 
         for (((cpuPtr, size), gpuPtr) <- (cpuInputFreeVars zip inputFreeVarPtrs)) {
           JCuda.cudaMemcpyAsync(gpuPtr, cpuPtr, size,
             cudaMemcpyKind.cudaMemcpyHostToDevice, stream)
         }
 
-        val gpuPtrParams = (gpuInputPtrs ++ gpuInputBlobs ++
+        val gpuPtrParams = (gpuInputPtrs ++
                             gpuOutputPtrs ++ gpuOutputBlobs).map(Pointer.to(_))
         val sizeParam = List(Pointer.to(Array(in.size)))
         val constArgParams = constArgs.map {
