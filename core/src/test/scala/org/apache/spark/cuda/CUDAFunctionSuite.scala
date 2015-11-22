@@ -701,13 +701,11 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
       def ddotvv(x: Array[Double], y: Array[Double]) : Double =
         (x zip y).foldLeft(0.0)((a, b) => a + (b._1 * b._2))
 
-      val N = 32768  // Number of data points
-      val D = 32   // Numer of dimensions
+      val N = 8192  // Number of data points
+      val D = 8   // Numer of dimensions
       val R = 0.7  // Scaling factor
       val ITERATIONS = 5
-//      val ITERATIONS = 1
-//      val numSlices = 32
-      val numSlices = 1
+      val numSlices = 8
       val rand = new Random(42)
 
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
