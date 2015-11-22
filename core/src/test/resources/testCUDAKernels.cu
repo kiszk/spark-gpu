@@ -385,7 +385,6 @@ __device__ inline double4 warpReduceVSum(double4 val4) {
 }
 
 __device__ double* deviceReduceKernel(const long * __restrict__ input, const double * __restrict__ inputBlob, double *out, long i, long n) {
-    int thridx = blockDim.x * blockIdx.x + threadIdx.x;
     double sum = 0;
     for (long idx = blockIdx.x * blockDim.x + threadIdx.x; idx < n; idx += blockDim.x * gridDim.x) {
         const long offset = input[idx];
@@ -446,7 +445,6 @@ __global__ void LRReduce(const long * __restrict__ input, const double * __restr
         const double * __restrict__ inArray = GET_BLOB_ADDRESS(inputBlob, input[idx]);
         const long inArrayCapacity = GET_ARRAY_CAPACITY(inArray);
         const long inArrayLength = GET_ARRAY_LENGTH(inArray);
-        const double * __restrict__ inArrayBody = GET_ARRAY_BODY(inArray);
         output[0] = 0;
         double *outArray = GET_BLOB_ADDRESS(outputBlob, output[0]);
         double *outArrayBody = GET_ARRAY_BODY(outArray);
