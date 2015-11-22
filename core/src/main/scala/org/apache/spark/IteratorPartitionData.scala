@@ -33,14 +33,16 @@ class IteratorPartitionData[T](
 
   override def iterator: Iterator[T] = iter
 
-  override def convert(format: PartitionFormat, gpuCache : Boolean = false)(implicit ct: ClassTag[T]): PartitionData[T] = {
+  override def convert(format: PartitionFormat, gpuCache : Boolean = false)
+    (implicit ct: ClassTag[T]): PartitionData[T] = {
     format match {
       // We already have iterator format. Note that we do not need to iterate over elements, so this
       // is a no-op.
       case IteratorFormat => this
 
       // Converting from iterator-based format to column-based format.
-      case ColumnFormat => { val c = ColumnPartitionDataBuilder.build(iter); c.gpuCache = gpuCache ; c}
+      case ColumnFormat =>
+        { val c = ColumnPartitionDataBuilder.build(iter); c.gpuCache = gpuCache ; c}
     }
   }
 

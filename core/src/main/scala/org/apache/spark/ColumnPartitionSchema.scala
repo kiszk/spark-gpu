@@ -256,7 +256,6 @@ class ColumnSchema(
 }
 
 abstract class ColumnType {
-  
   val bytes: Int            /* How many bytes does a single property take. */
   val elementLength: Int    /* length for each array element */
   def isArray: Boolean = (elementLength > 0)
