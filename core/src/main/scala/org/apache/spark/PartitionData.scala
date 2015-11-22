@@ -40,6 +40,6 @@ abstract class PartitionData[T] {
   /**
    * Convert the partition data type to specific format.
    */
-  def convert(format: PartitionFormat, gpuCache : Boolean)(implicit ct: ClassTag[T]): PartitionData[T]
-
+  def convert(format: PartitionFormat, gpuCache : Boolean)(implicit ct: ClassTag[T])
+    : PartitionData[T]
 }
