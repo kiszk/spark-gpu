@@ -322,6 +322,7 @@ __device__ inline double atomicAddDouble(double *address, double val) {
   return __longlong_as_double(old);
 }
 
+#if (__CUDA_ARCH__ >= 300)
 __device__ inline double __shfl_double(double d, int lane) {
   // Split the double number into 2 32b registers.
   int lo, hi;
@@ -437,6 +438,7 @@ __device__ void deviceReduceArrayKernal(const long * __restrict__ input, const d
         deviceReduceKernel(input, inputBlob, &outputArrayBody[i], i, n);
     }
 }
+#endif
 
 __global__ void LRReduce(const long * __restrict__ input, const double * __restrict__ inputBlob, long *output, double *outputBlob, long size, int stage, int totalStages) {
     int idx = blockDim.x * blockIdx.x + threadIdx.x;
