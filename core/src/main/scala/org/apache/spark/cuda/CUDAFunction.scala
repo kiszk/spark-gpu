@@ -86,9 +86,13 @@ class CUDAFunction(
     val outputSchema = ColumnPartitionSchema.schemaFor[U]
 
     // TODO add array size
-    val memoryUsage = in.memoryUsage + outputSchema.memoryUsage(in.size)
+    val memoryUsage = (if (in.gpuCached) 0 else in.memoryUsage) + outputSchema.memoryUsage(in.size)
 
-    val stream = SparkEnv.get.cudaManager.getStream(memoryUsage)
+    val streamDevIx = SparkEnv.get.cudaManager.getStream(memoryUsage, in.gpuDevIx)
+    val stream = streamDevIx._1
+    if (in.gpuCache) {
+      in.gpuDevIx = streamDevIx._2
+    }
 
     // TODO cache the function if there is a chance that after a deserialization kernel gets called
     // multiple times - but only if no synchronization is needed for that
@@ -101,12 +105,12 @@ class CUDAFunction(
 
     val actualOutputSize = outputSize.getOrElse(in.size)
     val out = if (outputArraySizes == null) {
-        new ColumnPartitionData[U](outputSchema, actualOutputSize)
+      new ColumnPartitionData[U](outputSchema, actualOutputSize)
     } else {
-        val outColumns = outputSchema.orderedColumns(outputColumnsOrder)
-          .filter(p => p.columnType.isArray)
-        val outputArrayInfo = outputArraySizes zip outColumns
-        new ColumnPartitionData[U](outputSchema, actualOutputSize, Some(outputArrayInfo))
+      val outColumns = outputSchema.orderedColumns(outputColumnsOrder)
+        .filter(p => p.columnType.isArray)
+      val outputArrayInfo = outputArraySizes zip outColumns
+      new ColumnPartitionData[U](outputSchema, actualOutputSize, Some(outputArrayInfo))
     }
     try {
       var gpuOutputPtrs = Vector[Pointer]()
@@ -171,41 +175,7 @@ class CUDAFunction(
             SparkEnv.get.cudaManager.allocGPUMemory(blob.capacity())
         }
 
-        /*
-        var gpuInputPtrs = Vector[Pointer]()
-        val inColumns = in.schema.orderedColumns(inputColumnsOrder)
-        val inPointers = in.orderedPointers(inputColumnsOrder)
-        for (col <- inColumns) {
-          gpuInputPtrs = gpuInputPtrs :+
-            SparkEnv.get.cudaManager.allocGPUMemory(col.memoryUsage(in.size))
-        }
-        for ((cpuPtr, gpuPtr, col) <- (inPointers, gpuInputPtrs, inColumns).zipped) {
-          JCuda.cudaMemcpyAsync(gpuPtr, cpuPtr, col.memoryUsage(in.size),
-            cudaMemcpyKind.cudaMemcpyHostToDevice, stream)
-        }
-        // TODO support more than one blobs
-        //var gpuInputBlobs = Vector[Pointer]()
-        val inBlobs = if (in.blobs != null) {
-          in.blobs
-        } else {
-          Array[Pointer]()
-        }
-        val inBlobBuffers = if (in.blobBuffers != null) {
-          in.blobBuffers
-        } else {
-          Array[ByteBuffer]()
-        }
-        for (blob <- inBlobBuffers) {
-          //println("Blob capacity =" + blob.capacity())
-          gpuInputBlobs = gpuInputBlobs :+
-            SparkEnv.get.cudaManager.allocGPUMemory(blob.capacity())
-        }
-        for ((cpuPtr, gpuPtr, blob) <- (inBlobs, gpuInputBlobs, inBlobBuffers).zipped) {
-          JCuda.cudaMemcpyAsync(gpuPtr, cpuPtr, blob.capacity(),
-            cudaMemcpyKind.cudaMemcpyHostToDevice, stream)
-        }
-        */
-
+        // perform allocGPUMemory and cudaMemcpyAsync
         val gpuInputPtrs = in.orderedGPUPointers(inputColumnsOrder, stream)
 
         for (((cpuPtr, size), gpuPtr) <- (cpuInputFreeVars zip inputFreeVarPtrs)) {
@@ -294,9 +264,9 @@ class CUDAFunction(
             cudaMemcpyKind.cudaMemcpyDeviceToHost, stream)
         }
 
-        JCuda.cudaStreamSynchronize(stream)
-
-        // TODO in.free?
+        if (!in.gpuCache || ((gpuOutputPtrs.size + gpuOutputBlobs.size) > 0)) {
+          JCuda.cudaStreamSynchronize(stream)
+        }
 
         out
       }  {
