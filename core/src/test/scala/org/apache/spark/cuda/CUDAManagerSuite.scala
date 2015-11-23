@@ -34,7 +34,7 @@ class CUDAManagerSuite extends SparkFunSuite with LocalSparkContext {
     sc = new SparkContext("local", "test", conf)
     val manager = SparkEnv.get.cudaManager
     if (manager.deviceCount > 0) {
-      val stream = manager.getStream(1024)
+      val stream = manager.getStream(1024, -1)
 
       val gpuPtr = manager.allocGPUMemory(1024)
       Utils.tryWithSafeFinally {

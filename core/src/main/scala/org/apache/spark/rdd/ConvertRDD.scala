@@ -25,7 +25,8 @@ import org.apache.spark.{Partition, TaskContext, PartitionFormat, PartitionData,
 private[spark] class ConvertRDD[T: ClassTag](
     prev: RDD[T],
     targetFormat: PartitionFormat,
-    ratio: Double = 1.0
+    ratio: Double = 1.0,
+    gpuCache : Boolean = false
   ) extends RDD[T](prev) {
 
   override def getPartitions: Array[Partition] =

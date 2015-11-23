@@ -738,6 +738,7 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
       }
 
       val points = sc.parallelize(generateData, numSlices)
+      points.cacheGpu()
       val pointsColumnCached = points.convert(ColumnFormat).cache()
       val pointsCached = points.cache()
 
@@ -745,7 +746,6 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
       var wCPU = Array.fill(D){2 * rand.nextDouble - 1}
       var wGPU = Array.tabulate(D)(i => wCPU(i))
 
-      pointsColumnCached.gpuCache
       for (i <- 1 to ITERATIONS) {
         val gradient = pointsColumnCached.mapExtFunc((p: DataPoint) =>
           dmulvs(p.x,  (1 / (1 + exp(-p.y * (ddotvv(wGPU, p.x)))) - 1) * p.y),
@@ -823,7 +823,6 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
       }
 
       val points = sc.parallelize(generateData, numSlices)
-      val pointsColumnCached = points.convert(ColumnFormat).cache()
       val pointsCached = points.cache()
 
       val w = Array.fill(D){2 * rand.nextDouble - 1}
@@ -852,9 +851,10 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
       info("CPU Processing(2) time in milliseconds = " + (Calendar.getInstance().getTimeInMillis - startTime));
 
 
+      val pointsColumn = points.convert(ColumnFormat)
       startTime = Calendar.getInstance().getTimeInMillis
       for (i <- 1 to ITERATIONS) {
-        val gradient = pointsColumnCached.mapExtFunc((p: DataPoint) =>
+        val gradient = pointsColumn.mapExtFunc((p: DataPoint) =>
           dmulvs(p.x,  (1 / (1 + exp(-p.y * (ddotvv(wGPU, p.x)))) - 1) * p.y),
           mapFunction, outputArraySizes = Array(D),
           inputFreeVariables = Array(wGPU)
@@ -868,7 +868,7 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
       wGPU = Array.tabulate(D)(i => w(i))
       startTime = Calendar.getInstance().getTimeInMillis
       for (i <- 1 to ITERATIONS) {
-        val gradient = pointsColumnCached.mapExtFunc((p: DataPoint) =>
+        val gradient = pointsColumn.mapExtFunc((p: DataPoint) =>
           dmulvs(p.x,  (1 / (1 + exp(-p.y * (ddotvv(wGPU, p.x)))) - 1) * p.y),
           mapFunction, outputArraySizes = Array(D),
           inputFreeVariables = Array(wGPU)
@@ -878,8 +878,9 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
       }
       info("GPU Processing(2) time in milliseconds = " + (Calendar.getInstance().getTimeInMillis - startTime));
 
+      points.cacheGpu()
+      val pointsColumnCached = points.convert(ColumnFormat).cache()
       startTime = Calendar.getInstance().getTimeInMillis
-      pointsColumnCached.gpuCache
       for (i <- 1 to ITERATIONS) {
         val gradient = pointsColumnCached.mapExtFunc((p: DataPoint) =>
           dmulvs(p.x,  (1 / (1 + exp(-p.y * (ddotvv(wGPUCache, p.x)))) - 1) * p.y),
@@ -889,15 +890,12 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
             reduceFunction, outputArraySizes = Array(D))
         wGPUCache = dsubvv(wGPUCache, gradient)
       }
-      pointsColumnCached.unCacheGpu()
       info("GPU Cache Processing time in milliseconds = " + (Calendar.getInstance().getTimeInMillis - startTime));
+      pointsColumnCached.unCacheGpu()
 
       (0 until wGPU.length-1).map(i => {
         assert(abs(wGPUCache(i) - wCPU(i)) < 1e-7)
       })
-
-      assert(wGPU.sameElements(wGPUCache))
-
     } else {
       info("No CUDA devices, so skipping the test.")
     }

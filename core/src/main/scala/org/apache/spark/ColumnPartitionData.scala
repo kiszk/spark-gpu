@@ -60,6 +60,8 @@ class ColumnPartitionData[T](
 
   var gpuCache : Boolean = false
   private val cachedGPUPointers = new HashMap[String, Pointer]()
+  def gpuCached : Boolean = cachedGPUPointers.size > 0 
+  var gpuDevIx : Int = -1 
 
   var blobs : Array[Pointer] = null
   var blobBuffers : Array[ByteBuffer] = null
@@ -190,14 +192,14 @@ class ColumnPartitionData[T](
     Vector[Pointer] = {
     var gpuPtrs = Vector[Pointer]()
     var gpuBlobs = Vector[Pointer]()
+    var memCpys = Vector[(Pointer, Pointer, Long)]()
 
     val inColumns = schema.orderedColumns(order)
     val inPointers = orderedPointers(order)
     for ((col, name, cpuPtr) <- (inColumns, order, inPointers).zipped) {
       gpuPtrs = gpuPtrs :+ cachedGPUPointers.getOrElseUpdate(name, {
         val gpuPtr = SparkEnv.get.cudaManager.allocGPUMemory(col.memoryUsage(size))
-        JCuda.cudaMemcpyAsync(gpuPtr, cpuPtr, col.memoryUsage(size),
-                              cudaMemcpyKind.cudaMemcpyHostToDevice, stream)
+        memCpys = memCpys :+ (gpuPtr, cpuPtr, col.memoryUsage(size))
         gpuPtr
       })
     }
@@ -208,17 +210,21 @@ class ColumnPartitionData[T](
       (inBlobBuffers, (1 to inBlobBuffers.length).map(_.toString), inBlobs).zipped) {
       gpuBlobs = gpuBlobs :+ cachedGPUPointers.getOrElseUpdate(name, {
         val gpuPtr = SparkEnv.get.cudaManager.allocGPUMemory(blob.capacity())
-        JCuda.cudaMemcpyAsync(gpuPtr, cpuPtr, blob.capacity(),
-          cudaMemcpyKind.cudaMemcpyHostToDevice, stream)
+        memCpys = memCpys :+ (gpuPtr, cpuPtr, blob.capacity().toLong)
         gpuPtr
       })
+    }
+
+    for ((gpuPtr, cpuPtr, length) <- memCpys) {
+      JCuda.cudaMemcpyAsync(gpuPtr, cpuPtr, length,
+                            cudaMemcpyKind.cudaMemcpyHostToDevice, stream)
     }
 
     gpuPtrs ++ gpuBlobs
   }
 
   def freeGPUPointers() {
-    if (!gpuCache && cachedGPUPointers.size > 0) {
+    if (!gpuCache && gpuCached) {
       for ((name, ptr) <- cachedGPUPointers) {
         SparkEnv.get.cudaManager.freeGPUMemory(ptr)
         cachedGPUPointers.remove(name)
