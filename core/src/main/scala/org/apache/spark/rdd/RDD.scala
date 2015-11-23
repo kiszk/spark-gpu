@@ -203,8 +203,8 @@ abstract class RDD[T: ClassTag](
   def cache(): this.type = persist()
 
   var gpuCache = false
-  def cacheGpu(): this.type = { this.gpuCache = true; cache();}
-  def unCacheGpu(): this.type = { this.gpuCache = false; unpersist();}
+  def cacheGpu() { this.gpuCache = true; }
+  def unCacheGpu() { this.gpuCache = false; }
 
   /**
    * Mark the RDD as non-persistent, and remove all blocks for it from memory and disk.
@@ -1658,7 +1658,7 @@ abstract class RDD[T: ClassTag](
       throw new SparkException("RDD conversion ratio must be between 0 (no conversion) and 1 " +
         "(convert everything)")
     }
-    new ConvertRDD(this, format, ratio)
+    new ConvertRDD(this, format, ratio, gpuCache)
   }
 
   // =======================================================================

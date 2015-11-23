@@ -103,7 +103,7 @@ class CUDAManager {
   // TODO make sure only specified amount of tasks at once uses GPU
   // TODO make sure that amount of conversions is minimized by giving GPU to appropriate tasks,
   // task context might be required for that
-  private[spark] def getStream(memoryUsage: Long): cudaStream_t = {
+  private[spark] def getStream(memoryUsage: Long, gpuDevIx: Int): (cudaStream_t, Int) = {
     if (deviceCount == 0) {
       throw new SparkException("No available CUDA devices to create a stream")
     }
@@ -116,8 +116,13 @@ class CUDAManager {
     // around sqrt(num_of_threads)
     // maybe correct synchronized load balancing is okay after all - partitions synchronize to
     // allocate the memory anyway
-    val startDev = Random.nextInt(deviceCount)
-    (startDev to (startDev + deviceCount - 1)).map(_ % deviceCount).map { devIx =>
+    var startDev = Random.nextInt(deviceCount)
+    var endDev = startDev + deviceCount - 1
+    if (gpuDevIx >= 0) {
+      startDev = gpuDevIx
+      endDev = gpuDevIx
+    }
+    (startDev to endDev).map(_ % deviceCount).map { devIx =>
       JCuda.cudaSetDevice(devIx)
       val memInfo = Array.fill(2)(new Array[Long](1))
       JCuda.cudaMemGetInfo(memInfo(0), memInfo(1))
@@ -131,7 +136,7 @@ class CUDAManager {
         // allocating it now?)
         // TODO GPU memory pooling - no need to reallocate, since usually exact same sizes of memory
         // chunks will be required
-        return streams.get.apply(devIx)
+        return (streams.get.apply(devIx), devIx)
       }
     }
 
