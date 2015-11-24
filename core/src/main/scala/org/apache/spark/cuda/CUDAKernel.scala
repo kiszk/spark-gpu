@@ -20,7 +20,7 @@ import scala.reflect.runtime._
  abstract class CUDAKernel[U : ClassTag,T : ClassTag](moduleFilePath : String, fname : String)
   extends Serializable {
 
-  val moduleBinaryData = Files.readAllBytes(Paths.get(moduleFilePath))
+  /* val moduleBinaryData = Files.readAllBytes(Paths.get(moduleFilePath))
 
   case class hybridIterator[T: ClassTag](arr: Array[T]) extends Iterator[T] {
 
@@ -47,20 +47,6 @@ import scala.reflect.runtime._
     }
   }
 
-  def compute(inp: Iterator[T]) : Iterator[U] = {
-    val function = SparkEnv.get.cudaManager.getKernelFunction(moduleBinaryData,fname)
-    val stream = new cudaStream_t
-    JCuda.cudaStreamCreateWithFlags(stream, JCuda.cudaStreamNonBlocking)
-    val cuStream = new CUstream(stream)
-
-    val h = inp match {
-      case h : hybridIterator[T] => { println("Using the hybrid Iterator from previous RDD") ; h }
-      case abc : Iterator[T]  => { println("Converting Regular Iterator to hybridIterator"); new hybridIterator[T](abc.toArray) }
-    }
-    val result = run(h,function,stream,cuStream)
-    JCuda.cudaStreamDestroy(stream)
-    result
-  }
 
   def allocateGPUMemory(sz : Int) = {
     val deviceInput = new CUdeviceptr();
@@ -103,6 +89,22 @@ import scala.reflect.runtime._
     );
   }
 
-    def run(inp : hybridIterator[T], function: CUfunction,stream : cudaStream_t, cuStream : CUstream) : Iterator[U]
+  def compute(inp: Iterator[T]) : Iterator[U] = {
+    val function = SparkEnv.get.cudaManager.getKernelFunction(moduleBinaryData,fname)
+    val stream = new cudaStream_t
+    JCuda.cudaStreamCreateWithFlags(stream, JCuda.cudaStreamNonBlocking)
+    val cuStream = new CUstream(stream)
+
+    val h = inp match {
+      case h : hybridIterator[T] => { println("Using the hybrid Iterator from previous RDD") ; h }
+      case abc : Iterator[T]  => { println("Converting Regular Iterator to hybridIterator"); new hybridIterator[T](abc.toArray) }
+    }
+    val result = run(h,function,stream,cuStream)
+    JCuda.cudaStreamDestroy(stream)
+    result
+  } */
+
+    def compute(inp: Iterator[T]) : Iterator[U]
+    //def run(inp : hybridIterator[T], function: CUfunction,stream : cudaStream_t, cuStream : CUstream) : Iterator[U]
    // def run(inp: hybridIterator[T],cuFunction: CUfunction): Iterator[U]
  }
