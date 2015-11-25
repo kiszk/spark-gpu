@@ -20,29 +20,37 @@ package org.apache.spark.examples
 
 import java.util.Random
 
-import scala.math.exp
-
-import breeze.linalg.{Vector, DenseVector}
+import scala.math._
 
 import org.apache.spark._
+import org.apache.spark.cuda._
 
 /**
  * Logistic regression based classification.
- * Usage: SparkLR [slices]
+ * Usage: SparkGPULR [slices] [N] [D] [ITERATION]
  *
  * This is an example implementation for learning how to use Spark. For more conventional use,
  * please refer to either org.apache.spark.mllib.classification.LogisticRegressionWithSGD or
  * org.apache.spark.mllib.classification.LogisticRegressionWithLBFGS based on your needs.
  */
-object SparkLR {
+object SparkGPULR {
   val rand = new Random(42)
 
-  case class DataPoint(x: Vector[Double], y: Double)
+  case class DataPoint(x: Array[Double], y: Double)
+
+  def dmulvs(x: Array[Double], c: Double) : Array[Double] =
+    Array.tabulate(x.length)(i => x(i) * c)
+  def daddvv(x: Array[Double], y: Array[Double]) : Array[Double] =
+    Array.tabulate(x.length)(i => x(i) + y(i))
+  def dsubvv(x: Array[Double], y: Array[Double]) : Array[Double] =
+    Array.tabulate(x.length)(i => x(i) - y(i))
+  def ddotvv(x: Array[Double], y: Array[Double]) : Double =
+    (x zip y).foldLeft(0.0)((a, b) => a + (b._1 * b._2))
 
   def generateData(N: Int, D: Int, R: Double): Array[DataPoint] = {
     def generatePoint(i: Int): DataPoint = {
       val y = if (i % 2 == 0) -1 else 1
-      val x = DenseVector.fill(D){rand.nextGaussian + y * R}
+      val x = Array.fill(D){rand.nextGaussian + y * R}
       DataPoint(x, y)
     }
     Array.tabulate(N)(generatePoint)
@@ -61,7 +69,7 @@ object SparkLR {
 
     showWarning()
 
-    val sparkConf = new SparkConf().setAppName("SparkLR")
+    val sparkConf = new SparkConf().setAppName("SparkGPULR")
     val sc = new SparkContext(sparkConf)
 
     val numSlices = if (args.length > 0) args(0).toInt else 2
@@ -70,10 +78,34 @@ object SparkLR {
     val R = 0.7  // Scaling factor
     val ITERATIONS = if (args.length > 3) args(3).toInt else 5
 
-    val points = sc.parallelize(generateData(N, D, R), numSlices).cache()
+    val ptxURL = SparkGPUPi.getClass.getResource("/SparkGPUExamples.ptx")
+    val mapFunction = sc.broadcast(
+      new CUDAFunction(
+      "_Z14SparkGPULR_mapPKlPKdS2_PlPdlS2_",
+      Array("this.x", "this.y"),
+      Array("this"),
+      ptxURL))
+    val threads = 1024
+    val blocks = min((N + threads- 1) / threads, 1024) 
+    val dimensions = (size: Long, stage: Int) => stage match {
+      case 0 => (blocks, threads)
+    }
+    val reduceFunction = sc.broadcast(
+      new CUDAFunction(
+      "_Z17SparkGPULR_reducePKlPKdPlPdlii",
+      Array("this"),
+      Array("this"),
+      ptxURL,
+      Seq(),
+      Some((size: Long) => 1),
+      Some(dimensions)))
+
+    val points = sc.parallelize(generateData(N, D, R), numSlices)
+    points.cacheGpu()
+    val pointsColumnCached = points.convert(ColumnFormat).cache()
 
     // Initialize w to a random value
-    var w = DenseVector.fill(D){2 * rand.nextDouble - 1}
+    var w = Array.fill(D){2 * rand.nextDouble - 1}
     printf("numSlices=%d, N=%d, D=%d, ITERATIONS=%d\n", numSlices, N, D, ITERATIONS)
     //println("Initial w: " + w)
 
@@ -81,13 +113,18 @@ object SparkLR {
     for (i <- 1 to ITERATIONS) {
       println("On iteration " + i)
       val wbc = sc.broadcast(w)
-      val gradient = points.map { p =>
-        p.x * (1 / (1 + exp(-p.y * (wbc.value.dot(p.x)))) - 1) * p.y
-      }.reduce(_ + _)
-      w -= gradient
+      val gradient = pointsColumnCached.mapExtFunc((p: DataPoint) =>
+        dmulvs(p.x,  (1 / (1 + exp(-p.y * (ddotvv(wbc.value, p.x)))) - 1) * p.y),
+        mapFunction.value, outputArraySizes = Array(D),
+        inputFreeVariables = Array(wbc.value)
+      ).reduceExtFunc((x: Array[Double], y: Array[Double]) => daddvv(x, y),
+                      reduceFunction.value, outputArraySizes = Array(D))
+      w = dsubvv(w, gradient)
     }
     val ms = (System.nanoTime - now) / 1000000
     println("Elapsed time: %d ms".format(ms))
+
+    pointsColumnCached.unCacheGpu()
 
     //println("Final w: " + w)
 
