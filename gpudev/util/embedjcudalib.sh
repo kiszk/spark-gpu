@@ -11,7 +11,7 @@ else
   ARCH=`arch`
   EXT=so
 fi
-DISTASM=dist/lib/spark-assembly-1.5.0-GPU-hadoop2.2.0.jar
+DISTASM=dist/lib/spark-assembly-1.5.0-GPU-hadoop2.4.0.jar
 
 function addlib2jar {
   libdir=$2/target
