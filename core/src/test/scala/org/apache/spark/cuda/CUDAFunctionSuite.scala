@@ -655,33 +655,35 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
       }
 
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
-      val mapFunction = new CUDAFunction(
+      val mapFunction = sc.broadcast(
+        new CUDAFunction(
         "_Z12DataPointMapPKlPKiPKdPlPdlS4_",
         Array("this.x", "this.y"),
         Array("this"),
-        ptxURL)
+        ptxURL))
       val dimensions = (size: Long, stage: Int) => stage match {
         case 0 => (64, 256)
         case 1 => (1, 1)
       }
-      val reduceFunction = new CUDAFunction(
+      val reduceFunction = sc.broadcast(
+        new CUDAFunction(
         "_Z15DataPointReducePKlPKdPlPdlii",
         Array("this"),
         Array("this"),
         ptxURL,
         Seq(),
         Some((size: Long) => 2),
-        Some(dimensions))
+        Some(dimensions)))
       val n = 5
       val w = Array.fill(n)(2.0)
       val dataset = List(DataPoint(Array(  1.0,   2.0,   3.0,   4.0,   5.0), -1),
                          DataPoint(Array( -5.0,  -4.0,  -3.0,  -2.0,  -1.0),  1))
       val input = sc.parallelize(dataset, 2).convert(ColumnFormat).cache()
       val output = input.mapExtFunc((p: DataPoint) => daddvv(p.x, w),
-                                    mapFunction, outputArraySizes = Array(n),
+                                    mapFunction.value, outputArraySizes = Array(n),
                                     inputFreeVariables = Array(w))
                         .reduceExtFunc((x: Array[Double], y: Array[Double]) => daddvv(x, y),
-                                       reduceFunction, outputArraySizes = Array(n))
+                                       reduceFunction.value, outputArraySizes = Array(n))
       assert(output.sameElements((0 to 4).map((x: Int) => x * 2.0)))
     } else {
       info("No CUDA devices, so skipping the test.")
@@ -709,24 +711,26 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
       val rand = new Random(42)
 
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
-      val mapFunction = new CUDAFunction(
+      val mapFunction = sc.broadcast(
+        new CUDAFunction(
         "_Z5LRMapPKlPKdS2_PlPdlS2_",
         Array("this.x", "this.y"),
         Array("this"),
-        ptxURL)
+        ptxURL))
       val threads = 1024
       val blocks = min((N + threads- 1) / threads, 1024) 
       val dimensions = (size: Long, stage: Int) => stage match {
         case 0 => (blocks, threads)
       }
-      val reduceFunction = new CUDAFunction(
+      val reduceFunction = sc.broadcast(
+        new CUDAFunction(
         "_Z8LRReducePKlPKdPlPdlii",
         Array("this"),
         Array("this"),
         ptxURL,
         Seq(),
         Some((size: Long) => 1),
-        Some(dimensions))
+        Some(dimensions)))
 
       def generateData: Array[DataPoint] = {
         def generatePoint(i: Int): DataPoint = {
@@ -747,12 +751,13 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
       var wGPU = Array.tabulate(D)(i => wCPU(i))
 
       for (i <- 1 to ITERATIONS) {
+        val wGPUbcast = sc.broadcast(wGPU)
         val gradient = pointsColumnCached.mapExtFunc((p: DataPoint) =>
           dmulvs(p.x,  (1 / (1 + exp(-p.y * (ddotvv(wGPU, p.x)))) - 1) * p.y),
-          mapFunction, outputArraySizes = Array(D),
-          inputFreeVariables = Array(wGPU)
+          mapFunction.value, outputArraySizes = Array(D),
+          inputFreeVariables = Array(wGPUbcast.value)
         ).reduceExtFunc((x: Array[Double], y: Array[Double]) => daddvv(x, y),
-          reduceFunction, outputArraySizes = Array(D))
+          reduceFunction.value, outputArraySizes = Array(D))
         wGPU = dsubvv(wGPU, gradient)
       }
       pointsColumnCached.unCacheGpu()
@@ -794,24 +799,26 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
       val numSlices = 10
 
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
-      val mapFunction = new CUDAFunction(
+      val mapFunction = sc.broadcast(
+        new CUDAFunction(
         "_Z5LRMapPKlPKdS2_PlPdlS2_",
         Array("this.x", "this.y"),
         Array("this"),
-        ptxURL)
+        ptxURL))
       val threads = 1024
       val blocks = min((N + threads- 1) / threads, 1024) 
       val dimensions = (size: Long, stage: Int) => stage match {
         case 0 => (blocks, threads)
       }
-      val reduceFunction = new CUDAFunction(
+      val reduceFunction = sc.broadcast(
+        new CUDAFunction(
         "_Z8LRReducePKlPKdPlPdlii",
         Array("this"),
         Array("this"),
         ptxURL,
         Seq(),
         Some((size: Long) => 1),
-        Some(dimensions))
+        Some(dimensions)))
 
       def generateData: Array[DataPoint] = {
         def generatePoint(i: Int): DataPoint = {
@@ -854,12 +861,13 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
       val pointsColumn = points.convert(ColumnFormat)
       startTime = Calendar.getInstance().getTimeInMillis
       for (i <- 1 to ITERATIONS) {
+        val wGPUbc = sc.broadcast(wGPU)
         val gradient = pointsColumn.mapExtFunc((p: DataPoint) =>
-          dmulvs(p.x,  (1 / (1 + exp(-p.y * (ddotvv(wGPU, p.x)))) - 1) * p.y),
-          mapFunction, outputArraySizes = Array(D),
-          inputFreeVariables = Array(wGPU)
+          dmulvs(p.x,  (1 / (1 + exp(-p.y * (ddotvv(wGPUbc.value, p.x)))) - 1) * p.y),
+          mapFunction.value, outputArraySizes = Array(D),
+          inputFreeVariables = Array(wGPUbc.value)
         ).reduceExtFunc((x: Array[Double], y: Array[Double]) => daddvv(x, y),
-            reduceFunction, outputArraySizes = Array(D))
+                        reduceFunction.value, outputArraySizes = Array(D))
         wGPU = dsubvv(wGPU, gradient)
       }
       info("GPU Processing(1) time in milliseconds = " + (Calendar.getInstance().getTimeInMillis - startTime));
@@ -868,12 +876,13 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
       wGPU = Array.tabulate(D)(i => w(i))
       startTime = Calendar.getInstance().getTimeInMillis
       for (i <- 1 to ITERATIONS) {
+        val wGPUbc = sc.broadcast(wGPU)
         val gradient = pointsColumn.mapExtFunc((p: DataPoint) =>
-          dmulvs(p.x,  (1 / (1 + exp(-p.y * (ddotvv(wGPU, p.x)))) - 1) * p.y),
-          mapFunction, outputArraySizes = Array(D),
-          inputFreeVariables = Array(wGPU)
+          dmulvs(p.x,  (1 / (1 + exp(-p.y * (ddotvv(wGPUbc.value, p.x)))) - 1) * p.y),
+          mapFunction.value, outputArraySizes = Array(D),
+          inputFreeVariables = Array(wGPUbc.value)
         ).reduceExtFunc((x: Array[Double], y: Array[Double]) => daddvv(x, y),
-            reduceFunction, outputArraySizes = Array(D))
+                        reduceFunction.value, outputArraySizes = Array(D))
         wGPU = dsubvv(wGPU, gradient)
       }
       info("GPU Processing(2) time in milliseconds = " + (Calendar.getInstance().getTimeInMillis - startTime));
@@ -882,12 +891,13 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
       val pointsColumnCached = points.convert(ColumnFormat).cache()
       startTime = Calendar.getInstance().getTimeInMillis
       for (i <- 1 to ITERATIONS) {
+        val wGPUCachebc = sc.broadcast(wGPUCache)
         val gradient = pointsColumnCached.mapExtFunc((p: DataPoint) =>
-          dmulvs(p.x,  (1 / (1 + exp(-p.y * (ddotvv(wGPUCache, p.x)))) - 1) * p.y),
-          mapFunction, outputArraySizes = Array(D),
-          inputFreeVariables = Array(wGPUCache)
+          dmulvs(p.x,  (1 / (1 + exp(-p.y * (ddotvv(wGPUCachebc.value, p.x)))) - 1) * p.y),
+          mapFunction.value, outputArraySizes = Array(D),
+          inputFreeVariables = Array(wGPUCachebc.value)
         ).reduceExtFunc((x: Array[Double], y: Array[Double]) => daddvv(x, y),
-            reduceFunction, outputArraySizes = Array(D))
+                        reduceFunction.value, outputArraySizes = Array(D))
         wGPUCache = dsubvv(wGPUCache, gradient)
       }
       info("GPU Cache Processing time in milliseconds = " + (Calendar.getInstance().getTimeInMillis - startTime));
