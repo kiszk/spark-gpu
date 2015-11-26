@@ -18,7 +18,11 @@
 package org.apache.spark.cuda
 
 import scala.collection.mutable.{Map, HashMap, MutableList}
-import scala.util.Random
+
+import java.lang.Thread
+import java.net.URL
+import java.nio.ByteBuffer
+import java.nio.file.{Files, Paths}
 
 import jcuda.Pointer
 import jcuda.driver.CUcontext
@@ -116,11 +120,11 @@ class CUDAManager {
     // around sqrt(num_of_threads)
     // maybe correct synchronized load balancing is okay after all - partitions synchronize to
     // allocate the memory anyway
-    var startDev = Random.nextInt(deviceCount)
-    var endDev = startDev + deviceCount - 1
-    if (gpuDevIx >= 0) {
-      startDev = gpuDevIx
-      endDev = gpuDevIx
+    var startDev = gpuDevIx
+    var endDev = gpuDevIx
+    if (gpuDevIx < 0) {
+      startDev = Thread.currentThread().getId().toInt % deviceCount
+      endDev = startDev + deviceCount - 1
     }
     (startDev to endDev).map(_ % deviceCount).map { devIx =>
       JCuda.cudaSetDevice(devIx)
