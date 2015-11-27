@@ -96,10 +96,7 @@ class CUDAFunction(
 
     // TODO cache the function if there is a chance that after a deserialization kernel gets called
     // multiple times - but only if no synchronization is needed for that
-    val inputStream = resourceURL.openStream()
-    val ptxData = IOUtils.toByteArray(inputStream)
-    inputStream.close()
-    val module = SparkEnv.get.cudaManager.cachedLoadModule(resourceURL.toString(), ptxData)
+    val module = SparkEnv.get.cudaManager.cachedLoadModule(resourceURL)
     val function = new CUfunction
     JCudaDriver.cuModuleGetFunction(function, module, kernelSignature)
 

@@ -34,6 +34,7 @@ import jcuda.driver.JCudaDriver
 import jcuda.runtime.cudaStream_t
 import jcuda.runtime.JCuda
 
+import org.apache.commons.io.IOUtils
 import org.apache.spark.SparkException
 
 import org.slf4j.Logger
@@ -149,8 +150,8 @@ class CUDAManager {
   }
 
 
-  private[spark] def cachedLoadModule(filename: String,
-    moduleBinaryData: Array[Byte]): CUmodule = {
+  private[spark] def cachedLoadModule(resourceURL: URL): CUmodule = {
+    val filename = resourceURL.toString()
     val devIx = new Array[Int](1)
     JCuda.cudaGetDevice(devIx)
     synchronized {
@@ -165,6 +166,11 @@ class CUDAManager {
           throw new SparkException("More than one ptx is loaded for one device. " +
             "CUDAManager.cachedLoadModule currently supports only one ptx");
         }
+        val inputStream = resourceURL.openStream()
+//        val ptxData = IOUtils.toByteArray(inputStream)
+        val moduleBinaryData = IOUtils.toByteArray(inputStream)
+        inputStream.close()
+
         val moduleBinaryData0 = new Array[Byte](moduleBinaryData.length + 1)
         System.arraycopy(moduleBinaryData, 0, moduleBinaryData0, 0, moduleBinaryData.length)
         moduleBinaryData0(moduleBinaryData.length-1) = 0
