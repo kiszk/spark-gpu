@@ -18,7 +18,11 @@
 package org.apache.spark.cuda
 
 import scala.collection.mutable.{Map, HashMap, MutableList}
-import scala.util.Random
+
+import java.lang.Thread
+import java.net.URL
+import java.nio.ByteBuffer
+import java.nio.file.{Files, Paths}
 
 import jcuda.Pointer
 import jcuda.driver.CUcontext
@@ -30,6 +34,7 @@ import jcuda.driver.JCudaDriver
 import jcuda.runtime.cudaStream_t
 import jcuda.runtime.JCuda
 
+import org.apache.commons.io.IOUtils
 import org.apache.spark.SparkException
 
 import org.slf4j.Logger
@@ -103,7 +108,7 @@ class CUDAManager {
   // TODO make sure only specified amount of tasks at once uses GPU
   // TODO make sure that amount of conversions is minimized by giving GPU to appropriate tasks,
   // task context might be required for that
-  private[spark] def getStream(memoryUsage: Long): cudaStream_t = {
+  private[spark] def getStream(memoryUsage: Long, gpuDevIx: Int): (cudaStream_t, Int) = {
     if (deviceCount == 0) {
       throw new SparkException("No available CUDA devices to create a stream")
     }
@@ -116,8 +121,13 @@ class CUDAManager {
     // around sqrt(num_of_threads)
     // maybe correct synchronized load balancing is okay after all - partitions synchronize to
     // allocate the memory anyway
-    val startDev = Random.nextInt(deviceCount)
-    (startDev to (startDev + deviceCount - 1)).map(_ % deviceCount).map { devIx =>
+    var startDev = gpuDevIx
+    var endDev = gpuDevIx
+    if (gpuDevIx < 0) {
+      startDev = Thread.currentThread().getId().toInt % deviceCount
+      endDev = startDev + deviceCount - 1
+    }
+    (startDev to endDev).map(_ % deviceCount).map { devIx =>
       JCuda.cudaSetDevice(devIx)
       val memInfo = Array.fill(2)(new Array[Long](1))
       JCuda.cudaMemGetInfo(memInfo(0), memInfo(1))
@@ -131,7 +141,7 @@ class CUDAManager {
         // allocating it now?)
         // TODO GPU memory pooling - no need to reallocate, since usually exact same sizes of memory
         // chunks will be required
-        return streams.get.apply(devIx)
+        return (streams.get.apply(devIx), devIx)
       }
     }
 
@@ -139,10 +149,8 @@ class CUDAManager {
       s"($memoryUsage bytes needed)")
   }
 
-  private val cachedModules = new HashMap[(String, Int), CUmodule]
-
-  private[spark] def cachedLoadModule(filename: String,
-    moduleBinaryData: Array[Byte]): CUmodule = {
+  private[spark] def cachedLoadModule(resourceURL: URL): CUmodule = {
+    val filename = resourceURL.toString()
     val devIx = new Array[Int](1)
     JCuda.cudaGetDevice(devIx)
     synchronized {
@@ -157,6 +165,10 @@ class CUDAManager {
           throw new SparkException("More than one ptx is loaded for one device. " +
             "CUDAManager.cachedLoadModule currently supports only one ptx");
         }
+        val inputStream = resourceURL.openStream()
+        val moduleBinaryData = IOUtils.toByteArray(inputStream)
+        inputStream.close()
+
         val moduleBinaryData0 = new Array[Byte](moduleBinaryData.length + 1)
         System.arraycopy(moduleBinaryData, 0, moduleBinaryData0, 0, moduleBinaryData.length)
         moduleBinaryData0(moduleBinaryData.length-1) = 0

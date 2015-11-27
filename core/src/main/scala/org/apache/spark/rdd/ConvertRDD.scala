@@ -25,7 +25,8 @@ import org.apache.spark.{Partition, TaskContext, PartitionFormat, PartitionData,
 private[spark] class ConvertRDD[T: ClassTag](
     prev: RDD[T],
     targetFormat: PartitionFormat,
-    ratio: Double = 1.0
+    ratio: Double = 1.0,
+    gpuCache : Boolean = false
   ) extends RDD[T](prev) {
 
   override def getPartitions: Array[Partition] =
@@ -44,7 +45,7 @@ private[spark] class ConvertRDD[T: ClassTag](
     // TODO this works only once per complete conversion, applying this twice will not yield
     // expected results
     if (ceil((split.index + 1) * ratio).toInt - ceil(split.index * ratio) > 0) {
-      firstParent[T].partitionData(split, context).convert(targetFormat)
+      firstParent[T].partitionData(split, context).convert(targetFormat, gpuCache)
     } else {
       firstParent[T].partitionData(split, context)
     }
