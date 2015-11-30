@@ -22,6 +22,7 @@ import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
+import java.util.Iterator;
 
 import org.apache.spark.unsafe.Platform;
 
@@ -61,6 +62,22 @@ public class HeapMemoryAllocator implements MemoryAllocator {
   private final Map<Pointer, Long> pinnedMemorySizes = new HashMap<Pointer, Long>();
 
   private static final int POOLING_THRESHOLD_BYTES = 1024 * 1024;
+
+  /**
+   * Construct a new HeapMemoryAllocator with unlimited off-heap pinned memory.
+   */
+  public HeapMemoryAllocator() {
+    this(-1);
+  }
+
+  /**
+   * Construct a new HeapMemoryAllocator.
+   *
+   * @param maxPinnedMemory the maximum amount of allocated off-heap pinned memory
+   */
+  public HeapMemoryAllocator(long maxPinnedMemory) {
+    this.maxPinnedMemory = maxPinnedMemory;
+  }
 
   /**
    * Returns true if allocations of the given size should go through the pooling mechanism and
@@ -200,7 +217,7 @@ public class HeapMemoryAllocator implements MemoryAllocator {
     }
   }
 
-  static protected final Logger logger = LoggerFactory.getLogger(ExecutorMemoryManager.class);
+  static protected final Logger logger = LoggerFactory.getLogger(HeapMemoryAllocator.class);
 
   protected void finalize() {
     // Deallocating off-heap pinned memory pool

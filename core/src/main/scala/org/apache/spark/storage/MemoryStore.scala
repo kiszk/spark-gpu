@@ -40,6 +40,7 @@ private abstract class MemoryEntry {
   val value: Any
 }
 
+// already deserialized
 private case class ArrayMemoryEntry(value: Array[Any], size: Long) extends MemoryEntry {
   def unitName: String = "array values"
 }
@@ -154,9 +155,9 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
     if (level.deserialized) {
       val sizeEstimate = SizeEstimator.estimate(values.asInstanceOf[AnyRef])
       tryToPut(blockId, values, sizeEstimate, deserialized = true, droppedBlocks)
-      PutResult(sizeEstimate, Left(IteratedPartitionData(values.iterator)), droppedBlocks)
+      PutResult(sizeEstimate, Left(IteratorPartitionData(values.iterator)), droppedBlocks)
     } else {
-      val bytes = blockManager.dataSerialize(blockId, IteratedPartitionData(values.iterator))
+      val bytes = blockManager.dataSerialize(blockId, IteratorPartitionData(values.iterator))
       tryToPut(blockId, bytes, bytes.limit, deserialized = false, droppedBlocks)
       PutResult(bytes.limit(), Right(bytes.duplicate()), droppedBlocks)
     }
@@ -437,13 +438,17 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
       if (enoughMemory) {
         // We acquired enough memory for the block, so go ahead and put it
         val entry = value() match {
-          case arr: Array[Any] => ArrayMemoryEntry(arr, size)
+          case arr: Array[Any] => {
+            assert(deserialized)
+            ArrayMemoryEntry(arr, size)
+          }
           case cp: ColumnPartitionData[_] => ColumnPartitionMemoryEntry(cp, size)
           case buf: ByteBuffer => SerializedMemoryEntry(buf, size)
         }
         entries.synchronized {
           entries.put(blockId, entry)
         }
+        val valuesOrBytes = entry.unitName
         logInfo("Block %s stored as %s in memory (estimated size %s, free %s)".format(
           blockId, valuesOrBytes, Utils.bytesToString(size), Utils.bytesToString(blocksMemoryUsed)))
       } else {

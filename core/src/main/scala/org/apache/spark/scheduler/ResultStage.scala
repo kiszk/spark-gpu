@@ -17,6 +17,7 @@
 
 package org.apache.spark.scheduler
 
+import org.apache.spark.PartitionData
 import org.apache.spark.TaskContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.util.CallSite
@@ -30,7 +31,7 @@ import org.apache.spark.util.CallSite
 private[spark] class ResultStage(
     id: Int,
     rdd: RDD[_],
-    val func: (TaskContext, Iterator[_]) => _,
+    val func: (TaskContext, PartitionData[_]) => _,
     val partitions: Array[Int],
     parents: List[Stage],
     firstJobId: Int,

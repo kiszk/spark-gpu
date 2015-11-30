@@ -40,11 +40,8 @@ import org.apache.spark.PPCIBMJDKFailingTest
 class ALSSuite
   extends SparkFunSuite with MLlibTestSparkContext with DefaultReadWriteTest with Logging {
 
-  private var tempDir: File = _
-
   override def beforeAll(): Unit = {
     super.beforeAll()
-    tempDir = Utils.createTempDir()
     sc.setCheckpointDir(tempDir.getAbsolutePath)
   }
 

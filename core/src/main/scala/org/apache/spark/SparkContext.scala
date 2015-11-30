@@ -1998,7 +1998,6 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
    * Submit a job for execution and return a FutureJob holding the result.
    */
   // TODO version with kernel, just like in runJob, though U: ClassTag will be needed
-  @Experimental
   def submitJob[T, U, R](
       rdd: RDD[T],
       processPartition: Iterator[T] => U,

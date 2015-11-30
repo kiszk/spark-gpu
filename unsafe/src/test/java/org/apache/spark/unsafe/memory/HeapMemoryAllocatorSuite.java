@@ -25,7 +25,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class ExecutorMemoryManagerSuite {
+public class HeapMemoryAllocatorSuite {
 
   @BeforeClass
   public static void setUp() {
@@ -37,7 +37,7 @@ public class ExecutorMemoryManagerSuite {
 
   @Test
   public void allocatedAndFreedMemoryIsPooled() {
-    final ExecutorMemoryManager manager = new ExecutorMemoryManager(MemoryAllocator.HEAP, 4096);
+    final HeapMemoryAllocator manager = new HeapMemoryAllocator(4096);
     Assert.assertEquals(4096, manager.maxPinnedMemory);
     Assert.assertEquals(0, manager.getAllocatedPinnedMemorySize());
     Assert.assertEquals(0, manager.getUsedAllocatedPinnedMemorySize());
@@ -75,7 +75,7 @@ public class ExecutorMemoryManagerSuite {
 
   @Test
   public void allocateAndFreeMaxMemoryWorks() {
-    final ExecutorMemoryManager manager = new ExecutorMemoryManager(MemoryAllocator.HEAP, 4096);
+    final HeapMemoryAllocator manager = new HeapMemoryAllocator(4096);
     Assert.assertEquals(4096, manager.maxPinnedMemory);
     Assert.assertEquals(0, manager.getAllocatedPinnedMemorySize());
     Assert.assertEquals(0, manager.getUsedAllocatedPinnedMemorySize());
@@ -91,7 +91,7 @@ public class ExecutorMemoryManagerSuite {
 
   @Test
   public void gcToAllocateMemoryWorks() {
-    final ExecutorMemoryManager manager = new ExecutorMemoryManager(MemoryAllocator.HEAP, 4096);
+    final HeapMemoryAllocator manager = new HeapMemoryAllocator(4096);
     Assert.assertEquals(4096, manager.maxPinnedMemory);
     Assert.assertEquals(0, manager.getAllocatedPinnedMemorySize());
     Assert.assertEquals(0, manager.getUsedAllocatedPinnedMemorySize());
@@ -115,7 +115,7 @@ public class ExecutorMemoryManagerSuite {
 
   @Test(expected=OutOfMemoryError.class)
   public void allocationOverMaxMemoryThrowsOOM() {
-    final ExecutorMemoryManager manager = new ExecutorMemoryManager(MemoryAllocator.HEAP, 4096);
+    final HeapMemoryAllocator manager = new HeapMemoryAllocator(4096);
     Assert.assertEquals(4096, manager.maxPinnedMemory);
     Assert.assertEquals(0, manager.getAllocatedPinnedMemorySize());
     Assert.assertEquals(0, manager.getUsedAllocatedPinnedMemorySize());
@@ -124,7 +124,7 @@ public class ExecutorMemoryManagerSuite {
 
   @Test(expected=OutOfMemoryError.class)
   public void allocatingTooMuchThrowsOOM() {
-    final ExecutorMemoryManager manager = new ExecutorMemoryManager(MemoryAllocator.HEAP, 4096);
+    final HeapMemoryAllocator manager = new HeapMemoryAllocator(4096);
     Assert.assertEquals(4096, manager.maxPinnedMemory);
     Assert.assertEquals(0, manager.getAllocatedPinnedMemorySize());
     Assert.assertEquals(0, manager.getUsedAllocatedPinnedMemorySize());
@@ -144,7 +144,7 @@ public class ExecutorMemoryManagerSuite {
 
   @Test
   public void registersAllocatedSizesCorrectly() {
-    final ExecutorMemoryManager manager = new ExecutorMemoryManager(MemoryAllocator.HEAP, 4096);
+    final HeapMemoryAllocator manager = new HeapMemoryAllocator(4096);
     Pointer ptr1 = manager.allocatePinnedMemory(1);
     Assert.assertEquals(1, manager.getAllocatedPinnedMemorySize());
     Assert.assertEquals(1, manager.getUsedAllocatedPinnedMemorySize());

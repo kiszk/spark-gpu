@@ -122,8 +122,8 @@ private[spark] class SqlNewHadoopRDD[V: ClassTag](
 
   override def compute(
       theSplit: SparkPartition,
-      context: TaskContext): PartitionData[(K, V)] = {
-    val iter = new Iterator[(K, V)] {
+      context: TaskContext): Iterator[V] = {
+    val iter = new Iterator[V] {
       val split = theSplit.asInstanceOf[SqlNewHadoopPartition]
       logInfo("Input split: " + split.serializableHadoopSplit)
       val conf = getConf(isDriverSide = false)
@@ -247,7 +247,7 @@ private[spark] class SqlNewHadoopRDD[V: ClassTag](
         }
       }
     }
-    new InterruptibleIterator(context, iter)
+    iter
   }
 
   override def getPreferredLocations(hsplit: SparkPartition): Seq[String] = {

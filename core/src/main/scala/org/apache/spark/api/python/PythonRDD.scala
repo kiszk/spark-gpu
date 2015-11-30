@@ -90,7 +90,7 @@ private[spark] class PythonRunner(
   def compute(
       inputIterator: Iterator[_],
       partitionIndex: Int,
-      context: TaskContext): PartitionData[Array[Byte]] = {
+      context: TaskContext): Iterator[Array[Byte]] = {
     val startTime = System.currentTimeMillis
     val env = SparkEnv.get
     val localdir = env.blockManager.diskBlockManager.localDirs.map(f => f.getPath()).mkString(",")

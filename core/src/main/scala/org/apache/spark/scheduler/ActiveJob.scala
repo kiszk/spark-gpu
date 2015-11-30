@@ -43,7 +43,7 @@ import org.apache.spark.util.CallSite
  */
 private[spark] class ActiveJob(
     val jobId: Int,
-    val finalStage: ResultStage,
+    val finalStage: Stage,
     val callSite: CallSite,
     val listener: JobListener,
     val properties: Properties) {

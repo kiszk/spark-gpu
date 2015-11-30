@@ -31,8 +31,7 @@ import org.apache.spark.sql.types.StringType
 import org.apache.spark.PPCIBMJDKFailingTest
 
 class ScriptTransformationSuite extends SparkPlanTest with TestHiveSingleton {
-
-  override def sqlContext: SQLContext = TestHive
+  import hiveContext.implicits._
 
   private val noSerdeIOSchema = HiveScriptIOSchema(
     inputRowFormat = Seq.empty,

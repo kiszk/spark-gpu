@@ -55,12 +55,11 @@ class SlidingRDD[T: ClassTag](@transient val parent: RDD[T], val windowSize: Int
 
   override def compute(split: Partition, context: TaskContext): Iterator[Array[T]] = {
     val part = split.asInstanceOf[SlidingRDDPartition[T]]
-    IteratedPartitionData(
     (firstParent[T].iterator(part.prev, context) ++ part.tail)
       .drop(part.offset)
       .sliding(windowSize, step)
       .withPartial(false)
-      .map(_.toArray))
+      .map(_.toArray)
   }
 
   override def getPreferredLocations(split: Partition): Seq[String] =

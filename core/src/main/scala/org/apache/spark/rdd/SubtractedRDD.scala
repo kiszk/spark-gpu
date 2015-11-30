@@ -128,7 +128,7 @@ private[spark] class SubtractedRDD[K: ClassTag, V: ClassTag, W: ClassTag](
     // the second dep is rdd2; remove all of its keys
     integrate(1, t => map.remove(t._1))
     // TODO version for ColumnPartitionData
-    map.iterator.map { t => t._2.iterator.map { (t._1, _) } }.flatten
+    map.asScala.iterator.map { t => t._2.iterator.map { (t._1, _) } }.flatten
   }
 
   override def clearDependencies() {

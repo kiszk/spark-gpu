@@ -519,7 +519,7 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
   test("in-memory LRU storage - column-based") {
     sc = new SparkContext("local", "test", conf)
     assert(SparkEnv.get != null)
-    assert(SparkEnv.get.executorMemoryManager != null)
+    assert(SparkEnv.get.heapMemoryAllocator != null)
     store = makeBlockManager(12000)
     val c1 = ColumnPartitionDataBuilder.build[Byte](4000)
     val c2 = ColumnPartitionDataBuilder.build[Byte](4000)
@@ -560,7 +560,7 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
   test("in-memory LRU storage with serialization - column-based") {
     sc = new SparkContext("local", "test", conf)
     assert(SparkEnv.get != null)
-    assert(SparkEnv.get.executorMemoryManager != null)
+    assert(SparkEnv.get.heapMemoryAllocator != null)
     store = makeBlockManager(12000)
     val c1 = ColumnPartitionDataBuilder.build[Byte](4000)
     val c2 = ColumnPartitionDataBuilder.build[Byte](4000)
@@ -644,7 +644,7 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
   test("tachyon storage - column-based") {
     sc = new SparkContext("local", "test", conf)
     assert(SparkEnv.get != null)
-    assert(SparkEnv.get.executorMemoryManager != null)
+    assert(SparkEnv.get.heapMemoryAllocator != null)
     // TODO Make the spark.test.tachyon.enable true after using tachyon 0.5.0 testing jar.
     val tachyonUnitTestEnabled = conf.getBoolean("spark.test.tachyon.enable", false)
     conf.set(ExternalBlockStore.BLOCK_MANAGER_NAME, ExternalBlockStore.DEFAULT_BLOCK_MANAGER_NAME)
@@ -681,7 +681,7 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
   test("on-disk storage - column-based") {
     sc = new SparkContext("local", "test", conf)
     assert(SparkEnv.get != null)
-    assert(SparkEnv.get.executorMemoryManager != null)
+    assert(SparkEnv.get.heapMemoryAllocator != null)
     // some space has to be reserved for schema serialization
     store = makeBlockManager(2000)
     val c1 = ColumnPartitionDataBuilder.build[Byte](400)
@@ -1423,7 +1423,7 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
 
     sc = new SparkContext("local", "test", conf)
     assert(SparkEnv.get != null)
-    assert(SparkEnv.get.executorMemoryManager != null)
+    assert(SparkEnv.get.heapMemoryAllocator != null)
     store = makeBlockManager(10000)
     val blockId =  BlockId("rdd_42_42")
     val inputData = ColumnPartitionDataBuilder.build(1 to 1024)

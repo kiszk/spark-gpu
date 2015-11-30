@@ -37,6 +37,9 @@
         <exclude>org.apache.hadoop:*:jar</exclude>
         <exclude>org.apache.zookeeper:*:jar</exclude>
         <exclude>org.apache.avro:*:jar</exclude>
+        <exclude>jcuda:*:so:*</exclude>
+        <exclude>jcuda:*:dll:*</exclude>
+        <exclude>jcuda:*:dylib:*</exclude>
       </excludes>
     </dependencySet>
   </dependencySets>

@@ -331,12 +331,8 @@ class ExternalAppendOnlyMapSuite extends SparkFunSuite with LocalSparkContext {
     sc.stop()
   }
 
-<<<<<<< HEAD
-  test("spilling with many hash collisions") {
-    val size = 1000
-=======
   test("spilling with many hash collisions", PPCIBMJDKFailingTest) {
->>>>>>> Marked core module tests that do not pass unit tests on IBM JDK with PPCIBMJDKFailingTest tag.
+    val size = 1000
     val conf = createSparkConf(loadDefaults = true)
     conf.set("spark.shuffle.spill.numElementsForceSpillThreshold", (size / 2).toString)
     sc = new SparkContext("local-cluster[1,1,1024]", "test", conf)
@@ -364,12 +360,8 @@ class ExternalAppendOnlyMapSuite extends SparkFunSuite with LocalSparkContext {
     sc.stop()
   }
 
-<<<<<<< HEAD
-  test("spilling with hash collisions using the Int.MaxValue key") {
-    val size = 1000
-=======
   test("spilling with hash collisions using the Int.MaxValue key", PPCIBMJDKFailingTest) {
->>>>>>> Marked core module tests that do not pass unit tests on IBM JDK with PPCIBMJDKFailingTest tag.
+    val size = 1000
     val conf = createSparkConf(loadDefaults = true)
     conf.set("spark.shuffle.spill.numElementsForceSpillThreshold", (size / 2).toString)
     sc = new SparkContext("local-cluster[1,1,1024]", "test", conf)
@@ -387,12 +379,8 @@ class ExternalAppendOnlyMapSuite extends SparkFunSuite with LocalSparkContext {
     sc.stop()
   }
 
-<<<<<<< HEAD
-  test("spilling with null keys and values") {
-    val size = 1000
-=======
   test("spilling with null keys and values", PPCIBMJDKFailingTest) {
->>>>>>> Marked core module tests that do not pass unit tests on IBM JDK with PPCIBMJDKFailingTest tag.
+    val size = 1000
     val conf = createSparkConf(loadDefaults = true)
     conf.set("spark.shuffle.spill.numElementsForceSpillThreshold", (size / 2).toString)
     sc = new SparkContext("local-cluster[1,1,1024]", "test", conf)

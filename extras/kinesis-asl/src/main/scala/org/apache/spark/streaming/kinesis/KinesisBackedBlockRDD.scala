@@ -94,37 +94,24 @@ class KinesisBackedBlockRDD[T: ClassTag](
   }
 
   override def computePartition(split: Partition, context: TaskContext):
-      PartitionData[Array[Byte]] = {
+      PartitionData[T] = {
     val blockManager = SparkEnv.get.blockManager
     val partition = split.asInstanceOf[KinesisBackedBlockRDDPartition]
     val blockId = partition.blockId
 
-    def getBlockFromBlockManager(): Option[Iterator[T]] = {
+    def getBlockFromBlockManager(): Option[PartitionData[T]] = {
       logDebug(s"Read partition data of $this from block manager, block $blockId")
-      blockManager.get(blockId).map(_.data.asInstanceOf[Iterator[T]])
+      blockManager.get(blockId).map(_.data.asInstanceOf[PartitionData[T]])
     }
 
-    def getBlockFromKinesis(): Iterator[T] = {
-      val credentials = awsCredentialsOption.getOrElse {
-        new DefaultAWSCredentialsProviderChain().getCredentials()
-      }
-      partition.seqNumberRanges.ranges.iterator.flatMap { range =>
-        new KinesisSequenceRangeIterator(credentials, endpointUrl, regionName,
-          range, retryTimeoutMs).map(messageHandler)
-      }
-    def getBlockFromBlockManager(): Option[PartitionData[Array[Byte]]] = {
-      logDebug(s"Read partition data of $this from block manager, block $blockId")
-      blockManager.get(blockId).map(_.data.asInstanceOf[PartitionData[Array[Byte]]])
-    }
-
-    def getBlockFromKinesis(): PartitionData[Array[Byte]] = {
+    def getBlockFromKinesis(): PartitionData[T] = {
       val credenentials = awsCredentialsOption.getOrElse {
         new DefaultAWSCredentialsProviderChain().getCredentials()
       }
       IteratorPartitionData(
         partition.seqNumberRanges.ranges.iterator.flatMap { range =>
-          new KinesisSequenceRangeIterator(
-            credenentials, endpointUrl, regionId, range, retryTimeoutMs)
+          new KinesisSequenceRangeIterator(credenentials, endpointUrl, regionName,
+            range, retryTimeoutMs).map(messageHandler)
         })
     }
     if (partition.isBlockIdValid) {

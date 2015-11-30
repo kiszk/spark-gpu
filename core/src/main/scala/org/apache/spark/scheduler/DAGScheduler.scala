@@ -327,7 +327,7 @@ class DAGScheduler(
    */
   private def newResultStage(
       rdd: RDD[_],
-      func: (TaskContext, Iterator[_]) => _,
+      func: (TaskContext, PartitionData[_]) => _,
       partitions: Array[Int],
       jobId: Int,
       callSite: CallSite): ResultStage = {
