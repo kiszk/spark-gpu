@@ -60,8 +60,8 @@ class ColumnPartitionData[T](
 
   var gpuCache : Boolean = false
   private val cachedGPUPointers = new HashMap[String, Pointer]()
-  def gpuCached : Boolean = cachedGPUPointers.size > 0 
-  var gpuDevIx : Int = -1 
+  def gpuCached : Boolean = cachedGPUPointers.size > 0
+  var gpuDevIx : Int = -1
 
   var blobs : Array[Pointer] = null
   var blobBuffers : Array[ByteBuffer] = null
