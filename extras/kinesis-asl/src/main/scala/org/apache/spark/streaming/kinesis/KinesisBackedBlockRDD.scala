@@ -112,6 +112,7 @@ class KinesisBackedBlockRDD[T: ClassTag](
           range, retryTimeoutMs).map(messageHandler)
       }
     }
+
     if (partition.isBlockIdValid) {
       getBlockFromBlockManager().getOrElse { getBlockFromKinesis() }
     } else {
