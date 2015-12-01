@@ -18,15 +18,21 @@
 package org.apache.spark.unsafe.types;
 
 import javax.annotation.Nonnull;
-import java.io.Serializable;
-import java.io.UnsupportedEncodingException;
+import java.io.*;
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
+import java.util.Map;
 
-import org.apache.spark.unsafe.PlatformDependent;
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.KryoSerializable;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
+
+import org.apache.spark.unsafe.Platform;
 import org.apache.spark.unsafe.array.ByteArrayMethods;
 
-import static org.apache.spark.unsafe.PlatformDependent.*;
+import static org.apache.spark.unsafe.Platform.*;
 
 
 /**
@@ -37,12 +43,13 @@ import static org.apache.spark.unsafe.PlatformDependent.*;
  * <p>
  * Note: This is not designed for general use cases, should not be used outside SQL.
  */
-public final class UTF8String implements Comparable<UTF8String>, Serializable {
+public final class UTF8String implements Comparable<UTF8String>, Externalizable, KryoSerializable {
 
+  // These are only updated by readExternal() or read()
   @Nonnull
-  private final Object base;
-  private final long offset;
-  private final int numBytes;
+  private Object base;
+  private long offset;
+  private int numBytes;
 
   public Object getBaseObject() { return base; }
   public long getBaseOffset() { return offset; }
@@ -54,8 +61,9 @@ public final class UTF8String implements Comparable<UTF8String>, Serializable {
     5, 5, 5, 5,
     6, 6};
 
-  private static ByteOrder byteOrder = ByteOrder.nativeOrder();
+  private static boolean isLittleEndian = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;
 
+  private static final UTF8String COMMA_UTF8 = UTF8String.fromString(",");
   public static final UTF8String EMPTY_UTF8 = UTF8String.fromString("");
 
   /**
@@ -88,11 +96,7 @@ public final class UTF8String implements Comparable<UTF8String>, Serializable {
    * Creates an UTF8String from given address (base and offset) and length.
    */
   public static UTF8String fromAddress(Object base, long offset, int numBytes) {
-    if (base != null) {
-      return new UTF8String(base, offset, numBytes);
-    } else {
-      return null;
-    }
+    return new UTF8String(base, offset, numBytes);
   }
 
   /**
@@ -125,19 +129,27 @@ public final class UTF8String implements Comparable<UTF8String>, Serializable {
     this.numBytes = numBytes;
   }
 
+  // for serialization
+  public UTF8String() {
+    this(null, 0, 0);
+  }
+
   /**
    * Writes the content of this string into a memory address, identified by an object and an offset.
    * The target memory address must already been allocated, and have enough space to hold all the
    * bytes in this string.
    */
   public void writeToMemory(Object target, long targetOffset) {
-    PlatformDependent.copyMemory(
-      base,
-      offset,
-      target,
-      targetOffset,
-      numBytes
-    );
+    Platform.copyMemory(base, offset, target, targetOffset, numBytes);
+  }
+
+  public void writeTo(ByteBuffer buffer) {
+    assert(buffer.hasArray());
+    byte[] target = buffer.array();
+    int offset = buffer.arrayOffset();
+    int pos = buffer.position();
+    writeToMemory(target, Platform.BYTE_ARRAY_OFFSET + offset + pos);
+    buffer.position(pos + numBytes);
   }
 
   /**
@@ -179,14 +191,14 @@ public final class UTF8String implements Comparable<UTF8String>, Serializable {
     // After getting the data, we use a mask to mask out data that is not part of the string.
     long p;
     long mask = 0;
-    if (byteOrder == ByteOrder.LITTLE_ENDIAN) {
+    if (isLittleEndian) {
       if (numBytes >= 8) {
-        p = PlatformDependent.UNSAFE.getLong(base, offset);
+        p = Platform.getLong(base, offset);
       } else if (numBytes > 4) {
-        p = PlatformDependent.UNSAFE.getLong(base, offset);
+        p = Platform.getLong(base, offset);
         mask = (1L << (8 - numBytes) * 8) - 1;
       } else if (numBytes > 0) {
-        p = (long) PlatformDependent.UNSAFE.getInt(base, offset);
+        p = (long) Platform.getInt(base, offset);
         mask = (1L << (8 - numBytes) * 8) - 1;
       } else {
         p = 0;
@@ -195,12 +207,12 @@ public final class UTF8String implements Comparable<UTF8String>, Serializable {
     } else {
       // byteOrder == ByteOrder.BIG_ENDIAN
       if (numBytes >= 8) {
-        p = PlatformDependent.UNSAFE.getLong(base, offset);
+        p = Platform.getLong(base, offset);
       } else if (numBytes > 4) {
-        p = PlatformDependent.UNSAFE.getLong(base, offset);
+        p = Platform.getLong(base, offset);
         mask = (1L << (8 - numBytes) * 8) - 1;
       } else if (numBytes > 0) {
-        p = ((long) PlatformDependent.UNSAFE.getInt(base, offset)) << 32;
+        p = ((long) Platform.getInt(base, offset)) << 32;
         mask = (1L << (8 - numBytes) * 8) - 1;
       } else {
         p = 0;
@@ -291,7 +303,7 @@ public final class UTF8String implements Comparable<UTF8String>, Serializable {
    * Returns the byte at position `i`.
    */
   private byte getByte(int i) {
-    return UNSAFE.getByte(base, offset + i);
+    return Platform.getByte(base, offset + i);
   }
 
   private boolean matchAt(final UTF8String s, int pos) {
@@ -409,6 +421,36 @@ public final class UTF8String implements Comparable<UTF8String>, Serializable {
       }
     }
     return fromString(sb.toString());
+  }
+
+  /*
+   * Returns the index of the string `match` in this String. This string has to be a comma separated
+   * list. If `match` contains a comma 0 will be returned. If the `match` isn't part of this String,
+   * 0 will be returned, else the index of match (1-based index)
+   */
+  public int findInSet(UTF8String match) {
+    if (match.contains(COMMA_UTF8)) {
+      return 0;
+    }
+
+    int n = 1, lastComma = -1;
+    for (int i = 0; i < numBytes; i++) {
+      if (getByte(i) == (byte) ',') {
+        if (i - (lastComma + 1) == match.numBytes &&
+          ByteArrayMethods.arrayEquals(base, offset + (lastComma + 1), match.base, match.offset,
+            match.numBytes)) {
+          return n;
+        }
+        lastComma = i;
+        n++;
+      }
+    }
+    if (numBytes - (lastComma + 1) == match.numBytes &&
+      ByteArrayMethods.arrayEquals(base, offset + (lastComma + 1), match.base, match.offset,
+        match.numBytes)) {
+      return n;
+    }
+    return 0;
   }
 
   /**
@@ -737,7 +779,7 @@ public final class UTF8String implements Comparable<UTF8String>, Serializable {
         int len = inputs[i].numBytes;
         copyMemory(
           inputs[i].base, inputs[i].offset,
-          result, PlatformDependent.BYTE_ARRAY_OFFSET + offset,
+          result, BYTE_ARRAY_OFFSET + offset,
           len);
         offset += len;
 
@@ -746,7 +788,7 @@ public final class UTF8String implements Comparable<UTF8String>, Serializable {
         if (j < numInputs) {
           copyMemory(
             separator.base, separator.offset,
-            result, PlatformDependent.BYTE_ARRAY_OFFSET + offset,
+            result, BYTE_ARRAY_OFFSET + offset,
             separator.numBytes);
           offset += separator.numBytes;
         }
@@ -762,6 +804,21 @@ public final class UTF8String implements Comparable<UTF8String>, Serializable {
       res[i] = fromString(splits[i]);
     }
     return res;
+  }
+
+  // TODO: Need to use `Code Point` here instead of Char in case the character longer than 2 bytes
+  public UTF8String translate(Map<Character, Character> dict) {
+    String srcStr = this.toString();
+
+    StringBuilder sb = new StringBuilder();
+    for(int k = 0; k< srcStr.length(); k++) {
+      if (null == dict.get(srcStr.charAt(k))) {
+        sb.append(srcStr.charAt(k));
+      } else if ('\0' != dict.get(srcStr.charAt(k))){
+        sb.append(dict.get(srcStr.charAt(k)));
+      }
+    }
+    return fromString(sb.toString());
   }
 
   @Override
@@ -937,4 +994,33 @@ public final class UTF8String implements Comparable<UTF8String>, Serializable {
     }
     return UTF8String.fromBytes(sx);
   }
+
+  public void writeExternal(ObjectOutput out) throws IOException {
+    byte[] bytes = getBytes();
+    out.writeInt(bytes.length);
+    out.write(bytes);
+  }
+
+  public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
+    offset = BYTE_ARRAY_OFFSET;
+    numBytes = in.readInt();
+    base = new byte[numBytes];
+    in.readFully((byte[]) base);
+  }
+
+  @Override
+  public void write(Kryo kryo, Output out) {
+    byte[] bytes = getBytes();
+    out.writeInt(bytes.length);
+    out.write(bytes);
+  }
+
+  @Override
+  public void read(Kryo kryo, Input in) {
+    this.offset = BYTE_ARRAY_OFFSET;
+    this.numBytes = in.readInt();
+    this.base = new byte[numBytes];
+    in.read((byte[]) base);
+  }
+
 }

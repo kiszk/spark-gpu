@@ -92,7 +92,7 @@ abstract class QueryPlan[PlanType <: TreeNode[PlanType]] extends TreeNode[PlanTy
 
     val newArgs = productIterator.map(recursiveTransform).toArray
 
-    if (changed) makeCopy(newArgs) else this
+    if (changed) makeCopy(newArgs).asInstanceOf[this.type] else this
   }
 
   /**
@@ -124,7 +124,7 @@ abstract class QueryPlan[PlanType <: TreeNode[PlanType]] extends TreeNode[PlanTy
 
     val newArgs = productIterator.map(recursiveTransform).toArray
 
-    if (changed) makeCopy(newArgs) else this
+    if (changed) makeCopy(newArgs).asInstanceOf[this.type] else this
   }
 
   /** Returns the result of running [[transformExpressions]] on this node
@@ -137,13 +137,17 @@ abstract class QueryPlan[PlanType <: TreeNode[PlanType]] extends TreeNode[PlanTy
 
   /** Returns all of the expressions present in this query plan operator. */
   def expressions: Seq[Expression] = {
+    // Recursively find all expressions from a traversable.
+    def seqToExpressions(seq: Traversable[Any]): Traversable[Expression] = seq.flatMap {
+      case e: Expression => e :: Nil
+      case s: Traversable[_] => seqToExpressions(s)
+      case other => Nil
+    }
+
     productIterator.flatMap {
       case e: Expression => e :: Nil
       case Some(e: Expression) => e :: Nil
-      case seq: Traversable[_] => seq.flatMap {
-        case e: Expression => e :: Nil
-        case other => Nil
-      }
+      case seq: Traversable[_] => seqToExpressions(seq)
       case other => Nil
     }.toSeq
   }

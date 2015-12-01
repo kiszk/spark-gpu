@@ -18,7 +18,7 @@
 package org.apache.spark.mllib.tree
 
 import org.apache.spark.Logging
-import org.apache.spark.annotation.Experimental
+import org.apache.spark.annotation.Since
 import org.apache.spark.api.java.JavaRDD
 import org.apache.spark.mllib.impl.PeriodicRDDCheckpointer
 import org.apache.spark.mllib.regression.LabeledPoint
@@ -31,7 +31,6 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 
 /**
- * :: Experimental ::
  * A class that implements
  * [[http://en.wikipedia.org/wiki/Gradient_boosting  Stochastic Gradient Boosting]]
  * for regression and binary classification.
@@ -49,8 +48,8 @@ import org.apache.spark.storage.StorageLevel
  *
  * @param boostingStrategy Parameters for the gradient boosting algorithm.
  */
-@Experimental
-class GradientBoostedTrees(private val boostingStrategy: BoostingStrategy)
+@Since("1.2.0")
+class GradientBoostedTrees @Since("1.2.0") (private val boostingStrategy: BoostingStrategy)
   extends Serializable with Logging {
 
   /**
@@ -58,6 +57,7 @@ class GradientBoostedTrees(private val boostingStrategy: BoostingStrategy)
    * @param input Training dataset: RDD of [[org.apache.spark.mllib.regression.LabeledPoint]].
    * @return a gradient boosted trees model that can be used for prediction
    */
+  @Since("1.2.0")
   def run(input: RDD[LabeledPoint]): GradientBoostedTreesModel = {
     val algo = boostingStrategy.treeStrategy.algo
     algo match {
@@ -75,6 +75,7 @@ class GradientBoostedTrees(private val boostingStrategy: BoostingStrategy)
   /**
    * Java-friendly API for [[org.apache.spark.mllib.tree.GradientBoostedTrees!#run]].
    */
+  @Since("1.2.0")
   def run(input: JavaRDD[LabeledPoint]): GradientBoostedTreesModel = {
     run(input.rdd)
   }
@@ -89,6 +90,7 @@ class GradientBoostedTrees(private val boostingStrategy: BoostingStrategy)
    *                        by using [[org.apache.spark.rdd.RDD.randomSplit()]]
    * @return a gradient boosted trees model that can be used for prediction
    */
+  @Since("1.4.0")
   def runWithValidation(
       input: RDD[LabeledPoint],
       validationInput: RDD[LabeledPoint]): GradientBoostedTreesModel = {
@@ -112,6 +114,7 @@ class GradientBoostedTrees(private val boostingStrategy: BoostingStrategy)
   /**
    * Java-friendly API for [[org.apache.spark.mllib.tree.GradientBoostedTrees!#runWithValidation]].
    */
+  @Since("1.4.0")
   def runWithValidation(
       input: JavaRDD[LabeledPoint],
       validationInput: JavaRDD[LabeledPoint]): GradientBoostedTreesModel = {
@@ -119,6 +122,7 @@ class GradientBoostedTrees(private val boostingStrategy: BoostingStrategy)
   }
 }
 
+@Since("1.2.0")
 object GradientBoostedTrees extends Logging {
 
   /**
@@ -130,6 +134,7 @@ object GradientBoostedTrees extends Logging {
    * @param boostingStrategy Configuration options for the boosting algorithm.
    * @return a gradient boosted trees model that can be used for prediction
    */
+  @Since("1.2.0")
   def train(
       input: RDD[LabeledPoint],
       boostingStrategy: BoostingStrategy): GradientBoostedTreesModel = {
@@ -139,6 +144,7 @@ object GradientBoostedTrees extends Logging {
   /**
    * Java-friendly API for [[org.apache.spark.mllib.tree.GradientBoostedTrees$#train]]
    */
+  @Since("1.2.0")
   def train(
       input: JavaRDD[LabeledPoint],
       boostingStrategy: BoostingStrategy): GradientBoostedTreesModel = {
@@ -254,7 +260,8 @@ object GradientBoostedTrees extends Logging {
           validationInput, validatePredError, baseLearnerWeights(m), baseLearners(m), loss)
         validatePredErrorCheckpointer.update(validatePredError)
         val currentValidateError = validatePredError.values.mean()
-        if (bestValidateError - currentValidateError < validationTol) {
+        if (bestValidateError - currentValidateError < validationTol * Math.max(
+          currentValidateError, 0.01)) {
           doneLearning = true
         } else if (currentValidateError < bestValidateError) {
           bestValidateError = currentValidateError

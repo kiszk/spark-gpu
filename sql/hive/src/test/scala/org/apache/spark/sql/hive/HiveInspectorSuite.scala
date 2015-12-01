@@ -30,6 +30,7 @@ import org.apache.hadoop.io.LongWritable
 import org.apache.spark.SparkFunSuite
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Literal
+import org.apache.spark.sql.catalyst.util.{MapData, GenericArrayData, ArrayBasedMapData}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.Row
 
@@ -133,8 +134,8 @@ class HiveInspectorSuite extends SparkFunSuite with HiveInspectors {
     }
   }
 
-  def checkValues(row1: Seq[Any], row2: InternalRow): Unit = {
-    row1.zip(row2.toSeq).foreach { case (r1, r2) =>
+  def checkValues(row1: Seq[Any], row2: InternalRow, row2Schema: StructType): Unit = {
+    row1.zip(row2.toSeq(row2Schema)).foreach { case (r1, r2) =>
       checkValue(r1, r2)
     }
   }
@@ -211,8 +212,10 @@ class HiveInspectorSuite extends SparkFunSuite with HiveInspectors {
       case (t, idx) => StructField(s"c_$idx", t)
     })
     val inspector = toInspector(dt)
-    checkValues(row,
-      unwrap(wrap(InternalRow.fromSeq(row), inspector, dt), inspector).asInstanceOf[InternalRow])
+    checkValues(
+      row,
+      unwrap(wrap(InternalRow.fromSeq(row), inspector, dt), inspector).asInstanceOf[InternalRow],
+      dt)
     checkValue(null, unwrap(wrap(null, toInspector(dt), dt), toInspector(dt)))
   }
 

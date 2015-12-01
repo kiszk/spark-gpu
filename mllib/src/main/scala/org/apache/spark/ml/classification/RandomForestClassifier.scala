@@ -125,7 +125,7 @@ object RandomForestClassifier {
 final class RandomForestClassificationModel private[ml] (
     override val uid: String,
     private val _trees: Array[DecisionTreeClassificationModel],
-    val numFeatures: Int,
+    override val numFeatures: Int,
     override val numClasses: Int)
   extends ProbabilisticClassificationModel[Vector, RandomForestClassificationModel]
   with TreeEnsembleModel with Serializable {
@@ -136,7 +136,10 @@ final class RandomForestClassificationModel private[ml] (
    * Construct a random forest classification model, with all trees weighted equally.
    * @param trees  Component trees
    */
-  def this(trees: Array[DecisionTreeClassificationModel], numFeatures: Int, numClasses: Int) =
+  private[ml] def this(
+      trees: Array[DecisionTreeClassificationModel],
+      numFeatures: Int,
+      numClasses: Int) =
     this(Identifiable.randomUID("rfc"), trees, numFeatures, numClasses)
 
   override def trees: Array[DecisionTreeModel] = _trees.asInstanceOf[Array[DecisionTreeModel]]
@@ -186,10 +189,11 @@ final class RandomForestClassificationModel private[ml] (
 
   override def copy(extra: ParamMap): RandomForestClassificationModel = {
     copyValues(new RandomForestClassificationModel(uid, _trees, numFeatures, numClasses), extra)
+      .setParent(parent)
   }
 
   override def toString: String = {
-    s"RandomForestClassificationModel with $numTrees trees"
+    s"RandomForestClassificationModel (uid=$uid) with $numTrees trees"
   }
 
   /**
@@ -222,7 +226,8 @@ private[ml] object RandomForestClassificationModel {
       oldModel: OldRandomForestModel,
       parent: RandomForestClassifier,
       categoricalFeatures: Map[Int, Int],
-      numClasses: Int): RandomForestClassificationModel = {
+      numClasses: Int,
+      numFeatures: Int = -1): RandomForestClassificationModel = {
     require(oldModel.algo == OldAlgo.Classification, "Cannot convert RandomForestModel" +
       s" with algo=${oldModel.algo} (old API) to RandomForestClassificationModel (new API).")
     val newTrees = oldModel.trees.map { tree =>
@@ -230,6 +235,6 @@ private[ml] object RandomForestClassificationModel {
       DecisionTreeClassificationModel.fromOld(tree, null, categoricalFeatures)
     }
     val uid = if (parent != null) parent.uid else Identifiable.randomUID("rfc")
-    new RandomForestClassificationModel(uid, newTrees, -1, numClasses)
+    new RandomForestClassificationModel(uid, newTrees, numFeatures, numClasses)
   }
 }

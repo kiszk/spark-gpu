@@ -27,12 +27,13 @@ import scala.util.control.NonFatal
 import com.google.common.io.ByteStreams
 
 import tachyon.client.{ReadType, WriteType, TachyonFS, TachyonFile}
+import tachyon.conf.TachyonConf
 import tachyon.TachyonURI
 
 import org.apache.spark.PartitionData
 import org.apache.spark.{SparkException, SparkConf, Logging}
 import org.apache.spark.executor.ExecutorExitCode
-import org.apache.spark.util.Utils
+import org.apache.spark.util.{ShutdownHookManager, Utils}
 
 
 /**
@@ -61,7 +62,11 @@ private[spark] class TachyonBlockManager() extends ExternalBlockManager with Log
 
     rootDirs = s"$storeDir/$appFolderName/$executorId"
     master = blockManager.conf.get(ExternalBlockStore.MASTER_URL, "tachyon://localhost:19998")
-    client = if (master != null && master != "") TachyonFS.get(new TachyonURI(master)) else null
+    client = if (master != null && master != "") {
+      TachyonFS.get(new TachyonURI(master), new TachyonConf())
+    } else {
+      null
+    }
     // original implementation call System.exit, we change it to run without extblkstore support
     if (client == null) {
       logError("Failed to connect to the Tachyon as the master address is not configured")
@@ -76,7 +81,7 @@ private[spark] class TachyonBlockManager() extends ExternalBlockManager with Log
     // in order to avoid having really large inodes at the top level in Tachyon.
     tachyonDirs = createTachyonDirs()
     subDirs = Array.fill(tachyonDirs.length)(new Array[TachyonFile](subDirsPerTachyonDir))
-    tachyonDirs.foreach(tachyonDir => Utils.registerShutdownDeleteDir(tachyonDir))
+    tachyonDirs.foreach(tachyonDir => ShutdownHookManager.registerShutdownDeleteDir(tachyonDir))
   }
 
   override def toString: String = {"ExternalBlockStore-Tachyon"}
@@ -236,7 +241,7 @@ private[spark] class TachyonBlockManager() extends ExternalBlockManager with Log
     logDebug("Shutdown hook called")
     tachyonDirs.foreach { tachyonDir =>
       try {
-        if (!Utils.hasRootAsShutdownDeleteDir(tachyonDir)) {
+        if (!ShutdownHookManager.hasRootAsShutdownDeleteDir(tachyonDir)) {
           Utils.deleteRecursively(tachyonDir, client)
         }
       } catch {

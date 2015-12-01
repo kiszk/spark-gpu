@@ -17,17 +17,72 @@
 
 package org.apache.spark.sql.catalyst.analysis
 
-import org.scalatest.BeforeAndAfter
-
-import org.apache.spark.SparkFunSuite
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.catalyst.plans.Inner
-import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.dsl.expressions._
 import org.apache.spark.sql.catalyst.dsl.plans._
+import org.apache.spark.sql.catalyst.util.{MapData, ArrayBasedMapData, GenericArrayData, ArrayData}
 import org.apache.spark.sql.types._
+
+import scala.beans.{BeanProperty, BeanInfo}
+
+@BeanInfo
+private[sql] case class GroupableData(@BeanProperty data: Int)
+
+private[sql] class GroupableUDT extends UserDefinedType[GroupableData] {
+
+  override def sqlType: DataType = IntegerType
+
+  override def serialize(obj: Any): Int = {
+    obj match {
+      case groupableData: GroupableData => groupableData.data
+    }
+  }
+
+  override def deserialize(datum: Any): GroupableData = {
+    datum match {
+      case data: Int => GroupableData(data)
+    }
+  }
+
+  override def userClass: Class[GroupableData] = classOf[GroupableData]
+
+  private[spark] override def asNullable: GroupableUDT = this
+}
+
+@BeanInfo
+private[sql] case class UngroupableData(@BeanProperty data: Map[Int, Int])
+
+private[sql] class UngroupableUDT extends UserDefinedType[UngroupableData] {
+
+  override def sqlType: DataType = MapType(IntegerType, IntegerType)
+
+  override def serialize(obj: Any): MapData = {
+    obj match {
+      case groupableData: UngroupableData =>
+        val keyArray = new GenericArrayData(groupableData.data.keys.toSeq)
+        val valueArray = new GenericArrayData(groupableData.data.values.toSeq)
+        new ArrayBasedMapData(keyArray, valueArray)
+    }
+  }
+
+  override def deserialize(datum: Any): UngroupableData = {
+    datum match {
+      case data: MapData =>
+        val keyArray = data.keyArray().array
+        val valueArray = data.valueArray().array
+        assert(keyArray.length == valueArray.length)
+        val mapData = keyArray.zip(valueArray).toMap.asInstanceOf[Map[Int, Int]]
+        UngroupableData(mapData)
+    }
+  }
+
+  override def userClass: Class[UngroupableData] = classOf[UngroupableData]
+
+  private[spark] override def asNullable: UngroupableUDT = this
+}
 
 case class TestFunction(
     children: Seq[Expression],
@@ -42,8 +97,8 @@ case class UnresolvedTestPlan() extends LeafNode {
   override def output: Seq[Attribute] = Nil
 }
 
-class AnalysisErrorSuite extends SparkFunSuite with BeforeAndAfter {
-  import AnalysisSuite._
+class AnalysisErrorSuite extends AnalysisTest {
+  import TestRelations._
 
   def errorTest(
       name: String,
@@ -51,15 +106,7 @@ class AnalysisErrorSuite extends SparkFunSuite with BeforeAndAfter {
       errorMessages: Seq[String],
       caseSensitive: Boolean = true): Unit = {
     test(name) {
-      val error = intercept[AnalysisException] {
-        if (caseSensitive) {
-          caseSensitiveAnalyze(plan)
-        } else {
-          caseInsensitiveAnalyze(plan)
-        }
-      }
-
-      errorMessages.foreach(m => assert(error.getMessage.toLowerCase.contains(m.toLowerCase)))
+      assertAnalysisError(plan, errorMessages, caseSensitive)
     }
   }
 
@@ -69,21 +116,21 @@ class AnalysisErrorSuite extends SparkFunSuite with BeforeAndAfter {
     "single invalid type, single arg",
     testRelation.select(TestFunction(dateLit :: Nil, IntegerType :: Nil).as('a)),
     "cannot resolve" :: "testfunction" :: "argument 1" :: "requires int type" ::
-    "'null' is of date type" ::Nil)
+    "'null' is of date type" :: Nil)
 
   errorTest(
     "single invalid type, second arg",
     testRelation.select(
       TestFunction(dateLit :: dateLit :: Nil, DateType :: IntegerType :: Nil).as('a)),
     "cannot resolve" :: "testfunction" :: "argument 2" :: "requires int type" ::
-    "'null' is of date type" ::Nil)
+    "'null' is of date type" :: Nil)
 
   errorTest(
     "multiple invalid type",
     testRelation.select(
       TestFunction(dateLit :: dateLit :: Nil, IntegerType :: IntegerType :: Nil).as('a)),
     "cannot resolve" :: "testfunction" :: "argument 1" :: "argument 2" ::
-    "requires int type" :: "'null' is of date type" ::Nil)
+    "requires int type" :: "'null' is of date type" :: Nil)
 
   errorTest(
     "unresolved window function",
@@ -115,8 +162,8 @@ class AnalysisErrorSuite extends SparkFunSuite with BeforeAndAfter {
 
   errorTest(
     "sorting by unsupported column types",
-    listRelation.orderBy('list.asc),
-    "sort" :: "type" :: "array<int>" :: Nil)
+    mapRelation.orderBy('map.asc),
+    "sort" :: "type" :: "map<int,int>" :: Nil)
 
   errorTest(
     "non-boolean filters",
@@ -157,23 +204,44 @@ class AnalysisErrorSuite extends SparkFunSuite with BeforeAndAfter {
     UnresolvedTestPlan(),
     "unresolved" :: Nil)
 
+  errorTest(
+    "union with unequal number of columns",
+    testRelation.unionAll(testRelation2),
+    "union" :: "number of columns" :: testRelation2.output.length.toString ::
+      testRelation.output.length.toString :: Nil)
+
+  errorTest(
+    "intersect with unequal number of columns",
+    testRelation.intersect(testRelation2),
+    "intersect" :: "number of columns" :: testRelation2.output.length.toString ::
+      testRelation.output.length.toString :: Nil)
+
+  errorTest(
+    "except with unequal number of columns",
+    testRelation.except(testRelation2),
+    "except" :: "number of columns" :: testRelation2.output.length.toString ::
+      testRelation.output.length.toString :: Nil)
+
+  errorTest(
+    "SPARK-9955: correct error message for aggregate",
+    // When parse SQL string, we will wrap aggregate expressions with UnresolvedAlias.
+    testRelation2.where('bad_column > 1).groupBy('a)(UnresolvedAlias(max('b))),
+    "cannot resolve 'bad_column'" :: Nil)
 
   test("SPARK-6452 regression test") {
     // CheckAnalysis should throw AnalysisException when Aggregate contains missing attribute(s)
+    // Since we manually construct the logical plan at here and Sum only accetp
+    // LongType, DoubleType, and DecimalType. We use LongType as the type of a.
     val plan =
       Aggregate(
         Nil,
-        Alias(Sum(AttributeReference("a", IntegerType)(exprId = ExprId(1))), "b")() :: Nil,
+        Alias(sum(AttributeReference("a", LongType)(exprId = ExprId(1))), "b")() :: Nil,
         LocalRelation(
-          AttributeReference("a", IntegerType)(exprId = ExprId(2))))
+          AttributeReference("a", LongType)(exprId = ExprId(2))))
 
     assert(plan.resolved)
 
-    val message = intercept[AnalysisException] {
-      caseSensitiveAnalyze(plan)
-    }.getMessage
-
-    assert(message.contains("resolved attribute(s) a#1 missing from a#2"))
+    assertAnalysisError(plan, "resolved attribute(s) a#1L missing from a#2L" :: Nil)
   }
 
   test("error test for self-join") {
@@ -185,32 +253,66 @@ class AnalysisErrorSuite extends SparkFunSuite with BeforeAndAfter {
     assert(error.message.contains("Conflicting attributes"))
   }
 
-  test("aggregation can't work on binary and map types") {
+  test("check grouping expression data types") {
+    def checkDataType(dataType: DataType, shouldSuccess: Boolean): Unit = {
+      val plan =
+        Aggregate(
+          AttributeReference("a", dataType)(exprId = ExprId(2)) :: Nil,
+          Alias(sum(AttributeReference("b", IntegerType)(exprId = ExprId(1))), "c")() :: Nil,
+          LocalRelation(
+            AttributeReference("a", dataType)(exprId = ExprId(2)),
+            AttributeReference("b", IntegerType)(exprId = ExprId(1))))
+
+      shouldSuccess match {
+        case true =>
+          assertAnalysisSuccess(plan, true)
+        case false =>
+          assertAnalysisError(plan, "expression a cannot be used as a grouping expression" :: Nil)
+      }
+    }
+
+    val supportedDataTypes = Seq(
+      StringType, BinaryType,
+      NullType, BooleanType,
+      ByteType, ShortType, IntegerType, LongType,
+      FloatType, DoubleType, DecimalType(25, 5), DecimalType(6, 5),
+      DateType, TimestampType,
+      ArrayType(IntegerType),
+      new StructType()
+        .add("f1", FloatType, nullable = true)
+        .add("f2", StringType, nullable = true),
+      new StructType()
+        .add("f1", FloatType, nullable = true)
+        .add("f2", ArrayType(BooleanType, containsNull = true), nullable = true),
+      new GroupableUDT())
+    supportedDataTypes.foreach { dataType =>
+      checkDataType(dataType, shouldSuccess = true)
+    }
+
+    val unsupportedDataTypes = Seq(
+      MapType(StringType, LongType),
+      new StructType()
+        .add("f1", FloatType, nullable = true)
+        .add("f2", MapType(StringType, LongType), nullable = true),
+      new UngroupableUDT())
+    unsupportedDataTypes.foreach { dataType =>
+      checkDataType(dataType, shouldSuccess = false)
+    }
+  }
+
+  test("we should fail analysis when we find nested aggregate functions") {
     val plan =
       Aggregate(
-        AttributeReference("a", BinaryType)(exprId = ExprId(2)) :: Nil,
-        Alias(Sum(AttributeReference("b", IntegerType)(exprId = ExprId(1))), "c")() :: Nil,
+        AttributeReference("a", IntegerType)(exprId = ExprId(2)) :: Nil,
+        Alias(sum(sum(AttributeReference("b", IntegerType)(exprId = ExprId(1)))), "c")() :: Nil,
         LocalRelation(
-          AttributeReference("a", BinaryType)(exprId = ExprId(2)),
+          AttributeReference("a", IntegerType)(exprId = ExprId(2)),
           AttributeReference("b", IntegerType)(exprId = ExprId(1))))
 
-    val error = intercept[AnalysisException] {
-      caseSensitiveAnalyze(plan)
-    }
-    assert(error.message.contains("binary type expression a cannot be used in grouping expression"))
-
-    val plan2 =
-      Aggregate(
-        AttributeReference("a", MapType(IntegerType, StringType))(exprId = ExprId(2)) :: Nil,
-        Alias(Sum(AttributeReference("b", IntegerType)(exprId = ExprId(1))), "c")() :: Nil,
-        LocalRelation(
-          AttributeReference("a", MapType(IntegerType, StringType))(exprId = ExprId(2)),
-          AttributeReference("b", IntegerType)(exprId = ExprId(1))))
-
-    val error2 = intercept[AnalysisException] {
-      caseSensitiveAnalyze(plan2)
-    }
-    assert(error2.message.contains("map type expression a cannot be used in grouping expression"))
+    assertAnalysisError(
+      plan,
+      "It is not allowed to use an aggregate function in the argument of " +
+        "another aggregate function." :: Nil)
   }
 
   test("Join can't work on binary and map types") {
@@ -226,10 +328,7 @@ class AnalysisErrorSuite extends SparkFunSuite with BeforeAndAfter {
         Some(EqualTo(AttributeReference("a", BinaryType)(exprId = ExprId(2)),
           AttributeReference("c", BinaryType)(exprId = ExprId(4)))))
 
-    val error = intercept[AnalysisException] {
-      caseSensitiveAnalyze(plan)
-    }
-    assert(error.message.contains("binary type expression a cannot be used in join conditions"))
+    assertAnalysisError(plan, "binary type expression a cannot be used in join conditions" :: Nil)
 
     val plan2 =
       Join(
@@ -243,9 +342,6 @@ class AnalysisErrorSuite extends SparkFunSuite with BeforeAndAfter {
         Some(EqualTo(AttributeReference("a", MapType(IntegerType, StringType))(exprId = ExprId(2)),
           AttributeReference("c", MapType(IntegerType, StringType))(exprId = ExprId(4)))))
 
-    val error2 = intercept[AnalysisException] {
-      caseSensitiveAnalyze(plan2)
-    }
-    assert(error2.message.contains("map type expression a cannot be used in join conditions"))
+    assertAnalysisError(plan2, "map type expression a cannot be used in join conditions" :: Nil)
   }
 }

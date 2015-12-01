@@ -26,12 +26,12 @@ import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.spark.SparkEnv;
 import org.apache.spark.TaskContext;
-import org.apache.spark.sql.AbstractScalaRowIterator;
+import org.apache.spark.sql.catalyst.util.AbstractScalaRowIterator;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
 import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.unsafe.PlatformDependent;
+import org.apache.spark.unsafe.Platform;
 import org.apache.spark.util.collection.unsafe.sort.PrefixComparator;
 import org.apache.spark.util.collection.unsafe.sort.RecordComparator;
 import org.apache.spark.util.collection.unsafe.sort.UnsafeExternalSorter;
@@ -67,7 +67,6 @@ final class UnsafeExternalRowSorter {
     final TaskContext taskContext = TaskContext.get();
     sorter = UnsafeExternalSorter.create(
       taskContext.taskMemoryManager(),
-      sparkEnv.shuffleMemoryManager(),
       sparkEnv.blockManager(),
       taskContext,
       new RowComparator(ordering, schema.length()),
@@ -97,13 +96,8 @@ final class UnsafeExternalRowSorter {
     );
     numRowsInserted++;
     if (testSpillFrequency > 0 && (numRowsInserted % testSpillFrequency) == 0) {
-      spill();
+      sorter.spill();
     }
-  }
-
-  @VisibleForTesting
-  void spill() throws IOException {
-    sorter.spill();
   }
 
   /**
@@ -114,7 +108,7 @@ final class UnsafeExternalRowSorter {
   }
 
   private void cleanupResources() {
-    sorter.freeMemory();
+    sorter.cleanupResources();
   }
 
   @VisibleForTesting
@@ -157,7 +151,7 @@ final class UnsafeExternalRowSorter {
             cleanupResources();
             // Scala iterators don't declare any checked exceptions, so we need to use this hack
             // to re-throw the exception:
-            PlatformDependent.throwException(e);
+            Platform.throwException(e);
           }
           throw new RuntimeException("Exception should have been re-thrown in next()");
         };
@@ -174,13 +168,6 @@ final class UnsafeExternalRowSorter {
       insertRow(inputIterator.next());
     }
     return sort();
-  }
-
-  /**
-   * Return true if UnsafeExternalRowSorter can sort rows with the given schema, false otherwise.
-   */
-  public static boolean supportsSchema(StructType schema) {
-    return UnsafeProjection.canSupport(schema);
   }
 
   private static final class RowComparator extends RecordComparator {

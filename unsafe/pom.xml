@@ -22,7 +22,7 @@
   <parent>
     <groupId>org.apache.spark</groupId>
     <artifactId>spark-parent_2.11</artifactId>
-    <version>1.5.0-GPU</version>
+    <version>1.6.0-GPU</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 
@@ -36,6 +36,10 @@
   </properties>
 
   <dependencies>
+    <dependency>
+      <groupId>com.twitter</groupId>
+      <artifactId>chill_${scala.binary.version}</artifactId>
+    </dependency>
 
     <!-- Core dependencies -->
     <dependency>
@@ -61,14 +65,8 @@
 
     <!-- Test dependencies -->
     <dependency>
-      <groupId>junit</groupId>
-      <artifactId>junit</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>com.novocode</groupId>
-      <artifactId>junit-interface</artifactId>
-      <scope>test</scope>
+      <groupId>org.apache.spark</groupId>
+      <artifactId>spark-test-tags_${scala.binary.version}</artifactId>
     </dependency>
     <dependency>
       <groupId>org.mockito</groupId>

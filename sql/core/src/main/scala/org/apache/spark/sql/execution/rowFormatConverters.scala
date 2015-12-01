@@ -17,22 +17,20 @@
 
 package org.apache.spark.sql.execution
 
-import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
+import org.apache.spark.sql.catalyst.plans.physical.Partitioning
 import org.apache.spark.sql.catalyst.rules.Rule
 
 /**
- * :: DeveloperApi ::
  * Converts Java-object-based rows into [[UnsafeRow]]s.
  */
-@DeveloperApi
 case class ConvertToUnsafe(child: SparkPlan) extends UnaryNode {
 
-  require(UnsafeProjection.canSupport(child.schema), s"Cannot convert ${child.schema} to Unsafe")
-
   override def output: Seq[Attribute] = child.output
+  override def outputPartitioning: Partitioning = child.outputPartitioning
+  override def outputOrdering: Seq[SortOrder] = child.outputOrdering
   override def outputsUnsafeRows: Boolean = true
   override def canProcessUnsafeRows: Boolean = false
   override def canProcessSafeRows: Boolean = true
@@ -45,12 +43,12 @@ case class ConvertToUnsafe(child: SparkPlan) extends UnaryNode {
 }
 
 /**
- * :: DeveloperApi ::
  * Converts [[UnsafeRow]]s back into Java-object-based rows.
  */
-@DeveloperApi
 case class ConvertToSafe(child: SparkPlan) extends UnaryNode {
   override def output: Seq[Attribute] = child.output
+  override def outputPartitioning: Partitioning = child.outputPartitioning
+  override def outputOrdering: Seq[SortOrder] = child.outputOrdering
   override def outputsUnsafeRows: Boolean = false
   override def canProcessUnsafeRows: Boolean = true
   override def canProcessSafeRows: Boolean = false
@@ -97,18 +95,10 @@ private[sql] object EnsureRowFormats extends Rule[SparkPlan] {
     case operator: SparkPlan if handlesBothSafeAndUnsafeRows(operator) =>
       if (operator.children.map(_.outputsUnsafeRows).toSet.size != 1) {
         // If this operator's children produce both unsafe and safe rows,
-        // convert everything unsafe rows if all the schema of them are support by UnsafeRow
-        if (operator.children.forall(c => UnsafeProjection.canSupport(c.schema))) {
-          operator.withNewChildren {
-            operator.children.map {
-              c => if (!c.outputsUnsafeRows) ConvertToUnsafe(c) else c
-            }
-          }
-        } else {
-          operator.withNewChildren {
-            operator.children.map {
-              c => if (c.outputsUnsafeRows) ConvertToSafe(c) else c
-            }
+        // convert everything unsafe rows.
+        operator.withNewChildren {
+          operator.children.map {
+            c => if (!c.outputsUnsafeRows) ConvertToUnsafe(c) else c
           }
         }
       } else {

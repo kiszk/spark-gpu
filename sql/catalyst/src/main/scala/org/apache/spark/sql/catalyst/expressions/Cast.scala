@@ -22,11 +22,9 @@ import java.math.{BigDecimal => JavaBigDecimal}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis.TypeCheckResult
 import org.apache.spark.sql.catalyst.expressions.codegen._
-import org.apache.spark.sql.catalyst.util.DateTimeUtils
+import org.apache.spark.sql.catalyst.util._
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.{CalendarInterval, UTF8String}
-
-import scala.collection.mutable
 
 
 object Cast {
@@ -106,8 +104,9 @@ object Cast {
 }
 
 /** Cast the child expression to the target data type. */
-case class Cast(child: Expression, dataType: DataType)
-  extends UnaryExpression with CodegenFallback {
+case class Cast(child: Expression, dataType: DataType) extends UnaryExpression {
+
+  override def toString: String = s"cast($child as ${dataType.simpleString})"
 
   override def checkInputDataTypes(): TypeCheckResult = {
     if (Cast.canCast(child.dataType, dataType)) {
@@ -119,8 +118,6 @@ case class Cast(child: Expression, dataType: DataType)
   }
 
   override def nullable: Boolean = Cast.forceNullable(child.dataType, dataType) || child.nullable
-
-  override def toString: String = s"CAST($child, $dataType)"
 
   // [[func]] assumes the input is no longer null because eval already does the null check.
   @inline private[this] def buildCast[T](a: Any, func: T => Any): Any = func(a.asInstanceOf[T])
@@ -142,7 +139,15 @@ case class Cast(child: Expression, dataType: DataType)
   // UDFToBoolean
   private[this] def castToBoolean(from: DataType): Any => Any = from match {
     case StringType =>
-      buildCast[UTF8String](_, _.numBytes() != 0)
+      buildCast[UTF8String](_, s => {
+        if (StringUtils.isTrueString(s)) {
+          true
+        } else if (StringUtils.isFalseString(s)) {
+          false
+        } else {
+          null
+        }
+      })
     case TimestampType =>
       buildCast[Long](_, t => t != 0)
     case DateType =>
@@ -157,7 +162,7 @@ case class Cast(child: Expression, dataType: DataType)
     case ByteType =>
       buildCast[Byte](_, _ != 0)
     case DecimalType() =>
-      buildCast[Decimal](_, _ != Decimal(0))
+      buildCast[Decimal](_, !_.isZero)
     case DoubleType =>
       buildCast[Double](_, _ != 0)
     case FloatType =>
@@ -198,8 +203,8 @@ case class Cast(child: Expression, dataType: DataType)
     if (d.isNaN || d.isInfinite) null else (d * 1000000L).toLong
   }
 
-  // converting milliseconds to us
-  private[this] def longToTimestamp(t: Long): Long = t * 1000L
+  // converting seconds to us
+  private[this] def longToTimestamp(t: Long): Long = t * 1000000L
   // converting us to seconds
   private[this] def timestampToLong(ts: Long): Long = math.floor(ts.toDouble / 1000000L).toLong
   // converting us to seconds in double
@@ -311,19 +316,19 @@ case class Cast(child: Expression, dataType: DataType)
         case _: NumberFormatException => null
       })
     case BooleanType =>
-      buildCast[Boolean](_, b => changePrecision(if (b) Decimal(1) else Decimal(0), target))
+      buildCast[Boolean](_, b => changePrecision(if (b) Decimal.ONE else Decimal.ZERO, target))
     case DateType =>
       buildCast[Int](_, d => null) // date can't cast to decimal in Hive
     case TimestampType =>
       // Note that we lose precision here.
       buildCast[Long](_, t => changePrecision(Decimal(timestampToDouble(t)), target))
-    case DecimalType() =>
+    case dt: DecimalType =>
       b => changePrecision(b.asInstanceOf[Decimal].clone(), target)
-    case LongType =>
-      b => changePrecision(Decimal(b.asInstanceOf[Long]), target)
-    case x: NumericType => // All other numeric types can be represented precisely as Doubles
+    case t: IntegralType =>
+      b => changePrecision(Decimal(t.integral.asInstanceOf[Integral[Any]].toLong(b)), target)
+    case x: FractionalType =>
       b => try {
-        changePrecision(Decimal(x.numeric.asInstanceOf[Numeric[Any]].toDouble(b)), target)
+        changePrecision(Decimal(x.fractional.asInstanceOf[Fractional[Any]].toDouble(b)), target)
       } catch {
         case _: NumberFormatException => null
       }
@@ -432,7 +437,7 @@ case class Cast(child: Expression, dataType: DataType)
     val eval = child.gen(ctx)
     val nullSafeCast = nullSafeCastFunction(child.dataType, dataType, ctx)
     eval.code +
-      castCode(ctx, eval.primitive, eval.isNull, ev.primitive, ev.isNull, dataType, nullSafeCast)
+      castCode(ctx, eval.value, eval.isNull, ev.value, ev.isNull, dataType, nullSafeCast)
   }
 
   // three function arguments are: child.primitive, result.primitive and result.isNull
@@ -449,7 +454,7 @@ case class Cast(child: Expression, dataType: DataType)
     case StringType => castToStringCode(from, ctx)
     case BinaryType => castToBinaryCode(from)
     case DateType => castToDateCode(from, ctx)
-    case decimal: DecimalType => castToDecimalCode(from, decimal)
+    case decimal: DecimalType => castToDecimalCode(from, decimal, ctx)
     case TimestampType => castToTimestampCode(from, ctx)
     case CalendarIntervalType => castToIntervalCode(from)
     case BooleanType => castToBooleanCode(from)
@@ -530,17 +535,18 @@ case class Cast(child: Expression, dataType: DataType)
       }
     """
 
-  private[this] def castToDecimalCode(from: DataType, target: DecimalType): CastFunction = {
+  private[this] def castToDecimalCode(
+      from: DataType,
+      target: DecimalType,
+      ctx: CodeGenContext): CastFunction = {
+    val tmp = ctx.freshName("tmpDecimal")
     from match {
       case StringType =>
         (c, evPrim, evNull) =>
           s"""
             try {
-              org.apache.spark.sql.types.Decimal tmpDecimal =
-                new org.apache.spark.sql.types.Decimal().set(
-                  new scala.math.BigDecimal(
-                    new java.math.BigDecimal($c.toString())));
-              ${changePrecision("tmpDecimal", target, evPrim, evNull)}
+              Decimal $tmp = Decimal.apply(new java.math.BigDecimal($c.toString()));
+              ${changePrecision(tmp, target, evPrim, evNull)}
             } catch (java.lang.NumberFormatException e) {
               $evNull = true;
             }
@@ -548,13 +554,8 @@ case class Cast(child: Expression, dataType: DataType)
       case BooleanType =>
         (c, evPrim, evNull) =>
           s"""
-            org.apache.spark.sql.types.Decimal tmpDecimal = null;
-            if ($c) {
-              tmpDecimal = new org.apache.spark.sql.types.Decimal().set(1);
-            } else {
-              tmpDecimal = new org.apache.spark.sql.types.Decimal().set(0);
-            }
-            ${changePrecision("tmpDecimal", target, evPrim, evNull)}
+            Decimal $tmp = $c ? Decimal.apply(1) : Decimal.apply(0);
+            ${changePrecision(tmp, target, evPrim, evNull)}
           """
       case DateType =>
         // date can't cast to decimal in Hive
@@ -563,33 +564,29 @@ case class Cast(child: Expression, dataType: DataType)
         // Note that we lose precision here.
         (c, evPrim, evNull) =>
           s"""
-            org.apache.spark.sql.types.Decimal tmpDecimal =
-              new org.apache.spark.sql.types.Decimal().set(
-                scala.math.BigDecimal.valueOf(${timestampToDoubleCode(c)}));
-            ${changePrecision("tmpDecimal", target, evPrim, evNull)}
+            Decimal $tmp = Decimal.apply(
+              scala.math.BigDecimal.valueOf(${timestampToDoubleCode(c)}));
+            ${changePrecision(tmp, target, evPrim, evNull)}
           """
       case DecimalType() =>
         (c, evPrim, evNull) =>
           s"""
-            org.apache.spark.sql.types.Decimal tmpDecimal = $c.clone();
-            ${changePrecision("tmpDecimal", target, evPrim, evNull)}
+            Decimal $tmp = $c.clone();
+            ${changePrecision(tmp, target, evPrim, evNull)}
           """
-      case LongType =>
+      case x: IntegralType =>
         (c, evPrim, evNull) =>
           s"""
-            org.apache.spark.sql.types.Decimal tmpDecimal =
-              new org.apache.spark.sql.types.Decimal().set($c);
-            ${changePrecision("tmpDecimal", target, evPrim, evNull)}
+            Decimal $tmp = Decimal.apply((long) $c);
+            ${changePrecision(tmp, target, evPrim, evNull)}
           """
-      case x: NumericType =>
+      case x: FractionalType =>
         // All other numeric types can be represented precisely as Doubles
         (c, evPrim, evNull) =>
           s"""
             try {
-              org.apache.spark.sql.types.Decimal tmpDecimal =
-                new org.apache.spark.sql.types.Decimal().set(
-                  scala.math.BigDecimal.valueOf((double) $c));
-              ${changePrecision("tmpDecimal", target, evPrim, evNull)}
+              Decimal $tmp = Decimal.apply(scala.math.BigDecimal.valueOf((double) $c));
+              ${changePrecision(tmp, target, evPrim, evNull)}
             } catch (java.lang.NumberFormatException e) {
               $evNull = true;
             }
@@ -649,14 +646,24 @@ case class Cast(child: Expression, dataType: DataType)
 
   private[this] def decimalToTimestampCode(d: String): String =
     s"($d.toBigDecimal().bigDecimal().multiply(new java.math.BigDecimal(1000000L))).longValue()"
-  private[this] def longToTimeStampCode(l: String): String = s"$l * 1000L"
+  private[this] def longToTimeStampCode(l: String): String = s"$l * 1000000L"
   private[this] def timestampToIntegerCode(ts: String): String =
     s"java.lang.Math.floor((double) $ts / 1000000L)"
   private[this] def timestampToDoubleCode(ts: String): String = s"$ts / 1000000.0"
 
   private[this] def castToBooleanCode(from: DataType): CastFunction = from match {
     case StringType =>
-      (c, evPrim, evNull) => s"$evPrim = $c.numBytes() != 0;"
+      val stringUtils = StringUtils.getClass.getName.stripSuffix("$")
+      (c, evPrim, evNull) =>
+        s"""
+          if ($stringUtils.isTrueString($c)) {
+            $evPrim = true;
+          } else if ($stringUtils.isFalseString($c)) {
+            $evPrim = false;
+          } else {
+            $evNull = true;
+          }
+        """
     case TimestampType =>
       (c, evPrim, evNull) => s"$evPrim = $c != 0;"
     case DateType =>

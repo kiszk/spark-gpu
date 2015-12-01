@@ -39,6 +39,13 @@ class RDDOperationScopeSuite extends SparkFunSuite with BeforeAndAfter {
     sc.stop()
   }
 
+  test("equals and hashCode") {
+    val opScope1 = new RDDOperationScope("scope1", id = "1")
+    val opScope2 = new RDDOperationScope("scope1", id = "1")
+    assert(opScope1 === opScope2)
+    assert(opScope1.hashCode() === opScope2.hashCode())
+  }
+
   test("getAllScopes") {
     assert(scope1.getAllScopes === Seq(scope1))
     assert(scope2.getAllScopes === Seq(scope1, scope2))
@@ -132,8 +139,7 @@ class RDDOperationScopeSuite extends SparkFunSuite with BeforeAndAfter {
 
 private class MyCoolRDD(sc: SparkContext) extends RDD[Int](sc, Nil) {
   override def getPartitions: Array[Partition] = Array.empty
-  override def compute(split: Partition, context: TaskContext): Iterator[Int] =
-    Nil.toIterator
+  override def compute(p: Partition, context: TaskContext ): Iterator[Int] = { Nil.toIterator }
   override def computePartition(p: Partition, context: TaskContext): PartitionData[Int] =
     IteratorPartitionData(Nil.toIterator)
 }

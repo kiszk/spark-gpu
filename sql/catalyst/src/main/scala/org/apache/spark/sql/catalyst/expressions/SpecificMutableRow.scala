@@ -41,7 +41,7 @@ import org.apache.spark.unsafe.types.UTF8String
  *     val newCopy = new Mutable$tpe
  *     newCopy.isNull = isNull
  *     newCopy.value = value
- *     newCopy.asInstanceOf[this.type]
+ *     newCopy
  *   }
  * }"""
  * }.foreach(println)
@@ -78,7 +78,7 @@ final class MutableInt extends MutableValue {
     val newCopy = new MutableInt
     newCopy.isNull = isNull
     newCopy.value = value
-    newCopy.asInstanceOf[MutableInt]
+    newCopy
   }
 }
 
@@ -93,7 +93,7 @@ final class MutableFloat extends MutableValue {
     val newCopy = new MutableFloat
     newCopy.isNull = isNull
     newCopy.value = value
-    newCopy.asInstanceOf[MutableFloat]
+    newCopy
   }
 }
 
@@ -108,7 +108,7 @@ final class MutableBoolean extends MutableValue {
     val newCopy = new MutableBoolean
     newCopy.isNull = isNull
     newCopy.value = value
-    newCopy.asInstanceOf[MutableBoolean]
+    newCopy
   }
 }
 
@@ -123,7 +123,7 @@ final class MutableDouble extends MutableValue {
     val newCopy = new MutableDouble
     newCopy.isNull = isNull
     newCopy.value = value
-    newCopy.asInstanceOf[MutableDouble]
+    newCopy
   }
 }
 
@@ -138,7 +138,7 @@ final class MutableShort extends MutableValue {
     val newCopy = new MutableShort
     newCopy.isNull = isNull
     newCopy.value = value
-    newCopy.asInstanceOf[MutableShort]
+    newCopy
   }
 }
 
@@ -153,7 +153,7 @@ final class MutableLong extends MutableValue {
     val newCopy = new MutableLong
     newCopy.isNull = isNull
     newCopy.value = value
-    newCopy.asInstanceOf[MutableLong]
+    newCopy
   }
 }
 
@@ -168,7 +168,7 @@ final class MutableByte extends MutableValue {
     val newCopy = new MutableByte
     newCopy.isNull = isNull
     newCopy.value = value
-    newCopy.asInstanceOf[MutableByte]
+    newCopy
   }
 }
 
@@ -183,7 +183,7 @@ final class MutableAny extends MutableValue {
     val newCopy = new MutableAny
     newCopy.isNull = isNull
     newCopy.value = value
-    newCopy.asInstanceOf[MutableAny]
+    newCopy
   }
 }
 
@@ -192,7 +192,8 @@ final class MutableAny extends MutableValue {
  * based on the dataTypes of each column.  The intent is to decrease garbage when modifying the
  * values of primitive columns.
  */
-final class SpecificMutableRow(val values: Array[MutableValue]) extends MutableRow {
+final class SpecificMutableRow(val values: Array[MutableValue])
+  extends MutableRow with BaseGenericInternalRow {
 
   def this(dataTypes: Seq[DataType]) =
     this(
@@ -213,8 +214,6 @@ final class SpecificMutableRow(val values: Array[MutableValue]) extends MutableR
 
   override def numFields: Int = values.length
 
-  override def toSeq: Seq[Any] = values.map(_.boxed)
-
   override def setNullAt(i: Int): Unit = {
     values(i).isNull = true
   }
@@ -232,7 +231,7 @@ final class SpecificMutableRow(val values: Array[MutableValue]) extends MutableR
     new GenericInternalRow(newValues)
   }
 
-  override def genericGet(i: Int): Any = values(i).boxed
+  override protected def genericGet(i: Int): Any = values(i).boxed
 
   override def update(ordinal: Int, value: Any) {
     if (value == null) {

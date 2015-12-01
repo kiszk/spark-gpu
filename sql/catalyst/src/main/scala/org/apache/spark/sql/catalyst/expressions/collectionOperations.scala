@@ -19,8 +19,8 @@ package org.apache.spark.sql.catalyst.expressions
 import java.util.Comparator
 
 import org.apache.spark.sql.catalyst.analysis.TypeCheckResult
-import org.apache.spark.sql.catalyst.expressions.codegen.{CodegenFallback, CodeGenContext, GeneratedExpressionCode}
-import org.apache.spark.sql.catalyst.util.TypeUtils
+import org.apache.spark.sql.catalyst.expressions.codegen.{CodeGenContext, CodegenFallback, GeneratedExpressionCode}
+import org.apache.spark.sql.catalyst.util.{MapData, GenericArrayData, ArrayData}
 import org.apache.spark.sql.types._
 
 /**
@@ -36,7 +36,7 @@ case class Size(child: Expression) extends UnaryExpression with ExpectsInputType
   }
 
   override def genCode(ctx: CodeGenContext, ev: GeneratedExpressionCode): String = {
-    nullSafeCodeGen(ctx, ev, c => s"${ev.primitive} = ($c).numElements();")
+    nullSafeCodeGen(ctx, ev, c => s"${ev.value} = ($c).numElements();")
   }
 }
 
@@ -68,6 +68,8 @@ case class SortArray(base: Expression, ascendingOrder: Expression)
   private lazy val lt: Comparator[Any] = {
     val ordering = base.dataType match {
       case _ @ ArrayType(n: AtomicType, _) => n.ordering.asInstanceOf[Ordering[Any]]
+      case _ @ ArrayType(a: ArrayType, _) => a.interpretedOrdering.asInstanceOf[Ordering[Any]]
+      case _ @ ArrayType(s: StructType, _) => s.interpretedOrdering.asInstanceOf[Ordering[Any]]
     }
 
     new Comparator[Any]() {
@@ -89,6 +91,8 @@ case class SortArray(base: Expression, ascendingOrder: Expression)
   private lazy val gt: Comparator[Any] = {
     val ordering = base.dataType match {
       case _ @ ArrayType(n: AtomicType, _) => n.ordering.asInstanceOf[Ordering[Any]]
+      case _ @ ArrayType(a: ArrayType, _) => a.interpretedOrdering.asInstanceOf[Ordering[Any]]
+      case _ @ ArrayType(s: StructType, _) => s.interpretedOrdering.asInstanceOf[Ordering[Any]]
     }
 
     new Comparator[Any]() {
@@ -109,9 +113,80 @@ case class SortArray(base: Expression, ascendingOrder: Expression)
   override def nullSafeEval(array: Any, ascending: Any): Any = {
     val elementType = base.dataType.asInstanceOf[ArrayType].elementType
     val data = array.asInstanceOf[ArrayData].toArray[AnyRef](elementType)
-    java.util.Arrays.sort(data, if (ascending.asInstanceOf[Boolean]) lt else gt)
+    if (elementType != NullType) {
+      java.util.Arrays.sort(data, if (ascending.asInstanceOf[Boolean]) lt else gt)
+    }
     new GenericArrayData(data.asInstanceOf[Array[Any]])
   }
 
   override def prettyName: String = "sort_array"
+}
+
+/**
+ * Checks if the array (left) has the element (right)
+ */
+case class ArrayContains(left: Expression, right: Expression)
+  extends BinaryExpression with ImplicitCastInputTypes {
+
+  override def dataType: DataType = BooleanType
+
+  override def inputTypes: Seq[AbstractDataType] = right.dataType match {
+    case NullType => Seq()
+    case _ => left.dataType match {
+      case n @ ArrayType(element, _) => Seq(n, element)
+      case _ => Seq()
+    }
+  }
+
+  override def checkInputDataTypes(): TypeCheckResult = {
+    if (right.dataType == NullType) {
+      TypeCheckResult.TypeCheckFailure("Null typed values cannot be used as arguments")
+    } else if (!left.dataType.isInstanceOf[ArrayType]
+      || left.dataType.asInstanceOf[ArrayType].elementType != right.dataType) {
+      TypeCheckResult.TypeCheckFailure(
+        "Arguments must be an array followed by a value of same type as the array members")
+    } else {
+      TypeCheckResult.TypeCheckSuccess
+    }
+  }
+
+  override def nullable: Boolean = {
+    left.nullable || right.nullable || left.dataType.asInstanceOf[ArrayType].containsNull
+  }
+
+  override def nullSafeEval(arr: Any, value: Any): Any = {
+    var hasNull = false
+    arr.asInstanceOf[ArrayData].foreach(right.dataType, (i, v) =>
+      if (v == null) {
+        hasNull = true
+      } else if (v == value) {
+        return true
+      }
+    )
+    if (hasNull) {
+      null
+    } else {
+      false
+    }
+  }
+
+  override def genCode(ctx: CodeGenContext, ev: GeneratedExpressionCode): String = {
+    nullSafeCodeGen(ctx, ev, (arr, value) => {
+      val i = ctx.freshName("i")
+      val getValue = ctx.getValue(arr, right.dataType, i)
+      s"""
+      for (int $i = 0; $i < $arr.numElements(); $i ++) {
+        if ($arr.isNullAt($i)) {
+          ${ev.isNull} = true;
+        } else if (${ctx.genEqual(right.dataType, value, getValue)}) {
+          ${ev.isNull} = false;
+          ${ev.value} = true;
+          break;
+        }
+      }
+     """
+    })
+  }
+
+  override def prettyName: String = "array_contains"
 }

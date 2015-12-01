@@ -17,11 +17,13 @@
 
 package org.apache.spark.streaming.kinesis
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
+import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
 import com.amazonaws.auth.{AWSCredentials, DefaultAWSCredentialsProviderChain}
 import com.amazonaws.services.kinesis.AmazonKinesisClient
+import com.amazonaws.services.kinesis.clientlibrary.types.UserRecord
 import com.amazonaws.services.kinesis.model._
 
 import org.apache.spark._
@@ -37,16 +39,18 @@ case class SequenceNumberRange(
 
 /** Class representing an array of Kinesis sequence number ranges */
 private[kinesis]
-case class SequenceNumberRanges(ranges: Array[SequenceNumberRange]) {
+case class SequenceNumberRanges(ranges: Seq[SequenceNumberRange]) {
   def isEmpty(): Boolean = ranges.isEmpty
+
   def nonEmpty(): Boolean = ranges.nonEmpty
+
   override def toString(): String = ranges.mkString("SequenceNumberRanges(", ", ", ")")
 }
 
 private[kinesis]
 object SequenceNumberRanges {
   def apply(range: SequenceNumberRange): SequenceNumberRanges = {
-    new SequenceNumberRanges(Array(range))
+    new SequenceNumberRanges(Seq(range))
   }
 }
 
@@ -65,16 +69,17 @@ class KinesisBackedBlockRDDPartition(
  * sequence numbers of the corresponding blocks.
  */
 private[kinesis]
-class KinesisBackedBlockRDD(
-    sc: SparkContext,
-    regionId: String,
-    endpointUrl: String,
+class KinesisBackedBlockRDD[T: ClassTag](
+    @transient sc: SparkContext,
+    val regionName: String,
+    val endpointUrl: String,
     @transient blockIds: Array[BlockId],
-    @transient arrayOfseqNumberRanges: Array[SequenceNumberRanges],
+    @transient val arrayOfseqNumberRanges: Array[SequenceNumberRanges],
     @transient isBlockIdValid: Array[Boolean] = Array.empty,
-    retryTimeoutMs: Int = 10000,
-    awsCredentialsOption: Option[SerializableAWSCredentials] = None
-  ) extends BlockRDD[Array[Byte]](sc, blockIds) {
+    val retryTimeoutMs: Int = 10000,
+    val messageHandler: Record => T = KinesisUtils.defaultMessageHandler _,
+    val awsCredentialsOption: Option[SerializableAWSCredentials] = None
+  ) extends BlockRDD[T](sc, blockIds) {
 
   require(blockIds.length == arrayOfseqNumberRanges.length,
     "Number of blockIds is not equal to the number of sequence number ranges")
@@ -89,25 +94,24 @@ class KinesisBackedBlockRDD(
   }
 
   override def computePartition(split: Partition, context: TaskContext):
-      PartitionData[Array[Byte]] = {
+      PartitionData[T] = {
     val blockManager = SparkEnv.get.blockManager
     val partition = split.asInstanceOf[KinesisBackedBlockRDDPartition]
     val blockId = partition.blockId
 
-    def getBlockFromBlockManager(): Option[PartitionData[Array[Byte]]] = {
+    def getBlockFromBlockManager(): Option[PartitionData[T]] = {
       logDebug(s"Read partition data of $this from block manager, block $blockId")
-      blockManager.get(blockId).map(_.data.asInstanceOf[PartitionData[Array[Byte]]])
+      blockManager.get(blockId).map(_.data.asInstanceOf[PartitionData[T]])
     }
 
-    def getBlockFromKinesis(): PartitionData[Array[Byte]] = {
+    def getBlockFromKinesis(): PartitionData[T] = {
       val credenentials = awsCredentialsOption.getOrElse {
         new DefaultAWSCredentialsProviderChain().getCredentials()
       }
       IteratorPartitionData(
         partition.seqNumberRanges.ranges.iterator.flatMap { range =>
-          new KinesisSequenceRangeIterator(
-            credenentials, endpointUrl, regionId, range, retryTimeoutMs)
-        })
+          new KinesisSequenceRangeIterator(credenentials, endpointUrl, regionName,
+            range, retryTimeoutMs).map(messageHandler)
     }
     if (partition.isBlockIdValid) {
       getBlockFromBlockManager().getOrElse { getBlockFromKinesis() }
@@ -129,8 +133,7 @@ class KinesisSequenceRangeIterator(
     endpointUrl: String,
     regionId: String,
     range: SequenceNumberRange,
-    retryTimeoutMs: Int
-  ) extends NextIterator[Array[Byte]] with Logging {
+    retryTimeoutMs: Int) extends NextIterator[Record] with Logging {
 
   private val client = new AmazonKinesisClient(credentials)
   private val streamName = range.streamName
@@ -142,8 +145,8 @@ class KinesisSequenceRangeIterator(
 
   client.setEndpoint(endpointUrl, "kinesis", regionId)
 
-  override protected def getNext(): Array[Byte] = {
-    var nextBytes: Array[Byte] = null
+  override protected def getNext(): Record = {
+    var nextRecord: Record = null
     if (toSeqNumberReceived) {
       finished = true
     } else {
@@ -170,10 +173,7 @@ class KinesisSequenceRangeIterator(
       } else {
 
         // Get the record, copy the data into a byte array and remember its sequence number
-        val nextRecord: Record = internalIterator.next()
-        val byteBuffer = nextRecord.getData()
-        nextBytes = new Array[Byte](byteBuffer.remaining())
-        byteBuffer.get(nextBytes)
+        nextRecord = internalIterator.next()
         lastSeqNumber = nextRecord.getSequenceNumber()
 
         // If the this record's sequence number matches the stopping sequence number, then make sure
@@ -182,9 +182,8 @@ class KinesisSequenceRangeIterator(
           toSeqNumberReceived = true
         }
       }
-
     }
-    nextBytes
+    nextRecord
   }
 
   override protected def close(): Unit = {
@@ -213,7 +212,10 @@ class KinesisSequenceRangeIterator(
       s"getting records using shard iterator") {
         client.getRecords(getRecordsRequest)
       }
-    (getRecordsResult.getRecords.iterator(), getRecordsResult.getNextShardIterator)
+    // De-aggregate records, if KPL was used in producing the records. The KCL automatically
+    // handles de-aggregation during regular operation. This code path is used during recovery
+    val recordIterator = UserRecord.deaggregate(getRecordsResult.getRecords)
+    (recordIterator.iterator().asScala, getRecordsResult.getNextShardIterator)
   }
 
   /**

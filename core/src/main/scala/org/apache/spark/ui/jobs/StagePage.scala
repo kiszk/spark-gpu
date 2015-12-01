@@ -28,7 +28,7 @@ import org.apache.commons.lang3.StringEscapeUtils
 
 import org.apache.spark.{InternalAccumulator, SparkConf}
 import org.apache.spark.executor.TaskMetrics
-import org.apache.spark.scheduler.{AccumulableInfo, TaskInfo}
+import org.apache.spark.scheduler.{AccumulableInfo, TaskInfo, TaskLocality}
 import org.apache.spark.ui._
 import org.apache.spark.ui.jobs.UIData._
 import org.apache.spark.util.{Utils, Distribution}
@@ -49,7 +49,7 @@ private[ui] class StagePage(parent: StagesTab) extends WebUIPage("stage") {
             ("shuffle-read-time-proportion", "Shuffle Read Time"),
             ("executor-runtime-proportion", "Executor Computing Time"),
             ("shuffle-write-time-proportion", "Shuffle Write Time"),
-            ("serialization-time-proportion", "Result Serialization TIme"),
+            ("serialization-time-proportion", "Result Serialization Time"),
             ("getting-result-time-proportion", "Getting Result Time"))
 
           legendPairs.zipWithIndex.map {
@@ -68,8 +68,22 @@ private[ui] class StagePage(parent: StagesTab) extends WebUIPage("stage") {
   // if we find that it's okay.
   private val MAX_TIMELINE_TASKS = parent.conf.getInt("spark.ui.timeline.tasks.maximum", 1000)
 
-  private val displayPeakExecutionMemory =
-    parent.conf.getOption("spark.sql.unsafe.enabled").exists(_.toBoolean)
+  private val displayPeakExecutionMemory = parent.conf.getBoolean("spark.sql.unsafe.enabled", true)
+
+  private def getLocalitySummaryString(stageData: StageUIData): String = {
+    val localities = stageData.taskData.values.map(_.taskInfo.taskLocality)
+    val localityCounts = localities.groupBy(identity).mapValues(_.size)
+    val localityNamesAndCounts = localityCounts.toSeq.map { case (locality, count) =>
+      val localityName = locality match {
+        case TaskLocality.PROCESS_LOCAL => "Process local"
+        case TaskLocality.NODE_LOCAL => "Node local"
+        case TaskLocality.RACK_LOCAL => "Rack local"
+        case TaskLocality.ANY => "Any"
+      }
+      s"$localityName: $count"
+    }
+    localityNamesAndCounts.sorted.mkString("; ")
+  }
 
   def render(request: HttpServletRequest): Seq[Node] = {
     progressListener.synchronized {
@@ -129,6 +143,10 @@ private[ui] class StagePage(parent: StagesTab) extends WebUIPage("stage") {
             <li>
               <strong>Total Time Across All Tasks: </strong>
               {UIUtils.formatDuration(stageData.executorRunTime)}
+            </li>
+            <li>
+              <strong>Locality Level Summary: </strong>
+              {getLocalitySummaryString(stageData)}
             </li>
             {if (stageData.hasInput) {
               <li>
@@ -369,7 +387,7 @@ private[ui] class StagePage(parent: StagesTab) extends WebUIPage("stage") {
           val peakExecutionMemory = validTasks.map { case TaskUIData(info, _, _) =>
             info.accumulables
               .find { acc => acc.name == InternalAccumulator.PEAK_EXECUTION_MEMORY }
-              .map { acc => acc.value.toLong }
+              .map { acc => acc.update.getOrElse("0").toLong }
               .getOrElse(0L)
               .toDouble
           }
@@ -622,7 +640,7 @@ private[ui] class StagePage(parent: StagesTab) extends WebUIPage("stage") {
           serializationTimeProportionPos + serializationTimeProportion
 
         val index = taskInfo.index
-        val attempt = taskInfo.attempt
+        val attempt = taskInfo.attemptNumber
 
         val svgTag =
           if (totalExecutionTime == 0) {
@@ -860,7 +878,7 @@ private[ui] class TaskDataSource(
     }
     val peakExecutionMemoryUsed = taskInternalAccumulables
       .find { acc => acc.name == InternalAccumulator.PEAK_EXECUTION_MEMORY }
-      .map { acc => acc.value.toLong }
+      .map { acc => acc.update.getOrElse("0").toLong }
       .getOrElse(0L)
 
     val maybeInput = metrics.flatMap(_.inputMetrics)
@@ -968,7 +986,7 @@ private[ui] class TaskDataSource(
     new TaskTableRowData(
       info.index,
       info.taskId,
-      info.attempt,
+      info.attemptNumber,
       info.speculative,
       info.status,
       info.taskLocality.toString,
@@ -988,8 +1006,7 @@ private[ui] class TaskDataSource(
       shuffleRead,
       shuffleWrite,
       bytesSpilled,
-      errorMessage.getOrElse("")
-    )
+      errorMessage.getOrElse(""))
   }
 
   /**
@@ -1194,10 +1211,9 @@ private[ui] class TaskPagedTable(
     desc: Boolean) extends PagedTable[TaskTableRowData] {
 
   // We only track peak memory used for unsafe operators
-  private val displayPeakExecutionMemory =
-    conf.getOption("spark.sql.unsafe.enabled").exists(_.toBoolean)
+  private val displayPeakExecutionMemory = conf.getBoolean("spark.sql.unsafe.enabled", true)
 
-  override def tableId: String = ""
+  override def tableId: String = "task-table"
 
   override def tableCssClass: String = "table table-bordered table-condensed table-striped"
 
@@ -1212,8 +1228,7 @@ private[ui] class TaskPagedTable(
     currentTime,
     pageSize,
     sortColumn,
-    desc
-  )
+    desc)
 
   override def pageLink(page: Int): String = {
     val encodedSortColumn = URLEncoder.encode(sortColumn, "UTF-8")
@@ -1277,7 +1292,7 @@ private[ui] class TaskPagedTable(
         Seq(("Errors", ""))
 
     if (!taskHeadersAndCssClasses.map(_._1).contains(sortColumn)) {
-      new IllegalArgumentException(s"Unknown column: $sortColumn")
+      throw new IllegalArgumentException(s"Unknown column: $sortColumn")
     }
 
     val headerRow: Seq[Node] = {

@@ -23,11 +23,12 @@ import scala.collection.mutable.ArrayBuffer
 
 import com.google.common.base.Charsets.UTF_8
 import com.google.common.io.ByteStreams
-import org.scalatest.Matchers
+import org.scalatest.{BeforeAndAfterEach, Matchers}
 import org.scalatest.concurrent.Timeouts
 import org.scalatest.time.SpanSugar._
 
 import org.apache.spark._
+import org.apache.spark.api.r.RUtils
 import org.apache.spark.deploy.SparkSubmit._
 import org.apache.spark.deploy.SparkSubmitUtils.MavenCoordinate
 import org.apache.spark.util.{ResetSystemProperties, Utils}
@@ -39,10 +40,12 @@ import org.apache.spark.PPCIBMJDKFailingTest
 class SparkSubmitSuite
   extends SparkFunSuite
   with Matchers
+  with BeforeAndAfterEach
   with ResetSystemProperties
   with Timeouts {
 
-  def beforeAll() {
+  override def beforeEach() {
+    super.beforeEach()
     System.setProperty("spark.testing", "true")
   }
 
@@ -149,7 +152,7 @@ class SparkSubmitSuite
       "--archives", "archive1.txt,archive2.txt",
       "--num-executors", "6",
       "--name", "beauty",
-      "--conf", "spark.shuffle.spill=false",
+      "--conf", "spark.ui.enabled=false",
       "thejar.jar",
       "arg1", "arg2")
     val appArgs = new SparkSubmitArguments(clArgs)
@@ -161,7 +164,6 @@ class SparkSubmitSuite
     childArgsStr should include ("--executor-cores 5")
     childArgsStr should include ("--arg arg1 --arg arg2")
     childArgsStr should include ("--queue thequeue")
-    childArgsStr should include ("--num-executors 6")
     childArgsStr should include regex ("--jar .*thejar.jar")
     childArgsStr should include regex ("--addJars .*one.jar,.*two.jar,.*three.jar")
     childArgsStr should include regex ("--files .*file1.txt,.*file2.txt")
@@ -169,7 +171,7 @@ class SparkSubmitSuite
     mainClass should be ("org.apache.spark.deploy.yarn.Client")
     classpath should have length (0)
     sysProps("spark.app.name") should be ("beauty")
-    sysProps("spark.shuffle.spill") should be ("false")
+    sysProps("spark.ui.enabled") should be ("false")
     sysProps("SPARK_SUBMIT") should be ("true")
     sysProps.keys should not contain ("spark.jars")
   }
@@ -188,7 +190,7 @@ class SparkSubmitSuite
       "--archives", "archive1.txt,archive2.txt",
       "--num-executors", "6",
       "--name", "trill",
-      "--conf", "spark.shuffle.spill=false",
+      "--conf", "spark.ui.enabled=false",
       "thejar.jar",
       "arg1", "arg2")
     val appArgs = new SparkSubmitArguments(clArgs)
@@ -209,7 +211,7 @@ class SparkSubmitSuite
     sysProps("spark.yarn.dist.archives") should include regex (".*archive1.txt,.*archive2.txt")
     sysProps("spark.jars") should include regex (".*one.jar,.*two.jar,.*three.jar,.*thejar.jar")
     sysProps("SPARK_SUBMIT") should be ("true")
-    sysProps("spark.shuffle.spill") should be ("false")
+    sysProps("spark.ui.enabled") should be ("false")
   }
 
   test("handles standalone cluster mode", PPCIBMJDKFailingTest) {
@@ -232,7 +234,7 @@ class SparkSubmitSuite
       "--supervise",
       "--driver-memory", "4g",
       "--driver-cores", "5",
-      "--conf", "spark.shuffle.spill=false",
+      "--conf", "spark.ui.enabled=false",
       "thejar.jar",
       "arg1", "arg2")
     val appArgs = new SparkSubmitArguments(clArgs)
@@ -256,9 +258,9 @@ class SparkSubmitSuite
     sysProps.keys should contain ("spark.driver.memory")
     sysProps.keys should contain ("spark.driver.cores")
     sysProps.keys should contain ("spark.driver.supervise")
-    sysProps.keys should contain ("spark.shuffle.spill")
+    sysProps.keys should contain ("spark.ui.enabled")
     sysProps.keys should contain ("spark.submit.deployMode")
-    sysProps("spark.shuffle.spill") should be ("false")
+    sysProps("spark.ui.enabled") should be ("false")
   }
 
   test("handles standalone client mode") {
@@ -269,7 +271,7 @@ class SparkSubmitSuite
       "--total-executor-cores", "5",
       "--class", "org.SomeClass",
       "--driver-memory", "4g",
-      "--conf", "spark.shuffle.spill=false",
+      "--conf", "spark.ui.enabled=false",
       "thejar.jar",
       "arg1", "arg2")
     val appArgs = new SparkSubmitArguments(clArgs)
@@ -280,7 +282,7 @@ class SparkSubmitSuite
     classpath(0) should endWith ("thejar.jar")
     sysProps("spark.executor.memory") should be ("5g")
     sysProps("spark.cores.max") should be ("5")
-    sysProps("spark.shuffle.spill") should be ("false")
+    sysProps("spark.ui.enabled") should be ("false")
   }
 
   test("handles mesos client mode") {
@@ -291,7 +293,7 @@ class SparkSubmitSuite
       "--total-executor-cores", "5",
       "--class", "org.SomeClass",
       "--driver-memory", "4g",
-      "--conf", "spark.shuffle.spill=false",
+      "--conf", "spark.ui.enabled=false",
       "thejar.jar",
       "arg1", "arg2")
     val appArgs = new SparkSubmitArguments(clArgs)
@@ -302,7 +304,7 @@ class SparkSubmitSuite
     classpath(0) should endWith ("thejar.jar")
     sysProps("spark.executor.memory") should be ("5g")
     sysProps("spark.cores.max") should be ("5")
-    sysProps("spark.shuffle.spill") should be ("false")
+    sysProps("spark.ui.enabled") should be ("false")
   }
 
   test("handles confs with flag equivalents") {
@@ -327,6 +329,8 @@ class SparkSubmitSuite
       "--class", SimpleApplicationTest.getClass.getName.stripSuffix("$"),
       "--name", "testApp",
       "--master", "local",
+      "--conf", "spark.ui.enabled=false",
+      "--conf", "spark.master.rest.enabled=false",
       unusedJar.toString)
     runSparkSubmit(args)
   }
@@ -340,6 +344,8 @@ class SparkSubmitSuite
       "--class", JarCreationTest.getClass.getName.stripSuffix("$"),
       "--name", "testApp",
       "--master", "local-cluster[2,1,1024]",
+      "--conf", "spark.ui.enabled=false",
+      "--conf", "spark.master.rest.enabled=false",
       "--jars", jarsString,
       unusedJar.toString, "SparkSubmitClassA", "SparkSubmitClassB")
     runSparkSubmit(args)
@@ -358,8 +364,31 @@ class SparkSubmitSuite
         "--packages", Seq(main, dep).mkString(","),
         "--repositories", repo,
         "--conf", "spark.ui.enabled=false",
+        "--conf", "spark.master.rest.enabled=false",
         unusedJar.toString,
         "my.great.lib.MyLib", "my.great.dep.MyLib")
+      runSparkSubmit(args)
+    }
+  }
+
+  // TODO(SPARK-9603): Building a package is flaky on Jenkins Maven builds.
+  // See https://gist.github.com/shivaram/3a2fecce60768a603dac for a error log
+  ignore("correctly builds R packages included in a jar with --packages") {
+    assume(RUtils.isRInstalled, "R isn't installed on this machine.")
+    val main = MavenCoordinate("my.great.lib", "mylib", "0.1")
+    val sparkHome = sys.props.getOrElse("spark.test.home", fail("spark.test.home is not set!"))
+    val rScriptDir =
+      Seq(sparkHome, "R", "pkg", "inst", "tests", "packageInAJarTest.R").mkString(File.separator)
+    assert(new File(rScriptDir).exists)
+    IvyTestUtils.withRepository(main, None, None, withR = true) { repo =>
+      val args = Seq(
+        "--name", "testApp",
+        "--master", "local-cluster[2,1,1024]",
+        "--packages", main.toString,
+        "--repositories", repo,
+        "--verbose",
+        "--conf", "spark.ui.enabled=false",
+        rScriptDir)
       runSparkSubmit(args)
     }
   }
@@ -479,6 +508,8 @@ class SparkSubmitSuite
       "--master", "local",
       "--conf", "spark.driver.extraClassPath=" + systemJar,
       "--conf", "spark.driver.userClassPathFirst=true",
+      "--conf", "spark.ui.enabled=false",
+      "--conf", "spark.master.rest.enabled=false",
       userJar.toString)
     runSparkSubmit(args)
   }

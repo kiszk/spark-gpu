@@ -11,7 +11,12 @@ else
   ARCH=`arch`
   EXT=so
 fi
-DISTASM=dist/lib/spark-assembly-1.5.0-GPU-hadoop2.4.0.jar
+DISTASM=dist/lib/spark-assembly-1.6.0-GPU-hadoop2.4.0.jar
+if [ ! -f $DISTASM ]; then
+  echo "file $DISTASM does not exist. Please check file name."
+  exit 1
+fi
+
 
 function addlib2jar {
   libdir=$2/target

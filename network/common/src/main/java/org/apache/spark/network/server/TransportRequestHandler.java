@@ -17,6 +17,7 @@
 
 package org.apache.spark.network.server;
 
+import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -27,14 +28,18 @@ import org.slf4j.LoggerFactory;
 import org.apache.spark.network.buffer.ManagedBuffer;
 import org.apache.spark.network.client.RpcResponseCallback;
 import org.apache.spark.network.client.TransportClient;
-import org.apache.spark.network.protocol.Encodable;
-import org.apache.spark.network.protocol.RequestMessage;
 import org.apache.spark.network.protocol.ChunkFetchRequest;
-import org.apache.spark.network.protocol.RpcRequest;
 import org.apache.spark.network.protocol.ChunkFetchFailure;
 import org.apache.spark.network.protocol.ChunkFetchSuccess;
+import org.apache.spark.network.protocol.Encodable;
+import org.apache.spark.network.protocol.OneWayMessage;
+import org.apache.spark.network.protocol.RequestMessage;
 import org.apache.spark.network.protocol.RpcFailure;
+import org.apache.spark.network.protocol.RpcRequest;
 import org.apache.spark.network.protocol.RpcResponse;
+import org.apache.spark.network.protocol.StreamFailure;
+import org.apache.spark.network.protocol.StreamRequest;
+import org.apache.spark.network.protocol.StreamResponse;
 import org.apache.spark.network.util.NettyUtils;
 
 /**
@@ -71,11 +76,18 @@ public class TransportRequestHandler extends MessageHandler<RequestMessage> {
 
   @Override
   public void exceptionCaught(Throwable cause) {
+    rpcHandler.exceptionCaught(cause, reverseClient);
   }
 
   @Override
   public void channelUnregistered() {
-    streamManager.connectionTerminated(channel);
+    if (streamManager != null) {
+      try {
+        streamManager.connectionTerminated(channel);
+      } catch (RuntimeException e) {
+        logger.error("StreamManager connectionTerminated() callback failed.", e);
+      }
+    }
     rpcHandler.connectionTerminated(reverseClient);
   }
 
@@ -85,6 +97,10 @@ public class TransportRequestHandler extends MessageHandler<RequestMessage> {
       processFetchRequest((ChunkFetchRequest) request);
     } else if (request instanceof RpcRequest) {
       processRpcRequest((RpcRequest) request);
+    } else if (request instanceof OneWayMessage) {
+      processOneWayMessage((OneWayMessage) request);
+    } else if (request instanceof StreamRequest) {
+      processStreamRequest((StreamRequest) request);
     } else {
       throw new IllegalArgumentException("Unknown request type: " + request);
     }
@@ -97,6 +113,7 @@ public class TransportRequestHandler extends MessageHandler<RequestMessage> {
 
     ManagedBuffer buf;
     try {
+      streamManager.checkAuthorization(reverseClient, req.streamChunkId.streamId);
       streamManager.registerChannel(channel, req.streamChunkId.streamId);
       buf = streamManager.getChunk(req.streamChunkId.streamId, req.streamChunkId.chunkIndex);
     } catch (Exception e) {
@@ -107,6 +124,21 @@ public class TransportRequestHandler extends MessageHandler<RequestMessage> {
     }
 
     respond(new ChunkFetchSuccess(req.streamChunkId, buf));
+  }
+
+  private void processStreamRequest(final StreamRequest req) {
+    final String client = NettyUtils.getRemoteAddress(channel);
+    ManagedBuffer buf;
+    try {
+      buf = streamManager.openStream(req.streamId);
+    } catch (Exception e) {
+      logger.error(String.format(
+        "Error opening stream %s for request from %s", req.streamId, client), e);
+      respond(new StreamFailure(req.streamId, Throwables.getStackTraceAsString(e)));
+      return;
+    }
+
+    respond(new StreamResponse(req.streamId, buf.size(), buf));
   }
 
   private void processRpcRequest(final RpcRequest req) {
@@ -125,6 +157,14 @@ public class TransportRequestHandler extends MessageHandler<RequestMessage> {
     } catch (Exception e) {
       logger.error("Error while invoking RpcHandler#receive() on RPC id " + req.requestId, e);
       respond(new RpcFailure(req.requestId, Throwables.getStackTraceAsString(e)));
+    }
+  }
+
+  private void processOneWayMessage(OneWayMessage req) {
+    try {
+      rpcHandler.receive(reverseClient, req.message);
+    } catch (Exception e) {
+      logger.error("Error while invoking RpcHandler#receive() for one-way message.", e);
     }
   }
 

@@ -18,39 +18,11 @@
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.AnalysisException
-import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.plans.PlanTest
 import org.apache.spark.sql.catalyst.plans.logical._
-import org.apache.spark.sql.catalyst.SimpleCatalystConf
-import org.apache.spark.sql.types._
+import org.apache.spark.sql.catalyst.{TableIdentifier, SimpleCatalystConf}
 
 trait AnalysisTest extends PlanTest {
-  val testRelation = LocalRelation(AttributeReference("a", IntegerType, nullable = true)())
-
-  val testRelation2 = LocalRelation(
-    AttributeReference("a", StringType)(),
-    AttributeReference("b", StringType)(),
-    AttributeReference("c", DoubleType)(),
-    AttributeReference("d", DecimalType(10, 2))(),
-    AttributeReference("e", ShortType)())
-
-  val nestedRelation = LocalRelation(
-    AttributeReference("top", StructType(
-      StructField("duplicateField", StringType) ::
-        StructField("duplicateField", StringType) ::
-        StructField("differentCase", StringType) ::
-        StructField("differentcase", StringType) :: Nil
-    ))())
-
-  val nestedRelation2 = LocalRelation(
-    AttributeReference("top", StructType(
-      StructField("aField", StringType) ::
-        StructField("bField", StringType) ::
-        StructField("cField", StringType) :: Nil
-    ))())
-
-  val listRelation = LocalRelation(
-    AttributeReference("list", ArrayType(IntegerType))())
 
   val (caseSensitiveAnalyzer, caseInsensitiveAnalyzer) = {
     val caseSensitiveConf = new SimpleCatalystConf(true)
@@ -59,8 +31,8 @@ trait AnalysisTest extends PlanTest {
     val caseSensitiveCatalog = new SimpleCatalog(caseSensitiveConf)
     val caseInsensitiveCatalog = new SimpleCatalog(caseInsensitiveConf)
 
-    caseSensitiveCatalog.registerTable(Seq("TaBlE"), testRelation)
-    caseInsensitiveCatalog.registerTable(Seq("TaBlE"), testRelation)
+    caseSensitiveCatalog.registerTable(TableIdentifier("TaBlE"), TestRelations.testRelation)
+    caseInsensitiveCatalog.registerTable(TableIdentifier("TaBlE"), TestRelations.testRelation)
 
     new Analyzer(caseSensitiveCatalog, EmptyFunctionRegistry, caseSensitiveConf) {
       override val extendedResolutionRules = EliminateSubQueries :: Nil
@@ -96,10 +68,11 @@ trait AnalysisTest extends PlanTest {
       expectedErrors: Seq[String],
       caseSensitive: Boolean = true): Unit = {
     val analyzer = getAnalyzer(caseSensitive)
-    // todo: make sure we throw AnalysisException during analysis
-    val e = intercept[Exception] {
+    val e = intercept[AnalysisException] {
       analyzer.checkAnalysis(analyzer.execute(inputPlan))
     }
-    expectedErrors.forall(e.getMessage.contains)
+    assert(expectedErrors.map(_.toLowerCase).forall(e.getMessage.toLowerCase.contains),
+      s"Expected to throw Exception contains: ${expectedErrors.mkString(", ")}, " +
+        s"actually we get ${e.getMessage}")
   }
 }

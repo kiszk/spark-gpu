@@ -20,8 +20,9 @@ package org.apache.spark.streaming.flume
 import java.net.{InetSocketAddress, ServerSocket}
 import java.nio.ByteBuffer
 import java.util.{List => JList}
+import java.util.Collections
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 import com.google.common.base.Charsets.UTF_8
 import org.apache.avro.ipc.NettyTransceiver
@@ -62,10 +63,10 @@ private[flume] class FlumeTestUtils {
   def writeInput(input: JList[String], enableCompression: Boolean): Unit = {
     val testAddress = new InetSocketAddress("localhost", testPort)
 
-    val inputEvents = input.map { item =>
+    val inputEvents = input.asScala.map { item =>
       val event = new AvroFlumeEvent
       event.setBody(ByteBuffer.wrap(item.getBytes(UTF_8)))
-      event.setHeaders(Map[CharSequence, CharSequence]("test" -> "header"))
+      event.setHeaders(Collections.singletonMap("test", "header"))
       event
     }
 
@@ -88,7 +89,7 @@ private[flume] class FlumeTestUtils {
     }
 
     // Send data
-    val status = client.appendBatch(inputEvents.toList)
+    val status = client.appendBatch(inputEvents.asJava)
     if (status != avro.Status.OK) {
       throw new AssertionError("Sent events unsuccessfully")
     }

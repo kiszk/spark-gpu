@@ -60,8 +60,8 @@ class ColumnPartitionData[T](
 
   var gpuCache : Boolean = false
   private val cachedGPUPointers = new HashMap[String, Pointer]()
-  def gpuCached : Boolean = cachedGPUPointers.size > 0 
-  var gpuDevIx : Int = -1 
+  def gpuCached : Boolean = cachedGPUPointers.size > 0
+  var gpuDevIx : Int = -1
 
   var blobs : Array[Pointer] = null
   var blobBuffers : Array[ByteBuffer] = null
@@ -81,7 +81,7 @@ class ColumnPartitionData[T](
   // Extracted to a function for use in deserialization
   private def initialize {
     pointers = schema.columns.map { col =>
-      SparkEnv.get.executorMemoryManager.allocatePinnedMemory(col.columnType.bytes * size)
+      SparkEnv.get.heapMemoryAllocator.allocatePinnedMemory(col.columnType.bytes * size)
     }
 
     refCounter = 1
@@ -92,7 +92,7 @@ class ColumnPartitionData[T](
     if (blobs == null) {
       blobs = new Array(1)
     }
-    val ptr = SparkEnv.get.executorMemoryManager.allocatePinnedMemory(blobSize)
+    val ptr = SparkEnv.get.heapMemoryAllocator.allocatePinnedMemory(blobSize)
     blobs(0) = ptr
     if (blobBuffers == null) {
       blobBuffers = new Array(1)
@@ -144,9 +144,9 @@ class ColumnPartitionData[T](
     assert(refCounter > 0)
     refCounter -= 1
     if (refCounter == 0) {
-      pointers.foreach(SparkEnv.get.executorMemoryManager.freePinnedMemory(_))
+      pointers.foreach(SparkEnv.get.heapMemoryAllocator.freePinnedMemory(_))
       if (blobs != null) {
-        blobs.foreach(SparkEnv.get.executorMemoryManager.freePinnedMemory(_))
+        blobs.foreach(SparkEnv.get.heapMemoryAllocator.freePinnedMemory(_))
       }
       gpuCache = false;
       freeGPUPointers()
@@ -629,7 +629,7 @@ class ColumnPartitionData[T](
       while (i < blobBuffersSize) {
         val blobSize = in.readLong()
         var blobOffset: Long = 8
-        val ptr = SparkEnv.get.executorMemoryManager.allocatePinnedMemory(blobSize)
+        val ptr = SparkEnv.get.heapMemoryAllocator.allocatePinnedMemory(blobSize)
         blobs(i) = ptr
         val byteBuffer = ptr.getByteBuffer(0, blobSize).order(ByteOrder.LITTLE_ENDIAN)
         blobBuffers(i) = byteBuffer

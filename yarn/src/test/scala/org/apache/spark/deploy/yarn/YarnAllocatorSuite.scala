@@ -87,16 +87,17 @@ class YarnAllocatorSuite extends SparkFunSuite with Matchers with BeforeAndAfter
 
   def createAllocator(maxExecutors: Int = 5): YarnAllocator = {
     val args = Array(
-      "--num-executors", s"$maxExecutors",
       "--executor-cores", "5",
       "--executor-memory", "2048",
       "--jar", "somejar.jar",
       "--class", "SomeClass")
+    val sparkConfClone = sparkConf.clone()
+    sparkConfClone.set("spark.executor.instances", maxExecutors.toString)
     new YarnAllocator(
       "not used",
       mock(classOf[RpcEndpointRef]),
       conf,
-      sparkConf,
+      sparkConfClone,
       rmClient,
       appAttemptId,
       new ApplicationMasterArguments(args),
@@ -115,7 +116,7 @@ class YarnAllocatorSuite extends SparkFunSuite with Matchers with BeforeAndAfter
     val handler = createAllocator(1)
     handler.updateResourceRequests()
     handler.getNumExecutorsRunning should be (0)
-    handler.getNumPendingAllocate should be (1)
+    handler.getPendingAllocate.size should be (1)
 
     val container = createContainer("host1")
     handler.handleAllocatedContainers(Array(container))
@@ -133,7 +134,7 @@ class YarnAllocatorSuite extends SparkFunSuite with Matchers with BeforeAndAfter
     val handler = createAllocator(4)
     handler.updateResourceRequests()
     handler.getNumExecutorsRunning should be (0)
-    handler.getNumPendingAllocate should be (4)
+    handler.getPendingAllocate.size should be (4)
 
     val container1 = createContainer("host1")
     val container2 = createContainer("host1")
@@ -153,7 +154,7 @@ class YarnAllocatorSuite extends SparkFunSuite with Matchers with BeforeAndAfter
     val handler = createAllocator(2)
     handler.updateResourceRequests()
     handler.getNumExecutorsRunning should be (0)
-    handler.getNumPendingAllocate should be (2)
+    handler.getPendingAllocate.size should be (2)
 
     val container1 = createContainer("host1")
     val container2 = createContainer("host2")
@@ -173,11 +174,11 @@ class YarnAllocatorSuite extends SparkFunSuite with Matchers with BeforeAndAfter
     val handler = createAllocator(4)
     handler.updateResourceRequests()
     handler.getNumExecutorsRunning should be (0)
-    handler.getNumPendingAllocate should be (4)
+    handler.getPendingAllocate.size should be (4)
 
     handler.requestTotalExecutorsWithPreferredLocalities(3, 0, Map.empty)
     handler.updateResourceRequests()
-    handler.getNumPendingAllocate should be (3)
+    handler.getPendingAllocate.size should be (3)
 
     val container = createContainer("host1")
     handler.handleAllocatedContainers(Array(container))
@@ -188,18 +189,18 @@ class YarnAllocatorSuite extends SparkFunSuite with Matchers with BeforeAndAfter
 
     handler.requestTotalExecutorsWithPreferredLocalities(2, 0, Map.empty)
     handler.updateResourceRequests()
-    handler.getNumPendingAllocate should be (1)
+    handler.getPendingAllocate.size should be (1)
   }
 
   test("decrease total requested executors to less than currently running") {
     val handler = createAllocator(4)
     handler.updateResourceRequests()
     handler.getNumExecutorsRunning should be (0)
-    handler.getNumPendingAllocate should be (4)
+    handler.getPendingAllocate.size should be (4)
 
     handler.requestTotalExecutorsWithPreferredLocalities(3, 0, Map.empty)
     handler.updateResourceRequests()
-    handler.getNumPendingAllocate should be (3)
+    handler.getPendingAllocate.size should be (3)
 
     val container1 = createContainer("host1")
     val container2 = createContainer("host2")
@@ -209,7 +210,7 @@ class YarnAllocatorSuite extends SparkFunSuite with Matchers with BeforeAndAfter
 
     handler.requestTotalExecutorsWithPreferredLocalities(1, 0, Map.empty)
     handler.updateResourceRequests()
-    handler.getNumPendingAllocate should be (0)
+    handler.getPendingAllocate.size should be (0)
     handler.getNumExecutorsRunning should be (2)
   }
 
@@ -217,7 +218,7 @@ class YarnAllocatorSuite extends SparkFunSuite with Matchers with BeforeAndAfter
     val handler = createAllocator(4)
     handler.updateResourceRequests()
     handler.getNumExecutorsRunning should be (0)
-    handler.getNumPendingAllocate should be (4)
+    handler.getPendingAllocate.size should be (4)
 
     val container1 = createContainer("host1")
     val container2 = createContainer("host2")
@@ -232,14 +233,14 @@ class YarnAllocatorSuite extends SparkFunSuite with Matchers with BeforeAndAfter
     handler.updateResourceRequests()
     handler.processCompletedContainers(statuses.toSeq)
     handler.getNumExecutorsRunning should be (0)
-    handler.getNumPendingAllocate should be (1)
+    handler.getPendingAllocate.size should be (1)
   }
 
   test("lost executor removed from backend") {
     val handler = createAllocator(4)
     handler.updateResourceRequests()
     handler.getNumExecutorsRunning should be (0)
-    handler.getNumPendingAllocate should be (4)
+    handler.getPendingAllocate.size should be (4)
 
     val container1 = createContainer("host1")
     val container2 = createContainer("host2")
@@ -254,7 +255,7 @@ class YarnAllocatorSuite extends SparkFunSuite with Matchers with BeforeAndAfter
     handler.processCompletedContainers(statuses.toSeq)
     handler.updateResourceRequests()
     handler.getNumExecutorsRunning should be (0)
-    handler.getNumPendingAllocate should be (2)
+    handler.getPendingAllocate.size should be (2)
     handler.getNumExecutorsFailed should be (2)
     handler.getNumUnexpectedContainerRelease should be (2)
   }

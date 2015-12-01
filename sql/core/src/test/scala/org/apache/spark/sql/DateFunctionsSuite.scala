@@ -22,32 +22,37 @@ import java.text.SimpleDateFormat
 
 import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.test.SharedSQLContext
 import org.apache.spark.unsafe.types.CalendarInterval
 
-class DateFunctionsSuite extends QueryTest {
-  private lazy val ctx = org.apache.spark.sql.test.TestSQLContext
-
-  import ctx.implicits._
+class DateFunctionsSuite extends QueryTest with SharedSQLContext {
+  import testImplicits._
 
   test("function current_date") {
     val df1 = Seq((1, 2), (3, 1)).toDF("a", "b")
     val d0 = DateTimeUtils.millisToDays(System.currentTimeMillis())
     val d1 = DateTimeUtils.fromJavaDate(df1.select(current_date()).collect().head.getDate(0))
     val d2 = DateTimeUtils.fromJavaDate(
-      ctx.sql("""SELECT CURRENT_DATE()""").collect().head.getDate(0))
+      sql("""SELECT CURRENT_DATE()""").collect().head.getDate(0))
     val d3 = DateTimeUtils.millisToDays(System.currentTimeMillis())
     assert(d0 <= d1 && d1 <= d2 && d2 <= d3 && d3 - d0 <= 1)
   }
 
-  // This is a bad test. SPARK-9196 will fix it and re-enable it.
-  ignore("function current_timestamp") {
+  test("function current_timestamp and now") {
     val df1 = Seq((1, 2), (3, 1)).toDF("a", "b")
     checkAnswer(df1.select(countDistinct(current_timestamp())), Row(1))
+
     // Execution in one query should return the same value
-    checkAnswer(ctx.sql("""SELECT CURRENT_TIMESTAMP() = CURRENT_TIMESTAMP()"""),
-      Row(true))
-    assert(math.abs(ctx.sql("""SELECT CURRENT_TIMESTAMP()""").collect().head.getTimestamp(
-      0).getTime - System.currentTimeMillis()) < 5000)
+    checkAnswer(sql("""SELECT CURRENT_TIMESTAMP() = CURRENT_TIMESTAMP()"""), Row(true))
+
+    // Current timestamp should return the current timestamp ...
+    val before = System.currentTimeMillis
+    val got = sql("SELECT CURRENT_TIMESTAMP()").collect().head.getTimestamp(0).getTime
+    val after = System.currentTimeMillis
+    assert(got >= before && got <= after)
+
+    // Now alias
+    checkAnswer(sql("""SELECT CURRENT_TIMESTAMP() = NOW()"""), Row(true))
   }
 
   val sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
@@ -442,6 +447,30 @@ class DateFunctionsSuite extends QueryTest {
     checkAnswer(df.selectExpr(s"unix_timestamp(d, '$fmt')"), Seq(
       Row(date1.getTime / 1000L), Row(date2.getTime / 1000L)))
     checkAnswer(df.selectExpr(s"unix_timestamp(s, '$fmt')"), Seq(
+      Row(ts1.getTime / 1000L), Row(ts2.getTime / 1000L)))
+
+    val now = sql("select unix_timestamp()").collect().head.getLong(0)
+    checkAnswer(sql(s"select cast ($now as timestamp)"), Row(new java.util.Date(now * 1000)))
+  }
+
+  test("to_unix_timestamp") {
+    val date1 = Date.valueOf("2015-07-24")
+    val date2 = Date.valueOf("2015-07-25")
+    val ts1 = Timestamp.valueOf("2015-07-24 10:00:00.3")
+    val ts2 = Timestamp.valueOf("2015-07-25 02:02:02.2")
+    val s1 = "2015/07/24 10:00:00.5"
+    val s2 = "2015/07/25 02:02:02.6"
+    val ss1 = "2015-07-24 10:00:00"
+    val ss2 = "2015-07-25 02:02:02"
+    val fmt = "yyyy/MM/dd HH:mm:ss.S"
+    val df = Seq((date1, ts1, s1, ss1), (date2, ts2, s2, ss2)).toDF("d", "ts", "s", "ss")
+    checkAnswer(df.selectExpr("to_unix_timestamp(ts)"), Seq(
+      Row(ts1.getTime / 1000L), Row(ts2.getTime / 1000L)))
+    checkAnswer(df.selectExpr("to_unix_timestamp(ss)"), Seq(
+      Row(ts1.getTime / 1000L), Row(ts2.getTime / 1000L)))
+    checkAnswer(df.selectExpr(s"to_unix_timestamp(d, '$fmt')"), Seq(
+      Row(date1.getTime / 1000L), Row(date2.getTime / 1000L)))
+    checkAnswer(df.selectExpr(s"to_unix_timestamp(s, '$fmt')"), Seq(
       Row(ts1.getTime / 1000L), Row(ts2.getTime / 1000L)))
   }
 
