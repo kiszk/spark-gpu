@@ -155,10 +155,6 @@ class CliSuite extends SparkFunSuite with BeforeAndAfterAll with Logging {
 
     try {
       Await.ready(foundAllExpectedAnswers.future, timeout)
-      foundAllExpectedAnswers.future.value match {
-        case Some(Failure(t)) => throw t
-        case _ =>
-      }
     } catch { case cause: Throwable =>
       val message =
         s"""
