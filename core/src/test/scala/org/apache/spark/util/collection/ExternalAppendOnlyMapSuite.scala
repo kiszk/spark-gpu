@@ -25,6 +25,8 @@ import org.apache.spark.memory.MemoryTestingUtils
 
 import org.apache.spark.PPCIBMJDKFailingTest
 
+import org.apache.spark.PPCIBMJDKFailingTest
+
 class ExternalAppendOnlyMapSuite extends SparkFunSuite with LocalSparkContext {
   import TestUtils.{assertNotSpilled, assertSpilled}
 

@@ -26,6 +26,7 @@ import java.util.regex.Pattern
 import scala.collection.JavaConverters._
 import scala.collection.mutable.HashMap
 import scala.language.implicitConversions
+import scala.concurrent.duration._
 
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.hive.common.StatsSetupConst
@@ -226,6 +227,16 @@ class HiveContext private[hive](
   }
 
   defaultOverrides()
+
+  /**
+   * Overrides default Hive configurations to avoid breaking changes to Spark SQL users.
+   *  - allow SQL11 keywords to be used as identifiers
+   */
+  private[sql] def defaultOverides() = {
+    setConf(ConfVars.HIVE_SUPPORT_SQL11_RESERVED_KEYWORDS.varname, "false")
+  }
+
+  defaultOverides()
 
   /**
    * The copy of the Hive client that is used to retrieve metadata from the Hive MetaStore.

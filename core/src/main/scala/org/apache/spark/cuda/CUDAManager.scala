@@ -149,7 +149,6 @@ class CUDAManager {
       s"($memoryUsage bytes needed)")
   }
 
-
   private[spark] def cachedLoadModule(resourceURL: URL): CUmodule = {
     val filename = resourceURL.toString()
     val devIx = new Array[Int](1)
@@ -167,7 +166,6 @@ class CUDAManager {
             "CUDAManager.cachedLoadModule currently supports only one ptx");
         }
         val inputStream = resourceURL.openStream()
-//        val ptxData = IOUtils.toByteArray(inputStream)
         val moduleBinaryData = IOUtils.toByteArray(inputStream)
         inputStream.close()
 

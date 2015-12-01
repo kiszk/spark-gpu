@@ -29,6 +29,8 @@ import org.apache.spark.util.SparkConfWithEnv
 
 import org.apache.spark.PPCIBMJDKFailingTest
 
+import org.apache.spark.PPCIBMJDKFailingTest
+
 class LogUrlsStandaloneSuite extends SparkFunSuite with LocalSparkContext {
 
   /** Length of time to wait while draining listener events. */

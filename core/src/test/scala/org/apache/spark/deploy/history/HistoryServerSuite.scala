@@ -33,6 +33,8 @@ import org.apache.spark.ui.{SparkUI, UIUtils}
 
 import org.apache.spark.PPCIBMJDKFailingTest
 
+import org.apache.spark.PPCIBMJDKFailingTest
+
 /**
  * A collection of tests against the historyserver, including comparing responses from the json
  * metrics api to a set of known "golden files".  If new endpoints / parameters are added,

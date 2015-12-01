@@ -28,6 +28,7 @@ import scala.collection.JavaConverters;
 import scala.collection.immutable.Map;
 import scala.reflect.ClassTag;
 import scala.reflect.ClassTag$;
+import scala.collection.immutable.Map;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.io.ByteStreams;

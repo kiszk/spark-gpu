@@ -593,12 +593,18 @@ result.show()
 </div>
 
 <div data-lang="java" markdown="1">
+<<<<<<< HEAD
 
 Refer to the [PCA Java docs](api/java/org/apache/spark/ml/feature/PCA.html)
 for more details on the API.
 
 {% highlight java %}
 import java.util.Arrays;
+=======
+See the [Java API documentation](api/java/org/apache/spark/ml/feature/PCA.html) for API details.
+{% highlight java %}
+import com.google.common.collect.Lists;
+>>>>>>> dev
 
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -616,7 +622,11 @@ import org.apache.spark.sql.types.StructType;
 
 JavaSparkContext jsc = ...
 SQLContext jsql = ...
+<<<<<<< HEAD
 JavaRDD<Row> data = jsc.parallelize(Arrays.asList(
+=======
+JavaRDD<Row> data = jsc.parallelize(Lists.newArrayList(
+>>>>>>> dev
   RowFactory.create(Vectors.sparse(5, new int[]{1, 3}, new double[]{1.0, 7.0})),
   RowFactory.create(Vectors.dense(2.0, 0.0, 3.0, 4.0, 5.0)),
   RowFactory.create(Vectors.dense(4.0, 0.0, 0.0, 6.0, 7.0))
@@ -636,10 +646,14 @@ result.show();
 </div>
 
 <div data-lang="python" markdown="1">
+<<<<<<< HEAD
 
 Refer to the [PCA Python docs](api/python/pyspark.ml.html#pyspark.ml.feature.PCA)
 for more details on the API.
 
+=======
+See the [Python API documentation](api/python/pyspark.ml.html#pyspark.ml.feature.PCA) for API details.
+>>>>>>> dev
 {% highlight python %}
 from pyspark.ml.feature import PCA
 from pyspark.mllib.linalg import Vectors

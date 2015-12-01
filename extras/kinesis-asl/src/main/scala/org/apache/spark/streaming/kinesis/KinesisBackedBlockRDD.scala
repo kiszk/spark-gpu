@@ -112,7 +112,6 @@ class KinesisBackedBlockRDD[T: ClassTag](
         partition.seqNumberRanges.ranges.iterator.flatMap { range =>
           new KinesisSequenceRangeIterator(credenentials, endpointUrl, regionName,
             range, retryTimeoutMs).map(messageHandler)
-        })
     }
     if (partition.isBlockIdValid) {
       getBlockFromBlockManager().getOrElse { getBlockFromKinesis() }
