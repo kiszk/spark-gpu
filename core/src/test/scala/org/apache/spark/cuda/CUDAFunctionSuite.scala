@@ -873,10 +873,8 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
         Array.tabulate(N)(generatePoint)
       }
 
-      val points = sc.parallelize(generateData, numSlices)
-      points.cacheGpu()
-      val pointsColumnCached = points.convert(ColumnFormat).cache()
-      val pointsCached = points.cache()
+      val pointsCached = sc.parallelize(generateData, numSlices).cache()
+      val pointsColumnCached = pointsCached.convert(ColumnFormat).cache().cacheGpu()
 
       // Initialize w to a random value
       var wCPU = Array.fill(D){2 * rand.nextDouble - 1}
@@ -892,7 +890,7 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
           reduceFunction.value, outputArraySizes = Array(D))
         wGPU = dsubvv(wGPU, gradient)
       }
-      pointsColumnCached.unCacheGpu()
+      pointsColumnCached.unCacheGpu().unpersist()
 
       for (i <- 1 to ITERATIONS) {
         val gradient = pointsCached.map { p =>
@@ -900,150 +898,12 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
         }.reduce((x: Array[Double], y: Array[Double]) => daddvv(x, y))
         wCPU = dsubvv(wCPU, gradient)
       }
+      pointsCached.unpersist()
 
       (0 until wGPU.length).map(i => {
          assert(abs(wGPU(i) - wCPU(i)) < 1e-7) 
       })
 
-    } else {
-      info("No CUDA devices, so skipping the test.")
-    }
-  }
-
-  test("Run logistic regression with GPU Memory Persistance", GPUTest) {
-    sc = new SparkContext("local", "test", conf)
-    val manager = {
-      try {
-        new CUDAManager
-      } catch {
-        case ex: Exception => null
-      }
-    }
-    if (manager != null && manager.deviceCount > 0) {
-      def dmulvs(x: Array[Double], c: Double) : Array[Double] =
-        Array.tabulate(x.length)(i => x(i) * c)
-      def daddvv(x: Array[Double], y: Array[Double]) : Array[Double] =
-        Array.tabulate(x.length)(i => x(i) + y(i))
-      def dsubvv(x: Array[Double], y: Array[Double]) : Array[Double] =
-        Array.tabulate(x.length)(i => x(i) - y(i))
-      def ddotvv(x: Array[Double], y: Array[Double]) : Double =
-        (x zip y).foldLeft(0.0)((a, b) => a + (b._1 * b._2))
-
-      val N = 1024  // Number of data points
-      val D = 10   // Numer of dimensions
-      val R = 0.7  // Scaling factor
-      val ITERATIONS = 5
-      val rand = new Random(42)
-      val numSlices = 10
-
-      val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
-      val mapFunction = sc.broadcast(
-        new CUDAFunction(
-        "_Z5LRMapPKlPKdS2_PlPdlS2_",
-        Array("this.x", "this.y"),
-        Array("this"),
-        ptxURL))
-      val threads = 1024
-      val blocks = min((N + threads- 1) / threads, 1024) 
-      val dimensions = (size: Long, stage: Int) => stage match {
-        case 0 => (blocks, threads)
-      }
-      val reduceFunction = sc.broadcast(
-        new CUDAFunction(
-        "_Z8LRReducePKlPKdPlPdlii",
-        Array("this"),
-        Array("this"),
-        ptxURL,
-        Seq(),
-        Some((size: Long) => 1),
-        Some(dimensions)))
-
-      def generateData: Array[DataPoint] = {
-        def generatePoint(i: Int): DataPoint = {
-          val y = if (i % 2 == 0) -1 else 1
-          val x = Array.fill(D){rand.nextGaussian + y * R}
-          DataPoint(x, y)
-        }
-        Array.tabulate(N)(generatePoint)
-      }
-
-      val points = sc.parallelize(generateData, numSlices)
-      val pointsCached = points.cache()
-
-      val w = Array.fill(D){2 * rand.nextDouble - 1}
-
-      var wCPU = Array.tabulate(D)(i => w(i))
-      var wGPU = Array.tabulate(D)(i => w(i))
-      var wGPUCache = Array.tabulate(D)(i => w(i))
-
-      var startTime = Calendar.getInstance().getTimeInMillis
-      for (i <- 1 to ITERATIONS) {
-        val gradient = pointsCached.map { p =>
-          dmulvs(p.x,  (1 / (1 + exp(-p.y * (ddotvv(wCPU, p.x)))) - 1) * p.y)
-        }.reduce((x: Array[Double], y: Array[Double]) => daddvv(x, y))
-        wCPU = dsubvv(wCPU, gradient)
-      }
-      info("CPU Processing(1) time in milliseconds = " + (Calendar.getInstance().getTimeInMillis - startTime));
-
-      wCPU = Array.tabulate(D)(i => w(i))
-      startTime = Calendar.getInstance().getTimeInMillis
-      for (i <- 1 to ITERATIONS) {
-        val gradient = pointsCached.map { p =>
-          dmulvs(p.x,  (1 / (1 + exp(-p.y * (ddotvv(wCPU, p.x)))) - 1) * p.y)
-        }.reduce((x: Array[Double], y: Array[Double]) => daddvv(x, y))
-        wCPU = dsubvv(wCPU, gradient)
-      }
-      info("CPU Processing(2) time in milliseconds = " + (Calendar.getInstance().getTimeInMillis - startTime));
-
-
-      val pointsColumn = points.convert(ColumnFormat)
-      startTime = Calendar.getInstance().getTimeInMillis
-      for (i <- 1 to ITERATIONS) {
-        val wGPUbc = sc.broadcast(wGPU)
-        val gradient = pointsColumn.mapExtFunc((p: DataPoint) =>
-          dmulvs(p.x,  (1 / (1 + exp(-p.y * (ddotvv(wGPUbc.value, p.x)))) - 1) * p.y),
-          mapFunction.value, outputArraySizes = Array(D),
-          inputFreeVariables = Array(wGPUbc.value)
-        ).reduceExtFunc((x: Array[Double], y: Array[Double]) => daddvv(x, y),
-                        reduceFunction.value, outputArraySizes = Array(D))
-        wGPU = dsubvv(wGPU, gradient)
-      }
-      info("GPU Processing(1) time in milliseconds = " + (Calendar.getInstance().getTimeInMillis - startTime));
-
-
-      wGPU = Array.tabulate(D)(i => w(i))
-      startTime = Calendar.getInstance().getTimeInMillis
-      for (i <- 1 to ITERATIONS) {
-        val wGPUbc = sc.broadcast(wGPU)
-        val gradient = pointsColumn.mapExtFunc((p: DataPoint) =>
-          dmulvs(p.x,  (1 / (1 + exp(-p.y * (ddotvv(wGPUbc.value, p.x)))) - 1) * p.y),
-          mapFunction.value, outputArraySizes = Array(D),
-          inputFreeVariables = Array(wGPUbc.value)
-        ).reduceExtFunc((x: Array[Double], y: Array[Double]) => daddvv(x, y),
-                        reduceFunction.value, outputArraySizes = Array(D))
-        wGPU = dsubvv(wGPU, gradient)
-      }
-      info("GPU Processing(2) time in milliseconds = " + (Calendar.getInstance().getTimeInMillis - startTime));
-
-      points.cacheGpu()
-      val pointsColumnCached = points.convert(ColumnFormat).cache()
-      startTime = Calendar.getInstance().getTimeInMillis
-      for (i <- 1 to ITERATIONS) {
-        val wGPUCachebc = sc.broadcast(wGPUCache)
-        val gradient = pointsColumnCached.mapExtFunc((p: DataPoint) =>
-          dmulvs(p.x,  (1 / (1 + exp(-p.y * (ddotvv(wGPUCachebc.value, p.x)))) - 1) * p.y),
-          mapFunction.value, outputArraySizes = Array(D),
-          inputFreeVariables = Array(wGPUCachebc.value)
-        ).reduceExtFunc((x: Array[Double], y: Array[Double]) => daddvv(x, y),
-                        reduceFunction.value, outputArraySizes = Array(D))
-        wGPUCache = dsubvv(wGPUCache, gradient)
-      }
-      info("GPU Cache Processing time in milliseconds = " + (Calendar.getInstance().getTimeInMillis - startTime));
-      pointsColumnCached.unCacheGpu()
-
-      (0 until wGPU.length-1).map(i => {
-        assert(abs(wGPUCache(i) - wCPU(i)) < 1e-7)
-      })
     } else {
       info("No CUDA devices, so skipping the test.")
     }

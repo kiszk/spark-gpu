@@ -129,6 +129,17 @@ __global__ void multiplyBy2(int *in, int *out, long size) {
     }
 }
 
+// another simple test kernel
+__global__ void multiplyBy2_self(int *in, int *out, long size) {
+    const int ix = threadIdx.x + blockIdx.x * blockDim.x;
+
+
+    if (ix < size) {
+        out[ix] = in[ix] * 3;
+        in[ix] = out[ix];
+    }
+}
+
 // test reduce kernel that sums elements
 __global__ void sum(int *input, int *output, long size, int stage, int totalStages) {
     const long ix = threadIdx.x + blockIdx.x * (long)blockDim.x;

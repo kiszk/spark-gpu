@@ -17,6 +17,8 @@
 
 package org.apache.spark
 
+import org.apache.spark.storage.BlockId
+
 import scala.reflect.ClassTag
 
 import org.apache.spark.annotation.DeveloperApi
@@ -40,6 +42,6 @@ abstract class PartitionData[T] {
   /**
    * Convert the partition data type to specific format.
    */
-  def convert(format: PartitionFormat, gpuCache : Boolean)(implicit ct: ClassTag[T])
+  def convert(format: PartitionFormat, blockId : Option[BlockId], gpuCache : Boolean)(implicit ct: ClassTag[T])
     : PartitionData[T]
 }

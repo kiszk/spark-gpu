@@ -19,6 +19,7 @@ package org.apache.spark
 
 import jcuda.driver.CUmodule
 import jcuda.runtime.{cudaStream_t, cudaMemcpyKind, JCuda}
+import org.apache.spark.storage.{RDDBlockId, BlockId}
 
 import math._
 import scala.reflect.ClassTag
@@ -59,6 +60,7 @@ class ColumnPartitionData[T](
   private var refCounter = 1
 
   var gpuCache : Boolean = false
+  var blockId  : Option[BlockId] = None
   private val cachedGPUPointers = new HashMap[String, Pointer]()
   def gpuCached : Boolean = cachedGPUPointers.size > 0
   var gpuDevIx : Int = -1
@@ -563,14 +565,14 @@ class ColumnPartitionData[T](
    */
   override def iterator: Iterator[T] = deserialize
 
-  override def convert(format: PartitionFormat, gpuCache : Boolean = false)
+  override def convert(format: PartitionFormat, blockId : Option[BlockId] = None, gpuCache : Boolean = false)
     (implicit ct: ClassTag[T]): PartitionData[T] = {
     format match {
       // Converting from column-based format to iterator-based format.
       case IteratorFormat => IteratorPartitionData(deserialize)
 
       // We already have column format.
-      case ColumnFormat => { this.gpuCache = gpuCache; this }
+      case ColumnFormat => { this.gpuCache = gpuCache; this.blockId = blockId; this }
     }
   }
 

@@ -17,6 +17,8 @@
 
 package org.apache.spark.cuda
 
+import org.apache.spark.storage.BlockId
+
 import scala.reflect.ClassTag
 
 import java.net.URL
@@ -82,7 +84,9 @@ class CUDAFunction(
   private[spark] def run[T, U: ClassTag](in: ColumnPartitionData[T],
       outputSize: Option[Long] = None,
       outputArraySizes: Seq[Long] = null,
-      inputFreeVariables: Seq[Any] = null): ColumnPartitionData[U] = {
+      inputFreeVariables: Seq[Any] = null,
+      blockId : Option[BlockId] = None,
+      gpuCache : Boolean = false): ColumnPartitionData[U] = {
     val outputSchema = ColumnPartitionSchema.schemaFor[U]
 
     // TODO add array size
@@ -264,7 +268,8 @@ class CUDAFunction(
         if (!in.gpuCache || ((gpuOutputPtrs.size + gpuOutputBlobs.size) > 0)) {
           JCuda.cudaStreamSynchronize(stream)
         }
-
+        out.gpuCache = gpuCache
+        out.blockId = blockId
         out
       }  {
         in.freeGPUPointers()
