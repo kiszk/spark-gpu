@@ -37,7 +37,7 @@ import org.apache.spark.partial.BoundedDouble
 import org.apache.spark.partial.CountEvaluator
 import org.apache.spark.partial.GroupedCountEvaluator
 import org.apache.spark.partial.PartialResult
-import org.apache.spark.storage.StorageLevel
+import org.apache.spark.storage.{RDDBlockId, StorageLevel}
 import org.apache.spark.util.{BoundedPriorityQueue, Utils}
 import org.apache.spark.util.collection.OpenHashMap
 import org.apache.spark.util.random.{BernoulliSampler, PoissonSampler, BernoulliCellSampler,
@@ -203,8 +203,8 @@ abstract class RDD[T: ClassTag](
   def cache(): this.type = persist()
 
   var gpuCache = false
-  def cacheGpu() { this.gpuCache = true; }
-  def unCacheGpu() { this.gpuCache = false; }
+  def cacheGpu() = { this.gpuCache = true; this}
+  def unCacheGpu() = { this.gpuCache = false; this}
 
   /**
    * Mark the RDD as non-persistent, and remove all blocks for it from memory and disk.
@@ -1072,7 +1072,7 @@ abstract class RDD[T: ClassTag](
         case col: ColumnPartitionData[T] =>
           if (col.size != 0) {
             Some(extfunc.run[T, T](col, Some(1), outputArraySizes,
-                                   inputFreeVariables).iterator.next)
+                                   inputFreeVariables,col.blockId,gpuCache).iterator.next)
           } else {
             None
           }
@@ -1658,7 +1658,7 @@ abstract class RDD[T: ClassTag](
       throw new SparkException("RDD conversion ratio must be between 0 (no conversion) and 1 " +
         "(convert everything)")
     }
-    new ConvertRDD(this, format, ratio, gpuCache)
+    new ConvertRDD(this, format, ratio)
   }
 
   // =======================================================================

@@ -17,6 +17,8 @@
 
 package org.apache.spark.rdd
 
+import org.apache.spark.storage.BlockId
+
 import scala.reflect.ClassTag
 
 import org.apache.spark.annotation.{DeveloperApi, Experimental}
@@ -33,5 +35,7 @@ abstract class ExternalFunction extends Serializable {
   private[spark] def run[T, U: ClassTag](in: ColumnPartitionData[T],
       outputSize: Option[Long] = None,
       outputArraySizes: Seq[Long] = null,
-      inputFreeVariables: Seq[Any] = null): ColumnPartitionData[U]
+      inputFreeVariables: Seq[Any] = null,
+      blockId : Option[BlockId] = None,
+      gpuCache : Boolean = false): ColumnPartitionData[U]
 }
