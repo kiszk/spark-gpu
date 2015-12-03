@@ -31,6 +31,7 @@ import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.api.python.PythonWorkerFactory
 import org.apache.spark.broadcast.BroadcastManager
 import org.apache.spark.cuda.CUDAManager
+import org.apache.spark.cuda.GPUMemoryManager
 import org.apache.spark.metrics.MetricsSystem
 import org.apache.spark.network.BlockTransferService
 import org.apache.spark.network.netty.NettyBlockTransferService
@@ -75,6 +76,7 @@ class SparkEnv (
     val executorMemoryManager: ExecutorMemoryManager,
     val outputCommitCoordinator: OutputCommitCoordinator,
     val cudaManager: CUDAManager,
+    val gpuMemoryManager : GPUMemoryManager,
     val conf: SparkConf) extends Logging {
 
   // TODO Remove actorSystem
@@ -409,6 +411,8 @@ object SparkEnv extends Logging {
       new ExecutorMemoryManager(allocator, maxPinnedMemory)
     }
 
+    val gpuMemoryManager: GPUMemoryManager =  new GPUMemoryManager(isDriver && !isLocal)
+
     val envInstance = new SparkEnv(
       executorId,
       rpcEnv,
@@ -428,6 +432,7 @@ object SparkEnv extends Logging {
       executorMemoryManager,
       outputCommitCoordinator,
       cudaManager,
+      gpuMemoryManager,
       conf)
 
     // Add a reference to tmp dir created by driver, we will delete this tmp dir when stop() is
