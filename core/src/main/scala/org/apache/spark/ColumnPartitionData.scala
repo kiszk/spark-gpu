@@ -61,7 +61,7 @@ class ColumnPartitionData[T](
 
   var gpuCache : Boolean = false
   var blockId  : Option[BlockId] = None
-  private val cachedGPUPointers = new HashMap[String, Pointer]()
+  def cachedGPUPointers = SparkEnv.get.gpuMemoryManager.getCachedGPUPointers
   def gpuCached : Boolean = cachedGPUPointers.size > 0
   var gpuDevIx : Int = -1
 
@@ -150,7 +150,6 @@ class ColumnPartitionData[T](
       if (blobs != null) {
         blobs.foreach(SparkEnv.get.heapMemoryAllocator.freePinnedMemory(_))
       }
-      gpuCache = false;
       freeGPUPointers()
     }
   }
@@ -199,7 +198,7 @@ class ColumnPartitionData[T](
     val inColumns = schema.orderedColumns(order)
     val inPointers = orderedPointers(order)
     for ((col, name, cpuPtr) <- (inColumns, order, inPointers).zipped) {
-      gpuPtrs = gpuPtrs :+ cachedGPUPointers.getOrElseUpdate(name, {
+      gpuPtrs = gpuPtrs :+ cachedGPUPointers.getOrElseUpdate(blockId + name, {
         val gpuPtr = SparkEnv.get.cudaManager.allocGPUMemory(col.memoryUsage(size))
         memCpys = memCpys :+ (gpuPtr, cpuPtr, col.memoryUsage(size))
         gpuPtr
@@ -210,12 +209,19 @@ class ColumnPartitionData[T](
     val inBlobBuffers = if (blobBuffers != null) {blobBuffers} else {Array[ByteBuffer]()}
     for ((blob, name, cpuPtr) <-
       (inBlobBuffers, (1 to inBlobBuffers.length).map(_.toString), inBlobs).zipped) {
-      gpuBlobs = gpuBlobs :+ cachedGPUPointers.getOrElseUpdate(name, {
+      gpuBlobs = gpuBlobs :+ cachedGPUPointers.getOrElseUpdate(blockId + name, {
         val gpuPtr = SparkEnv.get.cudaManager.allocGPUMemory(blob.capacity())
         memCpys = memCpys :+ (gpuPtr, cpuPtr, blob.capacity().toLong)
         gpuPtr
       })
     }
+
+/*    {
+      if (memCpys.size > 0)
+        println("Allocating new GPU Pointers for RDD " + this + blockId + gpuCache + " " + cachedGPUPointers.keys.toList)
+      else
+        println("Reusing GPU POinters for RDD " + this + blockId + gpuCache + " " + cachedGPUPointers.keys.toList)
+    }*/
 
     for ((gpuPtr, cpuPtr, length) <- memCpys) {
       JCuda.cudaMemcpyAsync(gpuPtr, cpuPtr, length,
@@ -226,10 +232,12 @@ class ColumnPartitionData[T](
   }
 
   def freeGPUPointers() {
-    if (!gpuCache && gpuCached) {
+    if (!gpuCache) {
       for ((name, ptr) <- cachedGPUPointers) {
-        SparkEnv.get.cudaManager.freeGPUMemory(ptr)
-        cachedGPUPointers.remove(name)
+        if(name.startsWith(blockId.toString)) {
+          SparkEnv.get.cudaManager.freeGPUMemory(ptr)
+          cachedGPUPointers.remove(name)
+        }
       }
     }
   }

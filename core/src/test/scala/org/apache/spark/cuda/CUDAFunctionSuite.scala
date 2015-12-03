@@ -49,6 +49,31 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
     SparkEnv.get.closureSerializer.newInstance().serialize(function)
   }
 
+  test("Run map on rdds - single partition", GPUTest) {
+    sc = new SparkContext("local", "test", conf)
+    val manager = new CUDAManager
+    if (manager.deviceCount > 0) {
+      val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
+      val mapFunction = new CUDAFunction(
+        //"_Z11multiplyBy2PiS_l",
+        "_Z16multiplyBy2_selfPiS_l",
+        Array("this"),
+        Array("this"),
+        ptxURL)
+
+      val n = 10
+      val baseRDD = sc.parallelize(1 to n, 1).convert(ColumnFormat).cache().cacheGpu()
+      for(i <- 1 to 2) {
+        val results = baseRDD.mapExtFunc((x: Int) => 2 * x, mapFunction).collect()
+      }
+      baseRDD.unCacheGpu()
+
+      assert(true)
+    } else {
+      info("No CUDA devices, so skipping the test.")
+    }
+  }
+
   test("Run identity CUDA kernel on a single primitive column", GPUTest) {
     sc = new SparkContext("local", "test", conf)
     val manager = {
