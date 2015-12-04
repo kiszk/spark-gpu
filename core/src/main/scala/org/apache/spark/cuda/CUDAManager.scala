@@ -53,8 +53,8 @@ object CUDAManagerCachedModule {
   }
 }
 
-class CUDAManager {
 
+class CUDAManager {
   // Initialization
   // This is supposed to be called before ANY other JCuda* call to ensure we have properly loaded
   // native jCuda library and cuda context
@@ -65,8 +65,11 @@ class CUDAManager {
     case ex: UnsatisfiedLinkError =>
       throw new SparkException("Could not initialize CUDA, because native jCuda libraries were " +
         "not detected - make sure Driver and Executors are able to load them", ex)
+    case ex: NoClassDefFoundError =>
+      throw new SparkException("Could not initialize CUDA, because native jCuda libraries were " +
+        "not detected - make sure Driver and Executors are able to load them", ex)
 
-    case ex: Exception =>
+    case ex: Throwable =>
       throw new SparkException("Could not initialize CUDA because of unknown reason", ex)
   }
 

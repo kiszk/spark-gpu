@@ -21,6 +21,8 @@ import java.io.File
 import java.net.Socket
 
 import scala.collection.mutable
+import scala.util.control.ControlThrowable
+import scala.util.control.NonFatal
 import scala.util.Properties
 
 import akka.actor.ActorSystem
@@ -79,6 +81,8 @@ class SparkEnv (
   // TODO Remove actorSystem
   @deprecated("Actor system is no longer supported as of 1.4.0", "1.4.0")
   val actorSystem: ActorSystem = _actorSystem
+
+  val isGPUEnabled = (cudaManager != null)
 
   private[spark] var isStopped = false
   private val pythonWorkers = mutable.HashMap[(String, Map[String, String]), PythonWorkerFactory]()
@@ -405,10 +409,24 @@ object SparkEnv extends Logging {
       new OutputCommitCoordinatorEndpoint(rpcEnv, outputCommitCoordinator))
     outputCommitCoordinator.coordinatorRef = Some(outputCommitCoordinatorRef)
 
-    val cudaManager: CUDAManager = if (isDriver && !isLocal) {
+    val configGPU = if (isDriver) {
+      conf.getBoolean("spark.driver.gpu", true)
+    } else {
+      conf.getBoolean("spark.executor.gpu", true)
+    }
+
+    val cudaManager: CUDAManager = if (isDriver && !isLocal || !configGPU) {
       null
     } else {
-      new CUDAManager
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => {
+          logWarning(s"Unable to load GPU-related library for your platform..." +
+	              "GPU cannot be used, using conventional Spark code on CPU")
+          null
+	}
+      }
     }
 
     val envInstance = new SparkEnv(
