@@ -36,6 +36,5 @@ abstract class ExternalFunction extends Serializable {
       outputSize: Option[Long] = None,
       outputArraySizes: Seq[Long] = null,
       inputFreeVariables: Seq[Any] = null,
-      blockId : Option[BlockId] = None,
-      gpuCache : Boolean = false): ColumnPartitionData[U]
+      blockId : Option[BlockId] = None): ColumnPartitionData[U]
 }
