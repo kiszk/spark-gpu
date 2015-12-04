@@ -44,7 +44,7 @@ class IteratorPartitionData[T](
 
       // Converting from iterator-based format to column-based format.
       case ColumnFormat =>
-        { val c = ColumnPartitionDataBuilder.build(iter); c.gpuCache = gpuCache ; c.blockId = blockId; c}
+        { val c = ColumnPartitionDataBuilder.build(iter); c.blockId = blockId; c}
     }
   }
 

@@ -30,8 +30,7 @@ import com.google.common.collect.MapMaker
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.api.python.PythonWorkerFactory
 import org.apache.spark.broadcast.BroadcastManager
-import org.apache.spark.cuda.CUDAManager
-import org.apache.spark.cuda.GPUMemoryManager
+import org.apache.spark.cuda.{GPUMemoryManagerMasterEndPoint, CUDAManager, GPUMemoryManager}
 import org.apache.spark.metrics.MetricsSystem
 import org.apache.spark.network.BlockTransferService
 import org.apache.spark.network.netty.NettyBlockTransferService
@@ -401,6 +400,16 @@ object SparkEnv extends Logging {
       new CUDAManager
     }
 
+
+    val gpuMemoryManager = new GPUMemoryManager(
+                                  executorId,
+                                  rpcEnv,
+                                  registerOrLookupEndpoint(
+                                      GPUMemoryManager.DRIVER_ENDPOINT_NAME,
+                                      new GPUMemoryManagerMasterEndPoint(rpcEnv)),
+                                  isDriver,
+                                  isLocal)
+
     val executorMemoryManager: ExecutorMemoryManager = {
       val allocator = if (conf.getBoolean("spark.unsafe.offHeap", false)) {
         MemoryAllocator.UNSAFE
@@ -411,7 +420,6 @@ object SparkEnv extends Logging {
       new ExecutorMemoryManager(allocator, maxPinnedMemory)
     }
 
-    val gpuMemoryManager: GPUMemoryManager =  new GPUMemoryManager(isDriver && !isLocal)
 
     val envInstance = new SparkEnv(
       executorId,

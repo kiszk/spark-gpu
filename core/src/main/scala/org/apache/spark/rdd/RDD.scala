@@ -203,8 +203,8 @@ abstract class RDD[T: ClassTag](
   def cache(): this.type = persist()
 
   var gpuCache = false
-  def cacheGpu() = { this.gpuCache = true; this}
-  def unCacheGpu() = { this.gpuCache = false; this}
+  def cacheGpu() = { this.gpuCache = true; sc.env.gpuMemoryManager.cacheGPUSlaves(id); this }
+  def unCacheGpu() = { this.gpuCache = false; sc.env.gpuMemoryManager.unCacheGPUSlaves(id); this }
 
   /**
    * Mark the RDD as non-persistent, and remove all blocks for it from memory and disk.
@@ -1072,7 +1072,7 @@ abstract class RDD[T: ClassTag](
         case col: ColumnPartitionData[T] =>
           if (col.size != 0) {
             Some(extfunc.run[T, T](col, Some(1), outputArraySizes,
-                                   inputFreeVariables,col.blockId,gpuCache).iterator.next)
+                                   inputFreeVariables,col.blockId).iterator.next)
           } else {
             None
           }
