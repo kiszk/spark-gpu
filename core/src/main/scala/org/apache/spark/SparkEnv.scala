@@ -31,8 +31,7 @@ import com.google.common.collect.MapMaker
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.api.python.PythonWorkerFactory
 import org.apache.spark.broadcast.BroadcastManager
-import org.apache.spark.cuda.CUDAManager
-import org.apache.spark.cuda.GPUMemoryManager
+import org.apache.spark.cuda.{GPUMemoryManagerMasterEndPoint, CUDAManager, GPUMemoryManager}
 import org.apache.spark.metrics.MetricsSystem
 import org.apache.spark.memory.{MemoryManager, StaticMemoryManager, UnifiedMemoryManager}
 import org.apache.spark.network.BlockTransferService
@@ -425,13 +424,22 @@ object SparkEnv extends Logging {
       } catch {
         case ex: Exception => {
           logWarning(s"Unable to load GPU-related library for your platform..." +
-	              "GPU cannot be used, using conventional Spark code on CPU")
+            "GPU cannot be used, using conventional Spark code on CPU")
           null
-	}
+        }
       }
     }
 
-    val gpuMemoryManager: GPUMemoryManager =  new GPUMemoryManager(isDriver && !isLocal)
+    val gpuMemoryManager = new GPUMemoryManager(
+                                  executorId,
+                                  rpcEnv,
+                                  registerOrLookupEndpoint(
+                                      GPUMemoryManager.DRIVER_ENDPOINT_NAME,
+                                      new GPUMemoryManagerMasterEndPoint(rpcEnv)),
+                                  isDriver,
+                                  isLocal)
+
+
 
     val envInstance = new SparkEnv(
       executorId,

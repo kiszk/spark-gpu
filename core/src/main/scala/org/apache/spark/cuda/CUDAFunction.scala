@@ -85,9 +85,9 @@ class CUDAFunction(
       outputSize: Option[Long] = None,
       outputArraySizes: Seq[Long] = null,
       inputFreeVariables: Seq[Any] = null,
-      blockId : Option[BlockId] = None,
-      gpuCache : Boolean = false): ColumnPartitionData[U] = {
+      blockId : Option[BlockId] = None): ColumnPartitionData[U] = {
     val outputSchema = ColumnPartitionSchema.schemaFor[U]
+
 
     // TODO add array size
     val memoryUsage = (if (in.gpuCached) 0 else in.memoryUsage) + outputSchema.memoryUsage(in.size)
@@ -268,7 +268,6 @@ class CUDAFunction(
         if (!in.gpuCache || ((gpuOutputPtrs.size + gpuOutputBlobs.size) > 0)) {
           JCuda.cudaStreamSynchronize(stream)
         }
-        out.gpuCache = gpuCache
         out.blockId = blockId
         out
       }  {

@@ -49,7 +49,7 @@ private[spark] class MapPartitionsRDD[U: ClassTag, T: ClassTag](
       // computing column-based partition on GPU
       case (col: ColumnPartitionData[T], Some(extfun)) =>
         extfun.run(col, None, outputArraySizes,
-                        inputFreeVariables,Some(RDDBlockId(id, split.index)),gpuCache)
+                        inputFreeVariables,Some(RDDBlockId(id, split.index)))
       // computing  iterator-based partition on CPU
       case (data, _) =>
         IteratorPartitionData(f(context, split.index, data.iterator))
