@@ -51,8 +51,14 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
 
   test("Run identity CUDA kernel on a single primitive column", GPUTest) {
     sc = new SparkContext("local", "test", conf)
-    val manager = new CUDAManager
-    if (manager.deviceCount > 0) {
+    val manager = {
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => null
+      }
+    }
+    if (manager != null && manager.deviceCount > 0) {
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val function = new CUDAFunction(
         "_Z8identityPKiPil",
@@ -76,8 +82,14 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
 
   test("Run identity CUDA kernel on a single primitive array column", GPUTest) {
     sc = new SparkContext("local", "test", conf)
-    val manager = new CUDAManager
-    if (manager.deviceCount > 0) {
+    val manager = {
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => null
+      }
+    }
+    if (manager != null && manager.deviceCount > 0) {
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val function = new CUDAFunction(
         "_Z16intArrayIdentityPKlPKiPlPil",
@@ -103,8 +115,14 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
 
   test("Run identity CUDA kernel on a single primitive array in a structure", GPUTest) {
     sc = new SparkContext("local", "test", conf)
-    val manager = new CUDAManager
-    if (manager.deviceCount > 0) {
+    val manager = {
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => null
+      }
+    }
+    if (manager != null && manager.deviceCount > 0) {
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val function = new CUDAFunction(
         "_Z20IntDataPointIdentityPKlPKiS2_PlPiS4_l",
@@ -135,8 +153,14 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
 
   test("Run add CUDA kernel with free variables on a single primitive array column", GPUTest) {
     sc = new SparkContext("local", "test", conf)
-    val manager = new CUDAManager
-    if (manager.deviceCount > 0) {
+    val manager = {
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => null
+      }
+    }
+    if (manager != null && manager.deviceCount > 0) {
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val function = new CUDAFunction(
         "_Z11intArrayAddPKlPKiPlPilS2_",
@@ -165,8 +189,14 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
 
   test("Run vectorLength CUDA kernel on 2 col -> 1 col", GPUTest) {
     sc = new SparkContext("local", "test", conf)
-    val manager = new CUDAManager
-    if (manager.deviceCount > 0) {
+    val manager = {
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => null
+      }
+    }
+    if (manager != null && manager.deviceCount > 0) {
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val function = new CUDAFunction(
         "_Z12vectorLengthPKdS0_Pdl",
@@ -194,8 +224,14 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
 
   test("Run plusMinus CUDA kernel on 2 col -> 2 col", GPUTest) {
     sc = new SparkContext("local", "test", conf)
-    val manager = new CUDAManager
-    if (manager.deviceCount > 0) {
+    val manager = {
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => null
+      }
+    }
+    if (manager != null && manager.deviceCount > 0) {
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val function = new CUDAFunction(
         "_Z9plusMinusPKdPKfPdPfl",
@@ -223,8 +259,14 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
 
   test("Run applyLinearFunction CUDA kernel on 1 col + 2 const arg -> 1 col", GPUTest) {
     sc = new SparkContext("local", "test", conf)
-    val manager = new CUDAManager
-    if (manager.deviceCount > 0) {
+    val manager = {
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => null
+      }
+    }
+    if (manager != null && manager.deviceCount > 0) {
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val function = new CUDAFunction(
         "_Z19applyLinearFunctionPKsPslss",
@@ -248,8 +290,14 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
 
   test("Run blockXOR CUDA kernel on 1 col + 1 const arg -> 1 col on custom dimensions", GPUTest) {
     sc = new SparkContext("local", "test", conf)
-    val manager = new CUDAManager
-    if (manager.deviceCount > 0) {
+    val manager = {
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => null
+      }
+    }
+    if (manager != null && manager.deviceCount > 0) {
       // we only use size/8 GPU threads and run block on a single warp
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val function = new CUDAFunction(
@@ -282,8 +330,14 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
 
   test("Run sum CUDA kernel on 1 col -> 1 col in 2 stages", GPUTest) {
     sc = new SparkContext("local", "test", conf)
-    val manager = new CUDAManager
-    if (manager.deviceCount > 0) {
+    val manager = {
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => null
+      }
+    }
+    if (manager != null && manager.deviceCount > 0) {
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val dimensions = (size: Long, stage: Int) => stage match {
         case 0 => (64, 256)
@@ -311,8 +365,14 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
 
   test("Run map on rdds - single partition", GPUTest) {
     sc = new SparkContext("local", "test", conf)
-    val manager = new CUDAManager
-    if (manager.deviceCount > 0) {
+    val manager = {
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => null
+      }
+    }
+    if (manager != null && manager.deviceCount > 0) {
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val mapFunction = new CUDAFunction(
         "_Z11multiplyBy2PiS_l",
@@ -333,8 +393,14 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
 
   test("Run reduce on rdds - single partition", GPUTest) {
     sc = new SparkContext("local", "test", conf)
-    val manager = new CUDAManager
-    if (manager.deviceCount > 0) {
+    val manager = {
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => null
+      }
+    }
+    if (manager != null && manager.deviceCount > 0) {
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val dimensions = (size: Long, stage: Int) => stage match {
         case 0 => (64, 256)
@@ -361,8 +427,14 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
 
   test("Run map + reduce on rdds - single partition", GPUTest) {
     sc = new SparkContext("local", "test", conf)
-    val manager = new CUDAManager
-    if (manager.deviceCount > 0) {
+    val manager = {
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => null
+      }
+    }
+    if (manager != null && manager.deviceCount > 0) {
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val mapFunction = new CUDAFunction(
         "_Z11multiplyBy2PiS_l",
@@ -396,8 +468,14 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
 
   test("Run map on rdds with 100,000,000 elements - multiple partition", GPUTest) {
     sc = new SparkContext("local", "test", conf)
-    val manager = new CUDAManager
-    if (manager.deviceCount > 0) {
+    val manager = {
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => null
+      }
+    }
+    if (manager != null && manager.deviceCount > 0) {
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val mapFunction = new CUDAFunction(
         "_Z11multiplyBy2PiS_l",
@@ -418,8 +496,14 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
 
   test("Run map + reduce on rdds - multiple partitions", GPUTest) {
     sc = new SparkContext("local", "test", conf)
-    val manager = new CUDAManager
-    if (manager.deviceCount > 0) {
+    val manager = {
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => null
+      }
+    }
+    if (manager != null && manager.deviceCount > 0) {
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val mapFunction = new CUDAFunction(
         "_Z11multiplyBy2PiS_l",
@@ -453,8 +537,14 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
 
   test("Run map + reduce on rdds with 100,000,000 elements - multiple partitions", GPUTest) {
     sc = new SparkContext("local", "test", conf)
-    val manager = new CUDAManager
-    if (manager.deviceCount > 0) {
+    val manager = {
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => null
+      }
+    }
+    if (manager != null && manager.deviceCount > 0) {
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val mapFunction = new CUDAFunction(
         "_Z11multiplyBy2PiS_l",
@@ -488,8 +578,14 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
 
   test("Run map + map + reduce on rdds - multiple partitions", GPUTest) {
     sc = new SparkContext("local", "test", conf)
-    val manager = new CUDAManager
-    if (manager.deviceCount > 0) {
+    val manager = {
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => null
+      }
+    }
+    if (manager != null && manager.deviceCount > 0) {
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val mapFunction = new CUDAFunction(
         "_Z11multiplyBy2PiS_l",
@@ -524,8 +620,14 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
 
   test("Run map + map + map + reduce on rdds - multiple partitions", GPUTest) {
     sc = new SparkContext("local", "test", conf)
-    val manager = new CUDAManager
-    if (manager.deviceCount > 0) {
+    val manager = {
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => null
+      }
+    }
+    if (manager != null && manager.deviceCount > 0) {
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val mapFunction = new CUDAFunction(
         "_Z11multiplyBy2PiS_l",
@@ -561,8 +663,14 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
 
   test("Run map on rdd with a single primitive array column", GPUTest) {
     sc = new SparkContext("local", "test", conf)
-    val manager = new CUDAManager
-    if (manager.deviceCount > 0) {
+    val manager = {
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => null
+      }
+    }
+    if (manager != null && manager.deviceCount > 0) {
       val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
       val mapFunction = new CUDAFunction(
         "_Z16intArrayIdentityPKlPKiPlPil",
@@ -585,8 +693,14 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
 
   test("Run map with free variables on rdd with a single primitive array column", GPUTest) {
     sc = new SparkContext("local", "test", conf)
-    val manager = new CUDAManager
-    if (manager.deviceCount > 0) {
+    val manager = {
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => null
+      }
+    }
+    if (manager != null && manager.deviceCount > 0) {
       def iaddvv(x: Array[Int], y: Array[Int]) : Array[Int] =
         Array.tabulate(x.length)(i => x(i) + y(i))
 
@@ -615,8 +729,14 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
 
   test("Run reduce on rdd with a single primitive array column", GPUTest) {
     sc = new SparkContext("local", "test", conf)
-    val manager = new CUDAManager
-    if (manager.deviceCount > 0) {
+    val manager = {
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => null
+      }
+    }
+    if (manager != null && manager.deviceCount > 0) {
       def iaddvv(x: Array[Int], y: Array[Int]) : Array[Int] =
         Array.tabulate(x.length)(i => x(i) + y(i))
 
@@ -648,8 +768,14 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
 
   test("Run map & reduce on a single primitive array in a structure", GPUTest) {
     sc = new SparkContext("local", "test", conf)
-    val manager = new CUDAManager
-    if (manager.deviceCount > 0) {
+    val manager = {
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => null
+      }
+    }
+    if (manager != null && manager.deviceCount > 0) {
       def daddvv(x: Array[Double], y: Array[Double]) : Array[Double] = {
         Array.tabulate(x.length)(i => x(i) + y(i))
       }
@@ -692,8 +818,14 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
 
   test("Run logistic regression", GPUTest) {
     sc = new SparkContext("local", "test", conf)
-    val manager = new CUDAManager
-    if (manager.deviceCount > 0) {
+    val manager = {
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => null
+      }
+    }
+    if (manager != null && manager.deviceCount > 0) {
       def dmulvs(x: Array[Double], c: Double) : Array[Double] =
         Array.tabulate(x.length)(i => x(i) * c)
       def daddvv(x: Array[Double], y: Array[Double]) : Array[Double] =
@@ -780,8 +912,14 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
 
   test("Run logistic regression with GPU Memory Persistance", GPUTest) {
     sc = new SparkContext("local", "test", conf)
-    val manager = new CUDAManager
-    if (manager.deviceCount > 0) {
+    val manager = {
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => null
+      }
+    }
+    if (manager != null && manager.deviceCount > 0) {
       def dmulvs(x: Array[Double], c: Double) : Array[Double] =
         Array.tabulate(x.length)(i => x(i) * c)
       def daddvv(x: Array[Double], y: Array[Double]) : Array[Double] =
