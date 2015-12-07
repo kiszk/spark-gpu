@@ -49,32 +49,6 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
     SparkEnv.get.closureSerializer.newInstance().serialize(function)
   }
 
-  /* test("Run map on rdds - single partition", GPUTest) {
-    sc = new SparkContext("local", "test", conf)
-    val manager = new CUDAManager
-    if (manager.deviceCount > 0) {
-      val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
-      val mapFunction = new CUDAFunction(
-        //"_Z11multiplyBy2PiS_l",
-        "_Z16multiplyBy2_selfPiS_l",
-        Array("this"),
-        Array("this"),
-        ptxURL)
-
-      val n = 10
-      val baseRDD = sc.parallelize(1 to n, 1).convert(ColumnFormat).cacheGpu().cache()
-      baseRDD.mapExtFunc((x: Int) => 2 * x, mapFunction).collect()
-      baseRDD.mapExtFunc((x: Int) => 2 * x, mapFunction).collect()
-      baseRDD.unCacheGpu().cacheGpu()
-      baseRDD.mapExtFunc((x: Int) => 2 * x, mapFunction).collect()
-      baseRDD.mapExtFunc((x: Int) => 2 * x, mapFunction).collect()
-
-      assert(true)
-    } else {
-      info("No CUDA devices, so skipping the test.")
-    }
-  } */
-
   test("Run identity CUDA kernel on a single primitive column", GPUTest) {
     sc = new SparkContext("local", "test", conf)
     val manager = new CUDAManager
@@ -797,6 +771,52 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
       (0 until wGPU.length).map(i => {
          assert(abs(wGPU(i) - wCPU(i)) < 1e-7) 
       })
+
+    } else {
+      info("No CUDA devices, so skipping the test.")
+    }
+  }
+
+  test("CUDA GPU Cache Testcase", GPUTest) {
+    sc = new SparkContext("local", "test", conf)
+    val manager = new CUDAManager
+    if (manager.deviceCount > 0) {
+      val ptxURL = getClass.getResource("/testCUDAKernels.ptx")
+      val mapFunction = new CUDAFunction(
+        //"_Z11multiplyBy2PiS_l",
+        "_Z16multiplyBy2_selfPiS_l",
+        Array("this"),
+        Array("this"),
+        ptxURL)
+
+      val n = 10
+      def mulby2(x: Int) = x * 2
+      val baseRDD = sc.parallelize(1 to n, 1).convert(ColumnFormat)
+      var r1 = Array[Int](1)
+      var r2 = Array[Int](1)
+
+      for( i <- 1 to 2) {
+
+        // Without cache it should copy memory from cpu to GPU everytime.
+        r1 = baseRDD.mapExtFunc(mulby2, mapFunction).collect()
+        r2 = baseRDD.mapExtFunc(mulby2, mapFunction).collect()
+        assert(r2.sameElements(r2))
+
+        // With cache it should copy from CPU to GPU only one time.
+        baseRDD.cacheGpu()
+        r1 = baseRDD.mapExtFunc(mulby2, mapFunction).collect()
+        r2 = baseRDD.mapExtFunc(mulby2, mapFunction).collect()
+        assert(r2.sameElements(r1.map(mulby2)))
+
+        // UncacheGPU should clear the GPU cache.
+        baseRDD.unCacheGpu().unCacheGpu()
+        r1 = baseRDD.mapExtFunc((x: Int) => 2 * x, mapFunction).collect()
+        r2 = baseRDD.mapExtFunc((x: Int) => 2 * x, mapFunction).collect()
+        assert(r2.sameElements(r2))
+
+        // Caching the RDD in CPU Memory shouldn't have any impact on caching the same in GPU Memory.
+        baseRDD.cache()
+      }
 
     } else {
       info("No CUDA devices, so skipping the test.")

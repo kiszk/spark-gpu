@@ -202,9 +202,8 @@ abstract class RDD[T: ClassTag](
   /** Persist this RDD with the default storage level (`MEMORY_ONLY`). */
   def cache(): this.type = persist()
 
-  var gpuCache = false
-  def cacheGpu() = { this.gpuCache = true; sc.env.gpuMemoryManager.cacheGPUSlaves(id); this }
-  def unCacheGpu() = { this.gpuCache = false; sc.env.gpuMemoryManager.unCacheGPUSlaves(id); this }
+  def cacheGpu() = { sc.env.gpuMemoryManager.cacheGPUSlaves(id); this }
+  def unCacheGpu() = { sc.env.gpuMemoryManager.unCacheGPUSlaves(id); this }
 
   /**
    * Mark the RDD as non-persistent, and remove all blocks for it from memory and disk.
