@@ -577,7 +577,7 @@ class ColumnPartitionData[T](
    */
   override def iterator: Iterator[T] = deserialize
 
-  override def convert(format: PartitionFormat, blockId : Option[BlockId] = None, gpuCache : Boolean = false)
+  override def convert(format: PartitionFormat, blockId : Option[BlockId] = None)
     (implicit ct: ClassTag[T]): PartitionData[T] = {
     format match {
       // Converting from column-based format to iterator-based format.

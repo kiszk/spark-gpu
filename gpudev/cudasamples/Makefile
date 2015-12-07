@@ -6,7 +6,7 @@ CXXFLAGS ?= -m64 -O3 -Xcompiler -Wall --std=c++11
 NVCCFLAGS ?= -arch=sm_$(COMPUTE_CAPABILITY) -Xptxas="-v"
 
 
-all : cpuLR gpuLR testKernel.ptx
+all : cpuLR gpuLR
 	
 
 cpuLR : lrcpu.c
@@ -15,10 +15,5 @@ cpuLR : lrcpu.c
 gpuLR : lrgpu.cu lrgpu.h
 	nvcc lrgpu.cu -o gpuLR -arch=sm_35
 
-testKernel.ptx: testKernel.cu
-	$(NVCC) -ccbin $(CXX) $(CXXFLAGS) $(NVCCFLAGS) -ptx -o $@ -c $^
-	$(NVCC) testKernel.cu -o testKernel -arch=sm_35
-	cp testKernel.ptx /home/kmadhu/trl-spark-gpu/core/src/test/resources
-
 clean:
-	rm -f cpuLR gpuLR lrKernel.ptx testKernel.ptx
+	rm -f cpuLR gpuLR lrKernel.ptx
