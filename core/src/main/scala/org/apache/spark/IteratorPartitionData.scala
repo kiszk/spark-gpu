@@ -35,7 +35,7 @@ class IteratorPartitionData[T](
 
   override def iterator: Iterator[T] = iter
 
-  override def convert(format: PartitionFormat, blockId : Option[BlockId] = None, gpuCache : Boolean = false)
+  override def convert(format: PartitionFormat, blockId : Option[BlockId] = None)
     (implicit ct: ClassTag[T]): PartitionData[T] = {
     format match {
       // We already have iterator format. Note that we do not need to iterate over elements, so this
