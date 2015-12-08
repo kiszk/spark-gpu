@@ -37,7 +37,7 @@ import org.apache.spark.partial.BoundedDouble
 import org.apache.spark.partial.CountEvaluator
 import org.apache.spark.partial.GroupedCountEvaluator
 import org.apache.spark.partial.PartialResult
-import org.apache.spark.storage.StorageLevel
+import org.apache.spark.storage.{RDDBlockId, StorageLevel}
 import org.apache.spark.util.{BoundedPriorityQueue, Utils}
 import org.apache.spark.util.collection.OpenHashMap
 import org.apache.spark.util.random.{BernoulliSampler, PoissonSampler, BernoulliCellSampler,
@@ -202,9 +202,8 @@ abstract class RDD[T: ClassTag](
   /** Persist this RDD with the default storage level (`MEMORY_ONLY`). */
   def cache(): this.type = persist()
 
-  var gpuCache = false
-  def cacheGpu() { this.gpuCache = true; }
-  def unCacheGpu() { this.gpuCache = false; }
+  def cacheGpu() : RDD[T] = { sc.env.gpuMemoryManager.cacheGPUSlaves(id); this }
+  def unCacheGpu() : RDD[T] = { sc.env.gpuMemoryManager.unCacheGPUSlaves(id); this }
 
   /**
    * Mark the RDD as non-persistent, and remove all blocks for it from memory and disk.
@@ -1090,7 +1089,7 @@ abstract class RDD[T: ClassTag](
           case col: ColumnPartitionData[T] =>
             if (col.size != 0) {
               Some(extfunc.run[T, T](col, Some(1), outputArraySizes,
-                                     inputFreeVariables).iterator.next)
+                                     inputFreeVariables, col.blockId).iterator.next)
             } else {
               None
             }
@@ -1691,7 +1690,7 @@ abstract class RDD[T: ClassTag](
         "(convert everything)")
     }
     if (sc.env.isGPUEnabled) {
-      new ConvertRDD(this, format, ratio, gpuCache)
+      new ConvertRDD(this, format, ratio)
     } else {
       this
     }

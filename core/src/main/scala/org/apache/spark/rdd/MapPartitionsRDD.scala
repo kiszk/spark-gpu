@@ -17,6 +17,8 @@
 
 package org.apache.spark.rdd
 
+import org.apache.spark.storage.RDDBlockId
+
 import scala.reflect.ClassTag
 
 import org.apache.spark.{Partition, TaskContext, PartitionData, IteratorPartitionData,
@@ -46,8 +48,8 @@ private[spark] class MapPartitionsRDD[U: ClassTag, T: ClassTag](
     (firstParent[T].partitionData(split, context), extfunc) match {
       // computing column-based partition on GPU
       case (col: ColumnPartitionData[T], Some(extfun)) =>
-        extfun.run(col, outputArraySizes = outputArraySizes,
-                        inputFreeVariables = inputFreeVariables)
+        extfun.run(col, None, outputArraySizes,
+                        inputFreeVariables, Some(RDDBlockId(id, split.index)))
       // computing  iterator-based partition on CPU
       case (data, _) =>
         IteratorPartitionData(f(context, split.index, data.iterator))

@@ -1876,7 +1876,7 @@
                 <goal>testCompile</goal>
               </goals>
             </execution>
-            <execution>
+             <execution>
               <id>attach-scaladocs</id>
               <phase>verify</phase>
               <goals>
