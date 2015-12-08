@@ -59,12 +59,14 @@ class ColumnPartitionData[T](
 
   private var refCounter = 1
 
-  // TODO blockId can never be NULL, so modify the testcase to pass valid blockId and remove hardcoding (0,0) below.
-  var blockId  : Option[BlockId] = Some(RDDBlockId(0,0))
-  def rddId =  blockId.getOrElse(RDDBlockId(0,0)).asRDDId.get.rddId
-  def cachedGPUPointers = SparkEnv.get.gpuMemoryManager.getCachedGPUPointers
-  def gpuCached = cachedGPUPointers.keys.filter(s => s.startsWith("rdd_" + rddId)).size > 0
-  def gpuCache = SparkEnv.get.gpuMemoryManager.cachedGPURDDs.contains(rddId)
+  // TODO blockId can never be NULL, modify the testcase to pass valid blockId and remove (0,0).
+  var blockId  : Option[BlockId] = Some(RDDBlockId(0, 0))
+  def rddId : Int = blockId.getOrElse(RDDBlockId(0, 0)).asRDDId.get.rddId
+  def cachedGPUPointers : HashMap[String, Pointer] =
+    SparkEnv.get.gpuMemoryManager.getCachedGPUPointers
+  def gpuCached : Boolean =
+    cachedGPUPointers.keys.filter(s => s.startsWith("rdd_" + rddId)).size > 0
+  def gpuCache : Boolean = SparkEnv.get.gpuMemoryManager.cachedGPURDDs.contains(rddId)
   var gpuDevIx : Int = -1
 
   var blobs : Array[Pointer] = null
@@ -221,9 +223,11 @@ class ColumnPartitionData[T](
     /*
     {
       if (memCpys.size > 0)
-        println("Allocating new GPU Pointers for RDD " + this + blockId + gpuCache + " " + cachedGPUPointers.keys.toList)
+        println("Allocating new GPU Pointers for RDD " + this + blockId + gpuCache + " "  +
+                  cachedGPUPointers.keys.toList)
       else
-        println("Reusing GPU POinters for RDD " + this + blockId + gpuCache + " " + cachedGPUPointers.keys.toList)
+        println("Reusing GPU POinters for RDD " + this + blockId + gpuCache + " "  +
+                  cachedGPUPointers.keys.toList)
     }
     */
 
@@ -238,7 +242,7 @@ class ColumnPartitionData[T](
   def freeGPUPointers() {
     if (!gpuCache) {
       for ((name, ptr) <- cachedGPUPointers) {
-        if(name.startsWith(blockId.get.toString)) {
+        if (name.startsWith(blockId.get.toString)) {
           SparkEnv.get.cudaManager.freeGPUMemory(ptr)
           cachedGPUPointers.remove(name)
         }

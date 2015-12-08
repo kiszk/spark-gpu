@@ -1,16 +1,31 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.apache.spark.cuda
 
 import jcuda.Pointer
 import org.apache.spark.{SparkEnv, SparkException}
 import org.apache.spark.rpc.{RpcEndpointRef, RpcCallContext, RpcEnv, ThreadSafeRpcEndpoint}
 
+import scala.collection.mutable
 import scala.collection.mutable.{ListBuffer, HashMap}
 
-/**
- * Created by kmadhu on 2/12/15.
- */
 
-case class RegisterGPUMemoryManager(val id : String,slaveEndPointerRef: RpcEndpointRef)
+case class RegisterGPUMemoryManager(val id : String, slaveEndPointerRef: RpcEndpointRef)
 case class UncacheGPU(val id : Int)
 case class CacheGPU(val id : Int)
 
@@ -23,20 +38,20 @@ class GPUMemoryManagerMasterEndPoint(override val rpcEnv: RpcEnv) extends Thread
   }
 
   def unCacheGPU(rddId : Int): Unit = {
-    for(slaveRef <- GPUMemoryManagerSlaves.values){
-      tell(slaveRef,UncacheGPU(rddId))
+    for (slaveRef <- GPUMemoryManagerSlaves.values) {
+      tell(slaveRef, UncacheGPU(rddId))
     }
   }
 
   def cacheGPU(rddId : Int): Unit = {
-    for(slaveRef <- GPUMemoryManagerSlaves.values){
-      tell(slaveRef,CacheGPU(rddId))
+    for (slaveRef <- GPUMemoryManagerSlaves.values){
+      tell(slaveRef, CacheGPU(rddId))
     }
   }
 
   override def receiveAndReply(context: RpcCallContext): PartialFunction[Any, Unit] = {
-    case RegisterGPUMemoryManager(id,slaveEndPointRef) =>
-      registerGPUMemoryManager(id,slaveEndPointRef)
+    case RegisterGPUMemoryManager(id, slaveEndPointRef) =>
+      registerGPUMemoryManager(id, slaveEndPointRef)
       context.reply (true)
     case UncacheGPU(rddId : Int) =>
       unCacheGPU(rddId)
@@ -86,9 +101,9 @@ class GPUMemoryManager(
   val cachedGPUPointers = new HashMap[String, Pointer]()
   val cachedGPURDDs = new ListBuffer[Int]()
 
-  def getCachedGPUPointers = cachedGPUPointers
+  def getCachedGPUPointers : HashMap[String, Pointer] = cachedGPUPointers
 
-  if(!isDriver || isLocal) {
+  if (!isDriver || isLocal) {
     val slaveEndpoint = rpcEnv.setupEndpoint(
       "GPUMemoryManagerSlaveEndpoint_" + executorId,
       new GPUMemoryManagerSlaveEndPoint(rpcEnv, this))
@@ -108,8 +123,9 @@ class GPUMemoryManager(
   }
 
   def cacheGPU(rddId : Int): Unit = {
-    if(!cachedGPURDDs.contains(rddId))
+    if (!cachedGPURDDs.contains(rddId)) {
       cachedGPURDDs += rddId
+    }
   }
 
   def unCacheGPUSlaves(rddId : Int): Unit = {
