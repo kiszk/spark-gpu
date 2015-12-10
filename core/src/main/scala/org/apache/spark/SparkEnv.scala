@@ -356,6 +356,10 @@ object SparkEnv extends Logging {
       } else {
         UnifiedMemoryManager(conf, numUsableCores)
       }
+    val heapMemoryAllocator: HeapMemoryAllocator = {
+      val maxPinnedMemory = conf.getLong("spark.memory.pinnedOffHeap.size", -1)
+      new HeapMemoryAllocator(maxPinnedMemory)
+    }
 
     val blockTransferService = new NettyBlockTransferService(conf, securityManager, numUsableCores)
 
@@ -405,9 +409,9 @@ object SparkEnv extends Logging {
     outputCommitCoordinator.coordinatorRef = Some(outputCommitCoordinatorRef)
 
     val configGPU = if (isDriver) {
-      conf.getBoolean("spark.driver.gpu", true)
+      conf.getBoolean("spark.driver.gpu.enabled", true)
     } else {
-      conf.getBoolean("spark.executor.gpu", true)
+      conf.getBoolean("spark.executor.gpu.enabled", true)
     }
 
     val cudaManager: CUDAManager = if (isDriver && !isLocal || !configGPU) {
