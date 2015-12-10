@@ -47,13 +47,14 @@ object SparkGPULR {
   def ddotvv(x: Array[Double], y: Array[Double]) : Double =
     (x zip y).foldLeft(0.0)((a, b) => a + (b._1 * b._2))
 
-  def generateData(N: Int, D: Int, R: Double): Array[DataPoint] = {
+  def generateData(seed: Int, N: Int, D: Int, R: Double): DataPoint = {
+    val r = new Random(seed)
     def generatePoint(i: Int): DataPoint = {
       val y = if (i % 2 == 0) -1 else 1
-      val x = Array.fill(D){rand.nextGaussian + y * R}
+      val x = Array.fill(D){r.nextGaussian + y * R}
       DataPoint(x, y)
     }
-    Array.tabulate(N)(generatePoint)
+    generatePoint(seed)
   }
 
   def showWarning() {
@@ -100,9 +101,10 @@ object SparkGPULR {
       Some((size: Long) => 1),
       Some(dimensions)))
 
-    val points = sc.parallelize(generateData(N, D, R), numSlices)
-    points.cacheGpu()
-    val pointsColumnCached = points.convert(ColumnFormat).cache()
+    val skelton = sc.parallelize((1 to N), numSlices)
+    val points = skelton.map(i => generateData(i, N, D, R))
+    val pointsColumnCached = points.convert(ColumnFormat).cache().cacheGpu()
+    pointsColumnCached.count()
 
     // Initialize w to a random value
     var w = Array.fill(D){2 * rand.nextDouble - 1}

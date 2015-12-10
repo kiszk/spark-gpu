@@ -39,13 +39,14 @@ object SparkLR {
 
   case class DataPoint(x: Vector[Double], y: Double)
 
-  def generateData(N: Int, D: Int, R: Double): Array[DataPoint] = {
+  def generateData(seed: Int, N: Int, D: Int, R: Double): DataPoint = {
+    val r = new Random(seed)
     def generatePoint(i: Int): DataPoint = {
       val y = if (i % 2 == 0) -1 else 1
-      val x = DenseVector.fill(D){rand.nextGaussian + y * R}
+      val x = DenseVector.fill(D){r.nextGaussian + y * R}
       DataPoint(x, y)
     }
-    Array.tabulate(N)(generatePoint)
+    generatePoint(seed)
   }
 
   def showWarning() {
@@ -70,8 +71,10 @@ object SparkLR {
     val R = 0.7  // Scaling factor
     val ITERATIONS = if (args.length > 3) args(3).toInt else 5
 
-    val points = sc.parallelize(generateData(N, D, R), numSlices).cache()
-
+    val skelton = sc.parallelize((1 to N), numSlices)
+    val points = skelton.map(i => generateData(i, N, D, R)).cache()
+    points.count()
+ 
     // Initialize w to a random value
     var w = DenseVector.fill(D){2 * rand.nextDouble - 1}
     printf("numSlices=%d, N=%d, D=%d, ITERATIONS=%d\n", numSlices, N, D, ITERATIONS)
