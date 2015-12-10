@@ -24,12 +24,14 @@ import java.net.URL
 import java.nio.ByteBuffer
 import java.nio.file.{Files, Paths}
 
+import jcuda.CudaException;
 import jcuda.Pointer
 import jcuda.driver.CUcontext
 import jcuda.driver.CUdevice
 import jcuda.driver.CUdevice_attribute
 import jcuda.driver.CUfunction
 import jcuda.driver.CUmodule
+import jcuda.driver.CUresult;
 import jcuda.driver.JCudaDriver
 import jcuda.runtime.cudaStream_t
 import jcuda.runtime.JCuda
@@ -190,7 +192,10 @@ class CUDAManager {
       CUDAManager.logger.debug(s"Allocating ${size}B of GPU memory (Thread ID " +
         s"${Thread.currentThread.getId})");
     }
-    JCuda.cudaMalloc(ptr, size)
+    val result = JCuda.cudaMalloc(ptr, size)
+    if (result != CUresult.CUDA_SUCCESS) {
+      throw new CudaException("Cannot allocate GPU memory: "+ JCuda.cudaGetErrorString(result));
+    }
     assert(size == 0 || ptr != new Pointer())
     ptr
   }
