@@ -83,4 +83,141 @@ public class HeapMemoryAllocator implements MemoryAllocator {
       // Do nothing
     }
   }
+
+  /**
+   * Allocates off-heap pinned memory suitable for CUDA and returns a wrapped native Pointer. Takes
+   * the memory from the pool if available or tries to allocate if not.
+   */
+  public Pointer allocatePinnedMemory(long size) {
+    if (maxPinnedMemory >= 0 && size > maxPinnedMemory) {
+      throw new OutOfMemoryError("Trying to allocate more pinned memory than the total limit");
+    }
+
+    synchronized (this) {
+      final LinkedList<Pointer> pool = pinnedMemoryBySize.get(size);
+      if (pool != null) {
+        assert(!pool.isEmpty());
+        final Pointer ptr = pool.pop();
+        if (pool.isEmpty()) {
+          pinnedMemoryBySize.remove(size);
+        }
+        return ptr;
+      }
+
+      // Garbage collecting and deallocating some pinned memory, so that we have space for the new
+      // one.
+      // TODO might be better to start from LRU size, currently freeing in arbitrary order
+      if (maxPinnedMemory >= 0 && allocatedPinnedMemory + size > maxPinnedMemory) {
+        Iterator<Map.Entry<Long, LinkedList<Pointer>>> it =
+          pinnedMemoryBySize.entrySet().iterator();
+
+        while (it.hasNext() && allocatedPinnedMemory + size > maxPinnedMemory) {
+          Map.Entry<Long, LinkedList<Pointer>> sizeAndList = it.next();
+          assert(!sizeAndList.getValue().isEmpty());
+
+          Iterator<Pointer> listIt = sizeAndList.getValue().iterator();
+
+          do {
+            Pointer ptr = listIt.next();
+            try {
+              int result = JCuda.cudaFreeHost(ptr);
+              if (result != CUresult.CUDA_SUCCESS) {
+                throw new CudaException(JCuda.cudaGetErrorString(result));
+              }
+            } catch (CudaException ex) {
+              throw new OutOfMemoryError("Could not free pinned memory: " + ex.getMessage());
+            }
+            listIt.remove();
+            pinnedMemorySizes.remove(ptr);
+            allocatedPinnedMemory -= sizeAndList.getKey();
+          } while (allocatedPinnedMemory + size < maxPinnedMemory && listIt.hasNext());
+
+          if (!listIt.hasNext()) {
+            it.remove();
+          }
+        }
+
+        if (maxPinnedMemory >= 0 && allocatedPinnedMemory + size > maxPinnedMemory) {
+          throw new OutOfMemoryError("Not enough free pinned memory");
+        }
+      }
+
+      Pointer ptr = new Pointer();
+      try {
+        int result = JCuda.cudaHostAlloc(ptr, size, JCuda.cudaHostAllocPortable);
+        if (result != CUresult.CUDA_SUCCESS) {
+          throw new CudaException(JCuda.cudaGetErrorString(result));
+        }
+      } catch (Exception ex) {
+        throw new OutOfMemoryError("Could not alloc pinned memory: " + ex.getMessage());
+      }
+      pinnedMemorySizes.put(ptr, size);
+      allocatedPinnedMemory += size;
+      return ptr;
+    }
+  }
+
+  /**
+   * Frees off-heap pinned memory pointer. In reality, it just returns it to the pool.
+   * Returns how much memory was freed.
+   */
+  public long freePinnedMemory(Pointer ptr) {
+    synchronized (this) {
+      final long size = pinnedMemorySizes.get(ptr);
+      LinkedList<Pointer> pool = pinnedMemoryBySize.get(size);
+      if (pool == null) {
+        pool = new LinkedList<Pointer>();
+        pinnedMemoryBySize.put(size, pool);
+      }
+      pool.add(ptr);
+      return size;
+    }
+  }
+
+  static protected final Logger logger = LoggerFactory.getLogger(HeapMemoryAllocator.class);
+
+  protected void finalize() {
+    // Deallocating off-heap pinned memory pool
+    for (Map.Entry<Long, LinkedList<Pointer>> sizeAndList : pinnedMemoryBySize.entrySet()) {
+      for (Pointer ptr : sizeAndList.getValue()) {
+        try {
+          int result = JCuda.cudaFreeHost(ptr);
+          if (result != CUresult.CUDA_SUCCESS) {
+            throw new CudaException(JCuda.cudaGetErrorString(result));
+          }
+          allocatedPinnedMemory -= sizeAndList.getKey();
+        } catch (CudaException ex) {
+          throw new OutOfMemoryError("Could not free pinned memory: " + ex.getMessage());
+        }
+      }
+    }
+
+    if (allocatedPinnedMemory > 0 && logger.isWarnEnabled()) {
+      logger.warn("{}B of memory still not freed in finalizer.", allocatedPinnedMemory);
+    }
+  }
+
+  /**
+   * Returns amount of allocated pinned memory. For testing purposes.
+   */
+  long getAllocatedPinnedMemorySize() {
+    synchronized (this) {
+      return allocatedPinnedMemory;
+    }
+  }
+
+  /**
+   * Returns amount of allocated pinned memory that is not in the pool. For testing purposes.
+   */
+  long getUsedAllocatedPinnedMemorySize() {
+    synchronized (this) {
+      long size = allocatedPinnedMemory;
+
+      for (Map.Entry<Long, LinkedList<Pointer>> sizeAndList : pinnedMemoryBySize.entrySet()) {
+        size -= sizeAndList.getKey() * sizeAndList.getValue().size();
+      }
+
+      return size;
+    }
+  }
 }
