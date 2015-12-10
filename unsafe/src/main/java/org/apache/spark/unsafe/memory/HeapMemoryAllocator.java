@@ -191,7 +191,7 @@ public class HeapMemoryAllocator implements MemoryAllocator {
         if (result != CUresult.CUDA_SUCCESS) {
           throw new CudaException(JCuda.cudaGetErrorString(result));
         }
-      } catch (CudaException ex) {
+      } catch (Exception ex) {
         throw new OutOfMemoryError("Could not alloc pinned memory: " + ex.getMessage());
       }
       pinnedMemorySizes.put(ptr, size);
