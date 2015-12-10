@@ -18,9 +18,11 @@ EXCL_TAGS=\
 org.apache.spark.SlowTest,\
 org.apache.spark.PPCIBMJDKFailingTest
 
-NCORES=`lscpu | awk ' /^Core\(s\)/ { print $4 }'`
-NSOCKETS=`lscpu | awk ' /^Socket\(s\)/ { print $2 }'`
-MVN_COMPILE_PARALLEL_THREADS=`expr $NCORES \* $NSOCKETS`
+if [ "${MVN_COMPILE_PARALLEL_THREADS}" = "" ]; then
+  NCORES=`lscpu | awk ' /^Core\(s\)/ { print $4 }'`
+  NSOCKETS=`lscpu | awk ' /^Socket\(s\)/ { print $2 }'`
+  MVN_COMPILE_PARALLEL_THREADS=`expr $NCORES \* $NSOCKETS`
+fi
 
 MVN_CMD="./build/mvn --force"
 
