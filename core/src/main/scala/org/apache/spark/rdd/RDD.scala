@@ -1684,13 +1684,19 @@ abstract class RDD[T: ClassTag](
    *
    * @param format the target format
    */
-  def convert(format: PartitionFormat, ratio: Double = 1.0): RDD[T] = {
+  def convert(format: PartitionFormat, unpersist: Boolean = true):
+      RDD[T] = {
+    val ratio = 1.0
     if (ratio < 0.0 || ratio > 1.0) {
       throw new SparkException("RDD conversion ratio must be between 0 (no conversion) and 1 " +
         "(convert everything)")
     }
     if (sc.env.isGPUEnabled) {
-      new ConvertRDD(this, format, ratio)
+      val convertedRDD = new ConvertRDD(this, format, ratio)
+      if (unpersist) {
+        this.unpersist(false)
+      }
+      convertedRDD
     } else {
       this
     }
