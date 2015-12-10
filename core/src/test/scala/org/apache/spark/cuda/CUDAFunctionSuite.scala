@@ -22,6 +22,7 @@ import java.util.{Calendar, Random}
 import org.apache.commons.io.IOUtils
 
 import org.apache.spark._
+import org.apache.spark.rdd._
 
 import scala.math._
 
@@ -874,7 +875,7 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
       }
 
       val pointsCached = sc.parallelize(generateData, numSlices).cache()
-      val pointsColumnCached = pointsCached.convert(ColumnFormat).cache().cacheGpu()
+      val pointsColumnCached = pointsCached.convert(ColumnFormat, false).cache().cacheGpu()
 
       // Initialize w to a random value
       var wCPU = Array.fill(D){2 * rand.nextDouble - 1}
