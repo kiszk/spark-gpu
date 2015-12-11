@@ -26,6 +26,7 @@ import scala.reflect.ClassTag
 import scala.language.existentials
 import scala.collection.mutable.{HashMap, ListBuffer}
 
+import java.lang.reflect.Constructor
 import java.nio.{ByteBuffer, ByteOrder}
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
@@ -298,11 +299,8 @@ class ColumnPartitionData[T](
             val blobOffsetInt = blobOffset.toInt
             byteBuffer.putLong(blobOffsetInt, capacity)
             byteBuffer.putLong(blobOffsetInt + 8, length)
-            var i = 0
-            while (i < length) {
-              byteBuffer.put(blobOffsetInt + blobMetaDataSize + i * elementSize, array(i))
-              i += 1
-            }
+	    byteBuffer.position(blobOffsetInt + blobMetaDataSize)
+            byteBuffer.put(array, 0, length)
             blobOffset += capacity
           case SHORT_ARRAY_COLUMN =>
             val elementSize = 2
@@ -318,11 +316,8 @@ class ColumnPartitionData[T](
             val blobOffsetInt = blobOffset.toInt
             byteBuffer.putLong(blobOffsetInt, capacity)
             byteBuffer.putLong(blobOffsetInt + 8, length)
-            var i = 0
-            while (i < length) {
-              byteBuffer.putShort(blobOffsetInt + blobMetaDataSize + i * elementSize, array(i))
-              i += 1
-            }
+	    byteBuffer.position(blobOffsetInt + blobMetaDataSize)
+            byteBuffer.asShortBuffer().put(array, 0, length)
             blobOffset += capacity
           case INT_ARRAY_COLUMN =>
             val elementSize = 4
@@ -338,11 +333,8 @@ class ColumnPartitionData[T](
             val blobOffsetInt = blobOffset.toInt
             byteBuffer.putLong(blobOffsetInt, capacity)
             byteBuffer.putLong(blobOffsetInt + 8, length)
-            var i = 0
-            while (i < length) {
-              byteBuffer.putInt(blobOffsetInt + blobMetaDataSize + i * elementSize, array(i))
-              i += 1
-            }
+	    byteBuffer.position(blobOffsetInt + blobMetaDataSize)
+            byteBuffer.asIntBuffer().put(array, 0, length)
             blobOffset += capacity
           case LONG_ARRAY_COLUMN =>
             val elementSize = 8
@@ -358,11 +350,8 @@ class ColumnPartitionData[T](
             val blobOffsetInt = blobOffset.toInt
             byteBuffer.putLong(blobOffsetInt, capacity)
             byteBuffer.putLong(blobOffsetInt + 8, length)
-            var i = 0
-            while (i < length) {
-              byteBuffer.putLong(blobOffsetInt + blobMetaDataSize + i * elementSize, array(i))
-              i += 1
-            }
+	    byteBuffer.position(blobOffsetInt + blobMetaDataSize)
+            byteBuffer.asLongBuffer().put(array, 0, length)
             blobOffset += capacity
           case FLOAT_ARRAY_COLUMN =>
             val elementSize = 4
@@ -378,11 +367,8 @@ class ColumnPartitionData[T](
             val blobOffsetInt = blobOffset.toInt
             byteBuffer.putLong(blobOffsetInt, capacity)
             byteBuffer.putLong(blobOffsetInt + 8, length)
-            var i = 0
-            while (i < length) {
-              byteBuffer.putFloat(blobOffsetInt + blobMetaDataSize + i * elementSize, array(i))
-              i += 1
-            }
+	    byteBuffer.position(blobOffsetInt + blobMetaDataSize)
+            byteBuffer.asFloatBuffer().put(array, 0, length)
             blobOffset += capacity
           case DOUBLE_ARRAY_COLUMN =>
             val elementSize = 8
@@ -398,11 +384,8 @@ class ColumnPartitionData[T](
             val blobOffsetInt = blobOffset.toInt
             byteBuffer.putLong(blobOffsetInt, capacity)
             byteBuffer.putLong(blobOffsetInt + 8, length)
-            var i = 0
-            while (i < length) {
-              byteBuffer.putDouble(blobOffsetInt + blobMetaDataSize + i * elementSize, array(i))
-              i += 1
-            }
+	    byteBuffer.position(blobOffsetInt + blobMetaDataSize)
+            byteBuffer.asDoubleBuffer().put(array, 0, length)
             blobOffset += capacity
         }
         colIndex += 1
@@ -435,7 +418,8 @@ class ColumnPartitionData[T](
                   val propCls = mirror.runtimeClass(term.typeSignature.typeSymbol.asClass)
                   // we assume we don't instantiate inner class instances, so $outer field is not
                   // needed
-                  val propVal = instantiateClass(propCls, null)
+                  val newCtor = createConstructorForInstantiateClass(propCls)
+                  val propVal = instantiateClassWithConstructor(newCtor, propCls, null)
                   rf.set(propVal)
                   propVal
               } } compose r
@@ -446,8 +430,9 @@ class ColumnPartitionData[T](
         }
       }
 
+      val newCtor = createConstructorForInstantiateClass(schema.cls)
       Iterator.continually {
-        val obj = instantiateClass(schema.cls, null)
+        val obj = instantiateClassWithConstructor(newCtor, schema.cls, null)
 
         for (((col, setter), buf) <- ((schema.columns zip setters) zip buffers)) {
           setter(obj, deserializeColumnValue(col.columnType, buf))
@@ -474,13 +459,9 @@ class ColumnPartitionData[T](
         val byteBuffer = blobBuffers(0)
 
         val length = byteBuffer.getLong(blobOffset + 8).toInt
-        var i = 0
         val array = new Array[Byte](length)
-        val elementSize = 1
-        while (i < length) {
-          array(i) = byteBuffer.get(blobOffset + blobMetaDataSize + i * elementSize)
-          i = i + 1
-        }
+	byteBuffer.position(blobOffset + blobMetaDataSize)
+        byteBuffer.get(array, 0, length)
         array
       }
       case SHORT_ARRAY_COLUMN => {
@@ -488,13 +469,9 @@ class ColumnPartitionData[T](
         val byteBuffer = blobBuffers(0)
 
         val length = byteBuffer.getLong(blobOffset + 8).toInt
-        var i = 0
         val array = new Array[Short](length)
-        val elementSize = 2
-        while (i < length) {
-          array(i) = byteBuffer.getShort(blobOffset + blobMetaDataSize + i * elementSize)
-          i = i + 1
-        }
+	byteBuffer.position(blobOffset + blobMetaDataSize)
+        byteBuffer.asShortBuffer().get(array, 0, length)
         array
       }
       case INT_ARRAY_COLUMN => {
@@ -502,13 +479,9 @@ class ColumnPartitionData[T](
         val byteBuffer = blobBuffers(0)
 
         val length = byteBuffer.getLong(blobOffset + 8).toInt
-        var i = 0
         val array = new Array[Int](length)
-        val elementSize = 4
-        while (i < length) {
-          array(i) = byteBuffer.getInt(blobOffset + blobMetaDataSize + i * elementSize)
-          i = i + 1
-        }
+	byteBuffer.position(blobOffset + blobMetaDataSize)
+        byteBuffer.asIntBuffer().get(array, 0, length)
         array
       }
       case LONG_ARRAY_COLUMN => {
@@ -516,13 +489,9 @@ class ColumnPartitionData[T](
         val byteBuffer = blobBuffers(0)
 
         val length = byteBuffer.getLong(blobOffset + 8).toInt
-        var i = 0
         val array = new Array[Long](length)
-        val elementSize = 8
-        while (i < length) {
-          array(i) = byteBuffer.getLong(blobOffset + blobMetaDataSize + i * elementSize)
-          i = i + 1
-        }
+	byteBuffer.position(blobOffset + blobMetaDataSize)
+        byteBuffer.asLongBuffer().get(array, 0, length)
         array
       }
       case FLOAT_ARRAY_COLUMN => {
@@ -530,13 +499,9 @@ class ColumnPartitionData[T](
         val byteBuffer = blobBuffers(0)
 
         val length = byteBuffer.getLong(blobOffset + 8).toInt
-        var i = 0
         val array = new Array[Float](length)
-        val elementSize = 2
-        while (i < length) {
-          array(i) = byteBuffer.getFloat(blobOffset + blobMetaDataSize + i * elementSize)
-          i = i + 1
-        }
+	byteBuffer.position(blobOffset + blobMetaDataSize)
+        byteBuffer.asFloatBuffer().get(array, 0, length)
         array
       }
       case DOUBLE_ARRAY_COLUMN => {
@@ -544,13 +509,9 @@ class ColumnPartitionData[T](
         val byteBuffer = blobBuffers(0)
 
         val length = byteBuffer.getLong(blobOffset + 8).toInt
-        var i = 0
         val array = new Array[Double](length)
-        val elementSize = 8
-        while (i < length) {
-          array(i) = byteBuffer.getDouble(blobOffset + blobMetaDataSize + i * elementSize)
-          i = i + 1
-        }
+	byteBuffer.position(blobOffset + blobMetaDataSize)
+        byteBuffer.asDoubleBuffer().get(array, 0, length)
         array
       }
     }
@@ -559,13 +520,17 @@ class ColumnPartitionData[T](
   /**
    * Instantiates a class. Also handles inner classes by passing enclosingObject parameter.
    */
-  private[spark] def instantiateClass(
-      cls: Class[_],
-      enclosingObject: AnyRef): AnyRef = {
+  private[spark] def createConstructorForInstantiateClass(cls: Class[_]): Constructor[_] = {
     // Use reflection to instantiate object without calling constructor
     val rf = sun.reflect.ReflectionFactory.getReflectionFactory()
     val parentCtor = classOf[java.lang.Object].getDeclaredConstructor()
-    val newCtor = rf.newConstructorForSerialization(cls, parentCtor)
+    rf.newConstructorForSerialization(cls, parentCtor)
+  }
+
+  private[spark] def instantiateClassWithConstructor(
+      newCtor: Constructor[_],
+      cls: Class[_],
+      enclosingObject: AnyRef): AnyRef = {
     val obj = newCtor.newInstance().asInstanceOf[AnyRef]
     if (enclosingObject != null) {
       val field = cls.getDeclaredField("$outer")
