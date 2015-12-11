@@ -1852,6 +1852,16 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
     val dataFunc = (ctx: TaskContext, data: PartitionData[T]) => cleanF(ctx, data.iterator)
     runGenericJob(rdd, dataFunc, partitions, resultHandler)
   }
+  def runJob[T, U: ClassTag](
+      rdd: RDD[T],
+      func: (TaskContext, PartitionData[T]) => U,
+      partitions: Seq[Int],
+      resultHandler: (Int, U) => Unit)
+      (implicit x: DummyImplicit): Unit = {
+    val cleanF = clean(func)
+    val dataFunc = (ctx: TaskContext, data: PartitionData[T]) => cleanF(ctx, data)
+    runGenericJob(rdd, dataFunc, partitions, resultHandler)
+  }
 
   /**
    * Run a function on a given set of partitions in an RDD and return the results as an array.
@@ -1860,6 +1870,15 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
       rdd: RDD[T],
       func: (TaskContext, Iterator[T]) => U,
       partitions: Seq[Int]): Array[U] = {
+    val results = new Array[U](partitions.size)
+    runJob[T, U](rdd, func, partitions, (index, res) => results(index) = res)
+    results
+  }
+  def runJob[T, U: ClassTag](
+      rdd: RDD[T],
+      func: (TaskContext, PartitionData[T]) => U,
+      partitions: Seq[Int])
+      (implicit x: DummyImplicit): Array[U] = {
     val results = new Array[U](partitions.size)
     runJob[T, U](rdd, func, partitions, (index, res) => results(index) = res)
     results
@@ -1875,6 +1894,14 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
       partitions: Seq[Int]): Array[U] = {
     val cleanedFunc = clean(func)
     runJob(rdd, (ctx: TaskContext, it: Iterator[T]) => cleanedFunc(it), partitions)
+  }
+  def runJob[T, U: ClassTag](
+      rdd: RDD[T],
+      func: PartitionData[T] => U,
+      partitions: Seq[Int])
+      (implicit x: DummyImplicit): Array[U] = {
+    val cleanedFunc = clean(func)
+    runJob(rdd, (ctx: TaskContext, data: PartitionData[T]) => cleanedFunc(data), partitions)
   }
 
   /**
@@ -1944,6 +1971,10 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
    * Run a job on all partitions in an RDD and return the results in an array.
    */
   def runJob[T, U: ClassTag](rdd: RDD[T], func: Iterator[T] => U): Array[U] = {
+    runJob(rdd, func, 0 until rdd.partitions.length)
+  }
+  def runJob[T, U: ClassTag](rdd: RDD[T], func: PartitionData[T] => U)
+      (implicit x: DummyImplicit): Array[U] = {
     runJob(rdd, func, 0 until rdd.partitions.length)
   }
 

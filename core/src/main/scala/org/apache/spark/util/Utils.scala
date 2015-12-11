@@ -1575,6 +1575,16 @@ private[spark] object Utils extends Logging {
     count
   }
 
+  def getPartitionDataSize[T](data: PartitionData[T]): Long = {
+    val count = data match {
+      case IteratorPartitionData(iter) =>
+        getIteratorSize(iter)
+      case col: ColumnPartitionData[T] =>
+        col.size
+    }
+    count
+  }
+
   /**
    * Creates a symlink. Note jdk1.7 has Files.createSymbolicLink but not used here
    * for jdk1.6 support.  Supports windows by doing copy, everything else uses "ln -sf".

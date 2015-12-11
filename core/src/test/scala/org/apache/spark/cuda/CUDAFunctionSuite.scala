@@ -50,6 +50,26 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
     SparkEnv.get.closureSerializer.newInstance().serialize(function)
   }
 
+  test("Run count()", GPUTest) {
+    sc = new SparkContext("local", "test", conf)
+    val manager = {
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => null
+      }
+    }
+    if (manager != null && manager.deviceCount > 0) {
+      val n = 32
+      val output = sc.parallelize(1 to n, 4)
+        .convert(ColumnFormat)
+        .count()
+      assert(output == n)
+    } else {
+      info("No CUDA devices, so skipping the test.")
+    }
+  }
+
   test("Run identity CUDA kernel on a single primitive column", GPUTest) {
     sc = new SparkContext("local", "test", conf)
     val manager = {
