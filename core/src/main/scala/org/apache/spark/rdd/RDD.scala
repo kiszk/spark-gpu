@@ -320,7 +320,8 @@ abstract class RDD[T: ClassTag](
    * Compute an RDD partition or read it from a checkpoint if the RDD is checkpointing.
    */
   private[spark] def computeOrReadCheckpoint(split: Partition, context: TaskContext):
-      PartitionData[T] = {
+      PartitionData[T] =
+  {
     if (isCheckpointedAndMaterialized) {
       firstParent[T].partitionData(split, context)
     } else {

@@ -265,7 +265,7 @@ class DAGSchedulerSuite
   private def submit(
       rdd: RDD[_],
       partitions: Array[Int],
-      func: (TaskContext, Iterator[_]) => _ = jobComputeFunc,
+      func: (TaskContext, PartitionData[_]) => _ = jobComputeFunc,
       listener: JobListener = jobListener,
       properties: Properties = null): Int = {
     val jobId = scheduler.nextJobId.getAndIncrement()

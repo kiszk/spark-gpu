@@ -16,7 +16,7 @@
   <version>1.0</version>
 
   <properties>
-    <spark.version>1.5.0-GPU</spark.version>
+    <spark.version>1.6.0-GPU</spark.version>
   </properties>
 
   <repositories>

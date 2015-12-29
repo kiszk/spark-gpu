@@ -87,7 +87,10 @@ private[spark] class PythonRunner(
     reuse_worker: Boolean)
   extends Logging {
 
-  override def compute(split: Partition, context: TaskContext): Iterator[Array[Byte]] = {
+  def compute(
+      inputIterator: Iterator[_],
+      partitionIndex: Int,
+      context: TaskContext): Iterator[Array[Byte]] = {
     val startTime = System.currentTimeMillis
     val env = SparkEnv.get
     val localdir = env.blockManager.diskBlockManager.localDirs.map(f => f.getPath()).mkString(",")

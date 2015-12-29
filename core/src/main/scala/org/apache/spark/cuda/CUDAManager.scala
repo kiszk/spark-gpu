@@ -154,7 +154,6 @@ class CUDAManager {
       s"($memoryUsage bytes needed)")
   }
 
-
   private[spark] def cachedLoadModule(resourceURL: URL): CUmodule = {
     val filename = resourceURL.toString()
     val devIx = new Array[Int](1)
@@ -172,7 +171,6 @@ class CUDAManager {
             "CUDAManager.cachedLoadModule currently supports only one ptx");
         }
         val inputStream = resourceURL.openStream()
-//        val ptxData = IOUtils.toByteArray(inputStream)
         val moduleBinaryData = IOUtils.toByteArray(inputStream)
         inputStream.close()
 
@@ -196,7 +194,7 @@ class CUDAManager {
     }
     val result = JCuda.cudaMalloc(ptr, size)
     if (result != CUresult.CUDA_SUCCESS) {
-      throw new CudaException("Cannot allocate GPU memory: "+ JCuda.cudaGetErrorString(result));
+      throw new CudaException("Cannot allocate GPU memory: " + JCuda.cudaGetErrorString(result));
     }
     assert(size == 0 || ptr != new Pointer())
     ptr

@@ -43,6 +43,7 @@ import org.apache.spark.scheduler.OutputCommitCoordinator.OutputCommitCoordinato
 import org.apache.spark.serializer.Serializer
 import org.apache.spark.shuffle.ShuffleManager
 import org.apache.spark.storage._
+import org.apache.spark.unsafe.memory.HeapMemoryAllocator
 import org.apache.spark.util.{AkkaUtils, RpcUtils, Utils}
 
 /**
@@ -72,6 +73,7 @@ class SparkEnv (
     val sparkFilesDir: String,
     val metricsSystem: MetricsSystem,
     val memoryManager: MemoryManager,
+    val heapMemoryAllocator: HeapMemoryAllocator,
     val outputCommitCoordinator: OutputCommitCoordinator,
     val cudaManager: CUDAManager,
     val gpuMemoryManager : GPUMemoryManager,
@@ -455,6 +457,7 @@ object SparkEnv extends Logging {
       sparkFilesDir,
       metricsSystem,
       memoryManager,
+      heapMemoryAllocator,
       outputCommitCoordinator,
       cudaManager,
       gpuMemoryManager,

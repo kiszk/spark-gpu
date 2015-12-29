@@ -22,19 +22,62 @@ import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
+import java.util.Iterator;
 
 import org.apache.spark.unsafe.Platform;
+
+import jcuda.Pointer;
+import jcuda.driver.CUresult;
+import jcuda.runtime.JCuda;
+import jcuda.CudaException;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A simple {@link MemoryAllocator} that can allocate up to 16GB using a JVM long primitive array.
  */
 public class HeapMemoryAllocator implements MemoryAllocator {
 
+  /**
+   * Maximum allocateable amount of pinned memory or negative if unlimited.
+   */
+  final long maxPinnedMemory;
+
   @GuardedBy("this")
   private final Map<Long, LinkedList<WeakReference<MemoryBlock>>> bufferPoolsBySize =
     new HashMap<>();
 
+  // TODO instead of allocating pinned memory allocate normal page-aligned memory (valloc with
+  // JNI?) and pin it in CUDAManager
+  // This way this page-aligned memory might be used on CPU too without needless costly pinning
+  @GuardedBy("this")
+  private long allocatedPinnedMemory = 0;
+
+  // Pointer content won't release itself, so no need for WeakReference
+  @GuardedBy("this")
+  private final Map<Long, LinkedList<Pointer>> pinnedMemoryBySize =
+    new HashMap<Long, LinkedList<Pointer>>();
+
+  private final Map<Pointer, Long> pinnedMemorySizes = new HashMap<Pointer, Long>();
+
   private static final int POOLING_THRESHOLD_BYTES = 1024 * 1024;
+
+  /**
+   * Construct a new HeapMemoryAllocator with unlimited off-heap pinned memory.
+   */
+  public HeapMemoryAllocator() {
+    this(-1);
+  }
+
+  /**
+   * Construct a new HeapMemoryAllocator.
+   *
+   * @param maxPinnedMemory the maximum amount of allocated off-heap pinned memory
+   */
+  public HeapMemoryAllocator(long maxPinnedMemory) {
+    this.maxPinnedMemory = maxPinnedMemory;
+  }
 
   /**
    * Returns true if allocations of the given size should go through the pooling mechanism and

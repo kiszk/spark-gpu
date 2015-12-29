@@ -176,42 +176,13 @@ class CUDAFunction(
             SparkEnv.get.cudaManager.allocGPUMemory(blob.capacity())
         }
 
-        /*
-        var gpuInputPtrs = Vector[Pointer]()
-        val inColumns = in.schema.orderedColumns(inputColumnsOrder)
-        val inPointers = in.orderedPointers(inputColumnsOrder)
-        for (col <- inColumns) {
-          gpuInputPtrs = gpuInputPtrs :+
-            SparkEnv.get.cudaManager.allocGPUMemory(col.memoryUsage(in.size))
-        }
-        for ((cpuPtr, gpuPtr, col) <- (inPointers, gpuInputPtrs, inColumns).zipped) {
-          JCuda.cudaMemcpyAsync(gpuPtr, cpuPtr, col.memoryUsage(in.size),
-            cudaMemcpyKind.cudaMemcpyHostToDevice, stream)
-        }
-        // TODO support more than one blobs
-        //var gpuInputBlobs = Vector[Pointer]()
-        val inBlobs = if (in.blobs != null) {
-          in.blobs
-        } else {
-          Array[Pointer]()
-        }
-        val inBlobBuffers = if (in.blobBuffers != null) {
-          in.blobBuffers
-        } else {
-          Array[ByteBuffer]()
-        }
-        for (blob <- inBlobBuffers) {
-          //println("Blob capacity =" + blob.capacity())
-          gpuInputBlobs = gpuInputBlobs :+
-            SparkEnv.get.cudaManager.allocGPUMemory(blob.capacity())
-        }
-        for ((cpuPtr, gpuPtr, blob) <- (inBlobs, gpuInputBlobs, inBlobBuffers).zipped) {
-          JCuda.cudaMemcpyAsync(gpuPtr, cpuPtr, blob.capacity(),
-            cudaMemcpyKind.cudaMemcpyHostToDevice, stream)
-        }
-        */
-
+        // perform allocGPUMemory and cudaMemcpyAsync
         val gpuInputPtrs = in.orderedGPUPointers(inputColumnsOrder, stream)
+
+        for (((cpuPtr, size), gpuPtr) <- (cpuInputFreeVars zip inputFreeVarPtrs)) {
+          JCuda.cudaMemcpyAsync(gpuPtr, cpuPtr, size,
+            cudaMemcpyKind.cudaMemcpyHostToDevice, stream)
+        }
 
         val gpuPtrParams = (gpuInputPtrs ++
                             gpuOutputPtrs ++ gpuOutputBlobs).map(Pointer.to(_))

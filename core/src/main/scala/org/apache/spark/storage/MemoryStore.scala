@@ -40,6 +40,7 @@ private abstract class MemoryEntry {
   val value: Any
 }
 
+// already deserialized
 private case class ArrayMemoryEntry(value: Array[Any], size: Long) extends MemoryEntry {
   def unitName: String = "array values"
 }
@@ -154,9 +155,9 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
     if (level.deserialized) {
       val sizeEstimate = SizeEstimator.estimate(values.asInstanceOf[AnyRef])
       tryToPut(blockId, values, sizeEstimate, deserialized = true, droppedBlocks)
-      PutResult(sizeEstimate, Left(IteratedPartitionData(values.iterator)), droppedBlocks)
+      PutResult(sizeEstimate, Left(IteratorPartitionData(values.iterator)), droppedBlocks)
     } else {
-      val bytes = blockManager.dataSerialize(blockId, IteratedPartitionData(values.iterator))
+      val bytes = blockManager.dataSerialize(blockId, IteratorPartitionData(values.iterator))
       tryToPut(blockId, bytes, bytes.limit, deserialized = false, droppedBlocks)
       PutResult(bytes.limit(), Right(bytes.duplicate()), droppedBlocks)
     }
@@ -167,19 +168,20 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
       values: ColumnPartitionData[_],
       level: StorageLevel,
       returnValues: Boolean): PutResult = {
+    val droppedBlocks = new ArrayBuffer[(BlockId, BlockStatus)]
     if (level.deserialized) {
       // TODO should manage off-heap memory estimation
-      //val wrapperSizeEstimate = SizeEstimator.estimate(values.asInstanceOf[AnyRef])
-      //val sizeEstimate = wrapperSizeEstimate + values.memoryUsage
+      // val wrapperSizeEstimate = SizeEstimator.estimate(values.asInstanceOf[AnyRef])
+      // val sizeEstimate = wrapperSizeEstimate + values.memoryUsage
       // TODO consider about blob-size on pinned off-heap
-      // 80 is summed size of header and fields (rough accumuration) 
+      // 80 is summed size of header and fields (rough accumuration)
       val sizeEstimate = values.memoryUsage + 80
       tryToPut(blockId, values, sizeEstimate, deserialized = true, droppedBlocks)
       PutResult(sizeEstimate, Left(values), droppedBlocks)
     } else {
       val bytes = blockManager.dataSerialize(blockId, values)
-      val putAttempt = tryToPut(blockId, bytes, bytes.limit)
-      PutResult(bytes.limit(), Right(bytes.duplicate()), putAttempt.droppedBlocks)
+      tryToPut(blockId, bytes, bytes.limit, deserialized = false, droppedBlocks)
+      PutResult(bytes.limit(), Right(bytes.duplicate()), droppedBlocks)
     }
   }
 
@@ -417,7 +419,9 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
   private def tryToPut(
       blockId: BlockId,
       value: () => Any,
-      size: Long): ResultWithDroppedBlocks = {
+      size: Long,
+      deserialized: Boolean,
+      droppedBlocks: mutable.Buffer[(BlockId, BlockStatus)]): Boolean = {
 
     /* TODO: Its possible to optimize the locking by locking entries only when selecting blocks
      * to be dropped. Once the to-be-dropped blocks have been selected, and lock on entries has
@@ -425,26 +429,31 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
      * for freeing up more space for another block that needs to be put. Only then the actually
      * dropping of blocks (and writing to disk if necessary) can proceed in parallel. */
 
-    var putSuccess = false
-    val droppedBlocks = new ArrayBuffer[(BlockId, BlockStatus)]
-
-    accountingLock.synchronized {
-      val freeSpaceResult = ensureFreeSpace(blockId, size)
-      val enoughFreeSpace = freeSpaceResult.success
-      droppedBlocks ++= freeSpaceResult.droppedBlocks
-
-      if (enoughFreeSpace) {
+    memoryManager.synchronized {
+      // Note: if we have previously unrolled this block successfully, then pending unroll
+      // memory should be non-zero. This is the amount that we already reserved during the
+      // unrolling process. In this case, we can just reuse this space to cache our block.
+      // The synchronization on `memoryManager` here guarantees that the release and acquire
+      // happen atomically. This relies on the assumption that all memory acquisitions are
+      // synchronized on the same lock.
+      releasePendingUnrollMemoryForThisTask()
+      val enoughMemory = memoryManager.acquireStorageMemory(blockId, size, droppedBlocks)
+      if (enoughMemory) {
+        // We acquired enough memory for the block, so go ahead and put it
         val entry = value() match {
-          case arr: Array[Any] => ArrayMemoryEntry(arr, size)
+          case arr: Array[Any] => {
+            assert(deserialized)
+            ArrayMemoryEntry(arr, size)
+          }
           case cp: ColumnPartitionData[_] => ColumnPartitionMemoryEntry(cp, size)
           case buf: ByteBuffer => SerializedMemoryEntry(buf, size)
         }
         entries.synchronized {
           entries.put(blockId, entry)
         }
+        val valuesOrBytes = entry.unitName
         logInfo("Block %s stored as %s in memory (estimated size %s, free %s)".format(
-          blockId, entry.unitName, Utils.bytesToString(size), Utils.bytesToString(freeMemory)))
-        putSuccess = true
+          blockId, valuesOrBytes, Utils.bytesToString(size), Utils.bytesToString(blocksMemoryUsed)))
       } else {
         // Tell the block manager that we couldn't put it in memory so that it can drop it to
         // disk if the block allows disk storage.

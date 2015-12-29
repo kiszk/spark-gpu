@@ -88,7 +88,7 @@ class ColumnPartitionData[T](
   // Extracted to a function for use in deserialization
   private def initialize {
     pointers = schema.columns.map { col =>
-      SparkEnv.get.executorMemoryManager.allocatePinnedMemory(col.columnType.bytes * size)
+      SparkEnv.get.heapMemoryAllocator.allocatePinnedMemory(col.columnType.bytes * size)
     }
 
     refCounter = 1
@@ -99,7 +99,7 @@ class ColumnPartitionData[T](
     if (blobs == null) {
       blobs = new Array(1)
     }
-    val ptr = SparkEnv.get.executorMemoryManager.allocatePinnedMemory(blobSize)
+    val ptr = SparkEnv.get.heapMemoryAllocator.allocatePinnedMemory(blobSize)
     blobs(0) = ptr
     if (blobBuffers == null) {
       blobBuffers = new Array(1)
@@ -151,9 +151,9 @@ class ColumnPartitionData[T](
     assert(refCounter > 0)
     refCounter -= 1
     if (refCounter == 0) {
-      pointers.foreach(SparkEnv.get.executorMemoryManager.freePinnedMemory(_))
+      pointers.foreach(SparkEnv.get.heapMemoryAllocator.freePinnedMemory(_))
       if (blobs != null) {
-        blobs.foreach(SparkEnv.get.executorMemoryManager.freePinnedMemory(_))
+        blobs.foreach(SparkEnv.get.heapMemoryAllocator.freePinnedMemory(_))
       }
       freeGPUPointers()
     }
@@ -299,7 +299,7 @@ class ColumnPartitionData[T](
             val blobOffsetInt = blobOffset.toInt
             byteBuffer.putLong(blobOffsetInt, capacity)
             byteBuffer.putLong(blobOffsetInt + 8, length)
-	    byteBuffer.position(blobOffsetInt + blobMetaDataSize)
+            byteBuffer.position(blobOffsetInt + blobMetaDataSize)
             byteBuffer.put(array, 0, length)
             blobOffset += capacity
           case SHORT_ARRAY_COLUMN =>
@@ -316,7 +316,7 @@ class ColumnPartitionData[T](
             val blobOffsetInt = blobOffset.toInt
             byteBuffer.putLong(blobOffsetInt, capacity)
             byteBuffer.putLong(blobOffsetInt + 8, length)
-	    byteBuffer.position(blobOffsetInt + blobMetaDataSize)
+            byteBuffer.position(blobOffsetInt + blobMetaDataSize)
             byteBuffer.asShortBuffer().put(array, 0, length)
             blobOffset += capacity
           case INT_ARRAY_COLUMN =>
@@ -333,7 +333,7 @@ class ColumnPartitionData[T](
             val blobOffsetInt = blobOffset.toInt
             byteBuffer.putLong(blobOffsetInt, capacity)
             byteBuffer.putLong(blobOffsetInt + 8, length)
-	    byteBuffer.position(blobOffsetInt + blobMetaDataSize)
+            byteBuffer.position(blobOffsetInt + blobMetaDataSize)
             byteBuffer.asIntBuffer().put(array, 0, length)
             blobOffset += capacity
           case LONG_ARRAY_COLUMN =>
@@ -350,7 +350,7 @@ class ColumnPartitionData[T](
             val blobOffsetInt = blobOffset.toInt
             byteBuffer.putLong(blobOffsetInt, capacity)
             byteBuffer.putLong(blobOffsetInt + 8, length)
-	    byteBuffer.position(blobOffsetInt + blobMetaDataSize)
+            byteBuffer.position(blobOffsetInt + blobMetaDataSize)
             byteBuffer.asLongBuffer().put(array, 0, length)
             blobOffset += capacity
           case FLOAT_ARRAY_COLUMN =>
@@ -367,7 +367,7 @@ class ColumnPartitionData[T](
             val blobOffsetInt = blobOffset.toInt
             byteBuffer.putLong(blobOffsetInt, capacity)
             byteBuffer.putLong(blobOffsetInt + 8, length)
-	    byteBuffer.position(blobOffsetInt + blobMetaDataSize)
+            byteBuffer.position(blobOffsetInt + blobMetaDataSize)
             byteBuffer.asFloatBuffer().put(array, 0, length)
             blobOffset += capacity
           case DOUBLE_ARRAY_COLUMN =>
@@ -384,7 +384,7 @@ class ColumnPartitionData[T](
             val blobOffsetInt = blobOffset.toInt
             byteBuffer.putLong(blobOffsetInt, capacity)
             byteBuffer.putLong(blobOffsetInt + 8, length)
-	    byteBuffer.position(blobOffsetInt + blobMetaDataSize)
+            byteBuffer.position(blobOffsetInt + blobMetaDataSize)
             byteBuffer.asDoubleBuffer().put(array, 0, length)
             blobOffset += capacity
         }
@@ -460,7 +460,7 @@ class ColumnPartitionData[T](
 
         val length = byteBuffer.getLong(blobOffset + 8).toInt
         val array = new Array[Byte](length)
-	byteBuffer.position(blobOffset + blobMetaDataSize)
+        byteBuffer.position(blobOffset + blobMetaDataSize)
         byteBuffer.get(array, 0, length)
         array
       }
@@ -470,7 +470,7 @@ class ColumnPartitionData[T](
 
         val length = byteBuffer.getLong(blobOffset + 8).toInt
         val array = new Array[Short](length)
-	byteBuffer.position(blobOffset + blobMetaDataSize)
+        byteBuffer.position(blobOffset + blobMetaDataSize)
         byteBuffer.asShortBuffer().get(array, 0, length)
         array
       }
@@ -480,7 +480,7 @@ class ColumnPartitionData[T](
 
         val length = byteBuffer.getLong(blobOffset + 8).toInt
         val array = new Array[Int](length)
-	byteBuffer.position(blobOffset + blobMetaDataSize)
+        byteBuffer.position(blobOffset + blobMetaDataSize)
         byteBuffer.asIntBuffer().get(array, 0, length)
         array
       }
@@ -490,7 +490,7 @@ class ColumnPartitionData[T](
 
         val length = byteBuffer.getLong(blobOffset + 8).toInt
         val array = new Array[Long](length)
-	byteBuffer.position(blobOffset + blobMetaDataSize)
+        byteBuffer.position(blobOffset + blobMetaDataSize)
         byteBuffer.asLongBuffer().get(array, 0, length)
         array
       }
@@ -500,7 +500,7 @@ class ColumnPartitionData[T](
 
         val length = byteBuffer.getLong(blobOffset + 8).toInt
         val array = new Array[Float](length)
-	byteBuffer.position(blobOffset + blobMetaDataSize)
+        byteBuffer.position(blobOffset + blobMetaDataSize)
         byteBuffer.asFloatBuffer().get(array, 0, length)
         array
       }
@@ -510,7 +510,7 @@ class ColumnPartitionData[T](
 
         val length = byteBuffer.getLong(blobOffset + 8).toInt
         val array = new Array[Double](length)
-	byteBuffer.position(blobOffset + blobMetaDataSize)
+        byteBuffer.position(blobOffset + blobMetaDataSize)
         byteBuffer.asDoubleBuffer().get(array, 0, length)
         array
       }
@@ -612,7 +612,7 @@ class ColumnPartitionData[T](
       while (i < blobBuffersSize) {
         val blobSize = in.readLong()
         var blobOffset: Long = 8
-        val ptr = SparkEnv.get.executorMemoryManager.allocatePinnedMemory(blobSize)
+        val ptr = SparkEnv.get.heapMemoryAllocator.allocatePinnedMemory(blobSize)
         blobs(i) = ptr
         val byteBuffer = ptr.getByteBuffer(0, blobSize).order(ByteOrder.LITTLE_ENDIAN)
         blobBuffers(i) = byteBuffer

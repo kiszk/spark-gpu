@@ -121,15 +121,9 @@ private[spark] class SqlNewHadoopRDD[V: ClassTag](
   }
 
   override def compute(
-<<<<<<< HEAD:sql/core/src/main/scala/org/apache/spark/sql/execution/datasources/SqlNewHadoopRDD.scala
-    theSplit: SparkPartition,
-    context: TaskContext): Iterator[V] = {
-    val iter = new Iterator[V] {
-=======
       theSplit: SparkPartition,
-      context: TaskContext): InterruptibleIterator[(K, V)] = {
-    val iter = new Iterator[(K, V)] {
->>>>>>> 7401505... Made RDD interface backwards-compatibile. Reverted many RDDs.:core/src/main/scala/org/apache/spark/rdd/SqlNewHadoopRDD.scala
+      context: TaskContext): Iterator[V] = {
+    val iter = new Iterator[V] {
       val split = theSplit.asInstanceOf[SqlNewHadoopPartition]
       logInfo("Input split: " + split.serializableHadoopSplit)
       val conf = getConf(isDriverSide = false)
@@ -256,7 +250,7 @@ private[spark] class SqlNewHadoopRDD[V: ClassTag](
     iter
   }
 
-  def getPreferredLocations(hsplit: SparkPartition): Seq[String] = {
+  override def getPreferredLocations(hsplit: SparkPartition): Seq[String] = {
     val split = hsplit.asInstanceOf[SqlNewHadoopPartition].serializableHadoopSplit.value
     val locs = HadoopRDD.SPLIT_INFO_REFLECTIONS match {
       case Some(c) =>
