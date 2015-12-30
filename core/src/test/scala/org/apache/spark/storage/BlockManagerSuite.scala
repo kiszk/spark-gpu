@@ -26,6 +26,7 @@ import scala.language.implicitConversions
 import scala.language.postfixOps
 
 import org.mockito.Mockito.{mock, when}
+import org.mockito.{Matchers => mc}
 import org.scalatest._
 import org.scalatest.concurrent.Eventually._
 import org.scalatest.concurrent.Timeouts._
@@ -69,7 +70,8 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
 
   private def makeBlockManager(
       maxMem: Long,
-      name: String = SparkContext.DRIVER_IDENTIFIER): BlockManager = {
+      name: String = SparkContext.DRIVER_IDENTIFIER,
+      master: BlockManagerMaster = this.master): BlockManager = {
     val transfer = new NettyBlockTransferService(conf, securityMgr, numCores = 1)
     val memManager = new StaticMemoryManager(conf, Long.MaxValue, maxMem, numCores = 1)
     val blockManager = new BlockManager(name, rpcEnv, master, serializer, conf,
@@ -463,6 +465,21 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     // We don't know the exact size of the data on disk, but it should certainly be > 0.
     assert(list2DiskGet.get.bytes > 0)
     assert(list2DiskGet.get.readMethod === DataReadMethod.Disk)
+  }
+
+  test("optimize a location order of blocks") {
+    val localHost = Utils.localHostName()
+    val otherHost = "otherHost"
+    val bmMaster = mock(classOf[BlockManagerMaster])
+    val bmId1 = BlockManagerId("id1", localHost, 1)
+    val bmId2 = BlockManagerId("id2", localHost, 2)
+    val bmId3 = BlockManagerId("id3", otherHost, 3)
+    when(bmMaster.getLocations(mc.any[BlockId])).thenReturn(Seq(bmId1, bmId2, bmId3))
+
+    val blockManager = makeBlockManager(128, "exec", bmMaster)
+    val getLocations = PrivateMethod[Seq[BlockManagerId]]('getLocations)
+    val locations = blockManager invokePrivate getLocations(BroadcastBlockId(0))
+    assert(locations.map(_.host) === Seq(localHost, localHost, otherHost))
   }
 
   test("SPARK-9591: getRemoteBytes from another location when Exception throw") {
@@ -1411,8 +1428,8 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     store = makeBlockManager(10000)
     val blockId =  BlockId("rdd_42_42")
     val inputData = IteratorPartitionData((1 to 1024).iterator)
-    val serBuf = store.dataSerialize(blockId, inputData, serializer)
-    val outputData = store.dataDeserialize(blockId, serBuf, serializer)
+    val serBuf = store.dataSerialize(blockId, inputData)
+    val outputData = store.dataDeserialize(blockId, serBuf)
     val it = outputData.asInstanceOf[IteratorPartitionData[Int]]
     assert(it.iterator.toIndexedSeq.sameElements(1 to 1024))
   }
@@ -1427,9 +1444,9 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     store = makeBlockManager(10000)
     val blockId =  BlockId("rdd_42_42")
     val inputData = ColumnPartitionDataBuilder.build(1 to 1024)
-    val serBuf = store.dataSerialize(blockId, inputData, serializer)
+    val serBuf = store.dataSerialize(blockId, inputData)
     assert(serBuf.capacity > 1024 * 4)
-    val outputData = store.dataDeserialize(blockId, serBuf, serializer)
+    val outputData = store.dataDeserialize(blockId, serBuf)
     val col = outputData.asInstanceOf[ColumnPartitionData[Int]]
     assert(col.buffers(0).capacity == 4 * 1024)
     val arr = new Array[Byte](4096)
@@ -1448,9 +1465,9 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     val blockId =  BlockId("rdd_42_42")
     val rects = (1 to 256).map(x => Rectangle(Point(x, x * 2), Point(x + 42, 42)))
     val inputData = ColumnPartitionDataBuilder.build(rects)
-    val serBuf = store.dataSerialize(blockId, inputData, serializer)
+    val serBuf = store.dataSerialize(blockId, inputData)
     assert(serBuf.capacity > 256 * 4 * 4)
-    val outputData = store.dataDeserialize(blockId, serBuf, serializer)
+    val outputData = store.dataDeserialize(blockId, serBuf)
     val col = outputData.asInstanceOf[ColumnPartitionData[Rectangle]]
     assert(col.buffers.forall(_.capacity == 4 * 256))
     val arr = new Array[Byte](4096)

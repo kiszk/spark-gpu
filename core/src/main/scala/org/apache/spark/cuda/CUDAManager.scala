@@ -194,7 +194,7 @@ class CUDAManager {
     }
     val result = JCuda.cudaMalloc(ptr, size)
     if (result != CUresult.CUDA_SUCCESS) {
-      throw new CudaException("Cannot allocate GPU memory: "+ JCuda.cudaGetErrorString(result));
+      throw new CudaException("Cannot allocate GPU memory: " + JCuda.cudaGetErrorString(result));
     }
     assert(size == 0 || ptr != new Pointer())
     ptr
