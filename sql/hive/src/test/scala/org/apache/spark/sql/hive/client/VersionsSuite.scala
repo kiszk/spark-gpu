@@ -19,6 +19,8 @@ package org.apache.spark.sql.hive.client
 
 import java.io.File
 
+import org.apache.hadoop.util.VersionInfo
+
 import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.{Logging, SparkFunSuite}
 import org.apache.spark.sql.catalyst.expressions.{NamedExpression, Literal, AttributeReference, EqualTo}
@@ -55,9 +57,11 @@ class VersionsSuite extends SparkFunSuite with Logging {
   }
 
   test("success sanity check", PPCIBMJDKFailingTest) {
-    val badClient = IsolatedClientLoader.forVersion(HiveContext.hiveExecutionVersion,
-      buildConf(),
-      ivyPath).createClient()
+    val badClient = IsolatedClientLoader.forVersion(
+      hiveMetastoreVersion = HiveContext.hiveExecutionVersion,
+      hadoopVersion = VersionInfo.getVersion,
+      config = buildConf(),
+      ivyPath = ivyPath).createClient()
     val db = new HiveDatabase("default", "")
     badClient.createDatabase(db)
   }
@@ -87,7 +91,11 @@ class VersionsSuite extends SparkFunSuite with Logging {
   ignore("failure sanity check") {
     val e = intercept[Throwable] {
       val badClient = quietly {
-        IsolatedClientLoader.forVersion("13", buildConf(), ivyPath).createClient()
+        IsolatedClientLoader.forVersion(
+          hiveMetastoreVersion = "13",
+          hadoopVersion = VersionInfo.getVersion,
+          config = buildConf(),
+          ivyPath = ivyPath).createClient()
       }
     }
     assert(getNestedMessages(e) contains "Unknown column 'A0.OWNER_NAME' in 'field list'")
@@ -101,7 +109,12 @@ class VersionsSuite extends SparkFunSuite with Logging {
     test(s"$version: create client", PPCIBMJDKFailingTest) {
       client = null
       System.gc() // Hack to avoid SEGV on some JVM versions.
-      client = IsolatedClientLoader.forVersion(version, buildConf(), ivyPath).createClient()
+      client =
+        IsolatedClientLoader.forVersion(
+          hiveMetastoreVersion = version,
+          hadoopVersion = VersionInfo.getVersion,
+          config = buildConf(),
+          ivyPath = ivyPath).createClient()
     }
 
     test(s"$version: createDatabase", PPCIBMJDKFailingTest) {

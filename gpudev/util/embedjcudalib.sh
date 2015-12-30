@@ -19,7 +19,7 @@ fi
 if [ $ARCH == "ppc64le" ]; then
   ARCH="ppc_64"
 fi
-VERSION="1.6.0-GPU"
+VERSION="2.0.0-GPU"
 HADOOP="2.4.0"
 
 while getopts a:o:e:d:v:h OPT

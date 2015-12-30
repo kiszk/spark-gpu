@@ -36,6 +36,7 @@ import org.apache.hadoop.hive.conf.HiveConf.ConfVars
 import org.apache.hadoop.hive.ql.metadata.Table
 import org.apache.hadoop.hive.ql.parse.VariableSubstitution
 import org.apache.hadoop.hive.serde2.io.{DateWritable, TimestampWritable}
+import org.apache.hadoop.util.VersionInfo
 
 import org.apache.spark.api.java.JavaSparkContext
 import org.apache.spark.sql.SQLConf.SQLConfEntry
@@ -212,7 +213,7 @@ class HiveContext private[hive](
     val loader = new IsolatedClientLoader(
       version = IsolatedClientLoader.hiveVersion(hiveExecutionVersion),
       execJars = Seq(),
-      config = newTemporaryConfiguration(),
+      config = newTemporaryConfiguration(useInMemoryDerby = true),
       isolationOn = false,
       baseClassLoader = Utils.getContextOrSparkClassLoader)
     loader.createClient().asInstanceOf[ClientWrapper]
@@ -299,7 +300,8 @@ class HiveContext private[hive](
       logInfo(
         s"Initializing HiveMetastoreConnection version $hiveMetastoreVersion using maven.")
       IsolatedClientLoader.forVersion(
-        version = hiveMetastoreVersion,
+        hiveMetastoreVersion = hiveMetastoreVersion,
+        hadoopVersion = VersionInfo.getVersion,
         config = allConfig,
         barrierPrefixes = hiveMetastoreBarrierPrefixes,
         sharedPrefixes = hiveMetastoreSharedPrefixes)
@@ -485,7 +487,6 @@ class HiveContext private[hive](
         catalog.CreateTables ::
         catalog.PreInsertionCasts ::
         ExtractPythonUDFs ::
-        ResolveHiveWindowFunction ::
         PreInsertCastAndRename ::
         (if (conf.runSQLOnFile) new ResolveDataSource(self) :: Nil else Nil)
 
@@ -730,7 +731,9 @@ private[hive] object HiveContext {
     doc = "TODO")
 
   /** Constructs a configuration for hive, where the metastore is located in a temp directory. */
-  def newTemporaryConfiguration(): Map[String, String] = {
+  def newTemporaryConfiguration(useInMemoryDerby: Boolean): Map[String, String] = {
+    val withInMemoryMode = if (useInMemoryDerby) "memory:" else ""
+
     val tempDir = Utils.createTempDir()
     val localMetastore = new File(tempDir, "metastore")
     val propMap: HashMap[String, String] = HashMap()
@@ -744,7 +747,7 @@ private[hive] object HiveContext {
     }
     propMap.put(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, localMetastore.toURI.toString)
     propMap.put(HiveConf.ConfVars.METASTORECONNECTURLKEY.varname,
-      s"jdbc:derby:;databaseName=${localMetastore.getAbsolutePath};create=true")
+      s"jdbc:derby:${withInMemoryMode};databaseName=${localMetastore.getAbsolutePath};create=true")
     propMap.put("datanucleus.rdbms.datastoreAdapterClassName",
       "org.datanucleus.store.rdbms.adapter.DerbyAdapter")
 
