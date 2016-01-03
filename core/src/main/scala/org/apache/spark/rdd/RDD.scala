@@ -361,14 +361,10 @@ abstract class RDD[T: ClassTag](
   def mapExtFunc[U: ClassTag](f: T => U, extfunc: ExternalFunction,
                               outputArraySizes: Seq[Long] = null,
                               inputFreeVariables: Seq[Any] = null): RDD[U] = withScope {
-    if (sc.env.isGPUEnabled) {
-      val cleanF = sc.clean(f)
-      new MapPartitionsRDD[U, T](this, (context, pid, iter) => iter.map(cleanF),
-        extfunc = Some(extfunc), outputArraySizes = outputArraySizes,
-                                 inputFreeVariables = inputFreeVariables)
-    } else {
-      map(f)
-    }
+    val cleanF = sc.clean(f)
+    new MapPartitionsRDD[U, T](this, (context, pid, iter) => iter.map(cleanF),
+      extfunc = Some(extfunc), outputArraySizes = outputArraySizes,
+                               inputFreeVariables = inputFreeVariables)
   }
 
   /**
@@ -1081,40 +1077,36 @@ abstract class RDD[T: ClassTag](
   def reduceExtFunc(f: (T, T) => T, extfunc: ExternalFunction,
                     outputArraySizes: Seq[Long] = null,
                     inputFreeVariables: Seq[Any] = null): T = withScope {
-    if (sc.env.isGPUEnabled) {
-      val cleanF = sc.clean(f)
-      val reducePartition: (TaskContext, PartitionData[T]) => Option[T] =
-        (ctx: TaskContext, data: PartitionData[T]) => data match {
-          case IteratorPartitionData(iter) =>
-            if (iter.hasNext) {
-              Some(iter.reduceLeft(cleanF))
-            } else {
-              None
-            }
-
-          case col: ColumnPartitionData[T] =>
-            if (col.size != 0) {
-              Some(extfunc.run[T, T](col, Some(1), outputArraySizes,
-                                     inputFreeVariables, col.blockId).iterator.next)
-            } else {
-              None
-            }
-        }
-      var jobResult: Option[T] = None
-      val mergeResult = (index: Int, taskResult: Option[T]) => {
-        if (taskResult.isDefined) {
-          jobResult = jobResult match {
-            case Some(value) => Some(f(value, taskResult.get))
-            case None => taskResult
+    val cleanF = sc.clean(f)
+    val reducePartition: (TaskContext, PartitionData[T]) => Option[T] =
+      (ctx: TaskContext, data: PartitionData[T]) => data match {
+        case IteratorPartitionData(iter) =>
+          if (iter.hasNext) {
+            Some(iter.reduceLeft(cleanF))
+          } else {
+            None
           }
+
+        case col: ColumnPartitionData[T] =>
+          if (col.size != 0) {
+            Some(extfunc.run[T, T](col, Some(1), outputArraySizes,
+                                   inputFreeVariables, col.blockId).iterator.next)
+          } else {
+            None
+          }
+      }
+    var jobResult: Option[T] = None
+    val mergeResult = (index: Int, taskResult: Option[T]) => {
+      if (taskResult.isDefined) {
+        jobResult = jobResult match {
+          case Some(value) => Some(f(value, taskResult.get))
+          case None => taskResult
         }
       }
-      sc.runGenericJob(this, reducePartition, 0 until partitions.length, mergeResult)
-      // Get the final result out of our Option, or throw an exception if the RDD was empty
-      jobResult.getOrElse(throw new UnsupportedOperationException("empty collection"))
-    } else {
-      reduce(f)
     }
+    sc.runGenericJob(this, reducePartition, 0 until partitions.length, mergeResult)
+    // Get the final result out of our Option, or throw an exception if the RDD was empty
+    jobResult.getOrElse(throw new UnsupportedOperationException("empty collection"))
   }
 
   /**
@@ -1698,15 +1690,7 @@ abstract class RDD[T: ClassTag](
       throw new SparkException("RDD conversion ratio must be between 0 (no conversion) and 1 " +
         "(convert everything)")
     }
-    if (sc.env.isGPUEnabled) {
-      val convertedRDD = new ConvertRDD(this, format, ratio)
-      if (unpersist) {
-        this.unpersist(false)
-      }
-      convertedRDD
-    } else {
-      this
-    }
+    new ConvertRDD(this, format, unpersist, ratio)
   }
 
   // =======================================================================
