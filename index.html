@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <meta name="description" content="Spark-gpu : Spark GPU and SIMD Support">
+
+    <link rel="stylesheet" type="text/css" media="screen" href="stylesheets/stylesheet.css">
+
+    <title>Spark-gpu</title>
+  </head>
+
+  <body>
+
+    <!-- HEADER -->
+    <div id="header_wrap" class="outer">
+        <header class="inner">
+          <a id="forkme_banner" href="https://github.com/kiszk/spark-gpu">View on GitHub</a>
+
+          <h1 id="project_title">Spark-gpu</h1>
+          <h2 id="project_tagline">Spark GPU and SIMD Support</h2>
+
+            <section id="downloads">
+              <a class="zip_download_link" href="https://github.com/kiszk/spark-gpu/zipball/master">Download this project as a .zip file</a>
+              <a class="tar_download_link" href="https://github.com/kiszk/spark-gpu/tarball/master">Download this project as a tar.gz file</a>
+            </section>
+        </header>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div id="main_content_wrap" class="outer">
+      <section id="main_content" class="inner">
+        <h1>
+<a id="welcome-to-the-spark-gpu-wiki" class="anchor" href="#welcome-to-the-spark-gpu-wiki" aria-hidden="true"><span class="octicon octicon-link"></span></a>Welcome to the spark-gpu wiki!</h1>
+
+<p>This is a prototype of <a href="http://spark.apache.org">Apache Spark</a> to effectively store partition data in a column-based RDD in an array format. The motivation is to accelerate Spark workloads by using GPU and SIMD in Apache Spark 
+Original Apache Spark keeps data as Scala sequence for each row on Java heap. This prototype keeps data as a contiguous array for each column on off-heap.</p>
+
+<p>You can see our current performance improvement (<strong>more than 3x</strong>) at <a href="http://github.com/kiszk/spark-gpu/wiki/Benchmark">benchmark section</a>.</p>
+
+<hr>
+
+<p>You can run our prototype in your box with NVIDIA GPU card or run AWS EC2 by following the procedure described <a href="https://github.com/kiszk/spark-gpu/wiki/How-to-run-(local-or-AWS-EC2)">here</a></p>
+
+<p>You can download pre-build binary from (<a href="http://github.com/kiszk/spark-gpu/wiki/Downloads">http://github.com/kiszk/spark-gpu/wiki/Downloads</a>). </p>
+
+<h5>
+<a id="please-also-visit-other-pages-from-the-menu-in-the-right-hand-side" class="anchor" href="#please-also-visit-other-pages-from-the-menu-in-the-right-hand-side" aria-hidden="true"><span class="octicon octicon-link"></span></a>Please also visit other pages from the menu in the right-hand side.</h5>
+
+<hr>
+
+<p>Current version has several limitations</p>
+
+<ul>
+<li>support only x86_64 and ppc64le
+
+<ul>
+<li>support OpenJDK and IBM JDK</li>
+</ul>
+</li>
+<li>Support only NVIDIA GPU with CUDA (we confirmed with CUDA 7.0)
+
+<ul>
+<li>support CUDA 7.0 and 7.5 (should work with CUDA 6.0 and 6.5)</li>
+</ul>
+</li>
+<li>support scalar variables in primitive scalar types and an primitive array in RDD</li>
+<li>support a new column format for map and reduce functions</li>
+</ul>
+
+<p>Future plan</p>
+
+<ul>
+<li>Generate GPU and SIMD code from a Spark application program
+
+<ul>
+<li>Now, a programmer has to provide CUDA function for GPU kernels in Spark functions</li>
+</ul>
+</li>
+</ul>
+      </section>
+    </div>
+
+    <!-- FOOTER  -->
+    <div id="footer_wrap" class="outer">
+      <footer class="inner">
+        <p class="copyright">Spark-gpu maintained by <a href="https://github.com/kiszk">kiszk</a></p>
+        <p>Published with <a href="https://pages.github.com">GitHub Pages</a></p>
+      </footer>
+    </div>
+
+    
+
+  </body>
+</html>
