@@ -51,7 +51,7 @@ else:
     raw_input = input
     xrange = range
 
-SPARK_EC2_VERSION = "1.6.0"
+SPARK_EC2_VERSION = "2.0.0"
 SPARK_EC2_DIR = os.path.dirname(os.path.realpath(__file__))
 
 VALID_SPARK_VERSIONS = set([
@@ -76,6 +76,7 @@ VALID_SPARK_VERSIONS = set([
     "1.5.1",
     "1.5.2",
     "1.6.0",
+    "2.0.0",
 ])
 
 SPARK_TACHYON_MAP = {
@@ -94,6 +95,7 @@ SPARK_TACHYON_MAP = {
     "1.5.1": "0.7.1",
     "1.5.2": "0.7.1",
     "1.6.0": "0.8.2",
+    "2.0.0": "0.8.2",
 }
 
 DEFAULT_SPARK_VERSION = SPARK_EC2_VERSION
@@ -192,12 +194,12 @@ def parse_args():
         help="If you have multiple profiles (AWS or boto config), you can configure " +
              "additional, named profiles by using this option (default: %default)")
     parser.add_option(
-        "-t", "--instance-type", default="m1.large",
+        "-t", "--instance-type", default="g2.2xlarge",
         help="Type of instance to launch (default: %default). " +
              "WARNING: must be 64-bit; small instances won't work")
     parser.add_option(
-        "-m", "--master-instance-type", default="",
-        help="Master instance type (leave empty for same as instance-type)")
+        "-m", "--master-instance-type", default="t2.micro",
+        help="Master instance type (default: %default).")
     parser.add_option(
         "-r", "--region", default="us-east-1",
         help="EC2 region used to launch instances in, or to find them in (default: %default)")
@@ -271,7 +273,7 @@ def parse_args():
         help="If specified, launch slaves as spot instances with the given " +
              "maximum price (in dollars)")
     parser.add_option(
-        "--ganglia", action="store_true", default=True,
+        "--ganglia", action="store_true", default=False,
         help="Setup Ganglia monitoring on cluster (default: %default). NOTE: " +
              "the Ganglia page will be publicly accessible")
     parser.add_option(
@@ -295,8 +297,8 @@ def parse_args():
         help="Extra options to give to master through SPARK_MASTER_OPTS variable " +
              "(e.g -Dspark.worker.timeout=180)")
     parser.add_option(
-        "--user-data", type="string", default="",
-        help="Path to a user-data file (most AMIs interpret this as an initialization script)")
+        "--user-data", type="string", default=SPARK_EC2_DIR+"/gpu/user_data.txt",
+        help="Path to a user-data file (default:%default) (most AMIs interpret this as an initialization script)")
     parser.add_option(
         "--authorized-address", type="string", default="0.0.0.0/0",
         help="Address to authorize on created security groups (default: %default)")
@@ -327,6 +329,9 @@ def parse_args():
     parser.add_option(
         "--instance-profile-name", default=None,
         help="IAM profile name to launch instances under")
+    parser.add_option(
+        "-g", "--gpu", action="store_true", default=True,
+        help="enable GPU exploitation (default: %default)")
 
     (opts, args) = parser.parse_args()
     if len(args) != 2:
@@ -444,6 +449,19 @@ EC2_INSTANCE_TYPES = {
     "t2.large":    "hvm",
 }
 
+# Source: http://aws.amazon.com/amazon-linux-ami/
+# Last Updated: 2016-01-02
+EC2_AMAZON_HVM_AMI = {
+    "us-east-1":       "ami-60b6c60a",
+    "us-west-2":       "ami-f0091d91",
+    "us-west-1":       "ami-d5ea86b5",
+    "eu-west-1":       "ami-bff32ccc",
+    "eu-central-1":    "ami-bc5b48d0",
+    "ap-southeast-1":  "ami-c9b572aa",
+    "ap-northeast-1":  "ami-383c1956",
+    "ap-southeast-2":  "ami-48d38c2b",
+    "sa-east-1":       "ami-6817af04",
+}
 
 def get_tachyon_version(spark_version):
     return SPARK_TACHYON_MAP.get(spark_version, "")
@@ -451,6 +469,15 @@ def get_tachyon_version(spark_version):
 
 # Attempt to resolve an appropriate AMI given the architecture and region of the request.
 def get_spark_ami(opts):
+    if opts.gpu:
+        if opts.region in EC2_AMAZON_HVM_AMI:
+            ami = EC2_AMAZON_HVM_AMI[opts.region]
+            print("Spark AMI: " + ami)
+            return ami
+        else:
+            print("Could not resolve AMAZON AMI for region: " + opts.region, file=stderr)
+            sys.exit(1)
+
     if opts.instance_type in EC2_INSTANCE_TYPES:
         instance_type = EC2_INSTANCE_TYPES[opts.instance_type]
     else:
@@ -851,11 +878,25 @@ def setup_cluster(conn, master_nodes, slave_nodes, opts, deploy_ssh_key):
         )
 
     print("Running setup on master...")
-    setup_spark_cluster(master, opts)
+    setup_spark_cluster(master, slave_nodes, opts)
     print("Done!")
 
 
-def setup_spark_cluster(master, opts):
+def setup_spark_cluster(master, slave_nodes, opts):
+    if opts.gpu:
+        scp(master, opts, "%s/gpu/spark_init.sh" % SPARK_EC2_DIR, "spark-ec2/spark/init.sh")
+        scp(master, opts, "%s/gpu/spark-defaults.conf.add" % SPARK_EC2_DIR, "spark-ec2/templates/root/spark/conf/spark-defaults.conf.add")
+        scp(master, opts, "%s/gpu/spark-env.sh.add" % SPARK_EC2_DIR, "spark-ec2/templates/root/spark/conf/spark-env.sh.add")
+        ssh(master, opts, "cat spark-ec2/templates/root/spark/conf/spark-defaults.conf.add >> spark-ec2/templates/root/spark/conf/spark-defaults.conf")
+        ssh(master, opts, "cat spark-ec2/templates/root/spark/conf/spark-env.sh.add >> spark-ec2/templates/root/spark/conf/spark-env.sh")
+        scp(master, opts, "%s/gpu/create_image.sh" % SPARK_EC2_DIR, "create_image.sh")
+        ssh(master, opts, "chmod u+x ./create_image.sh")
+        ssh(master, opts, "./create_image.sh > ./create_image_master.log")
+        for slave in slave_nodes:
+            slave_address = get_dns_name(slave, opts.private_ips)
+            scp(slave_address, opts, "%s/gpu/create_image.sh" % SPARK_EC2_DIR, "create_image.sh")
+            ssh(slave_address, opts, "chmod u+x ./create_image.sh")
+            ssh(slave_address, opts, "./create_image.sh gpu > ./create_image_slave.log")
     ssh(master, opts, "chmod u+x spark-ec2/setup.sh")
     ssh(master, opts, "spark-ec2/setup.sh")
     print("Spark standalone cluster started at http://%s:8080" % master)
@@ -1170,6 +1211,29 @@ def ssh(host, opts, command):
                 if e.returncode == 255:
                     raise UsageError(
                         "Failed to SSH to remote host {0}.\n"
+                        "Please check that you have provided the correct --identity-file and "
+                        "--key-pair parameters and try again.".format(host))
+                else:
+                    raise e
+            print("Error executing remote command, retrying after 30 seconds: {0}".format(e),
+                  file=stderr)
+            time.sleep(30)
+            tries = tries + 1
+
+
+def scp(host, opts, src, dst):
+    tries = 0
+    while True:
+        try:
+            return subprocess.check_call(
+                ['scp'] + ssh_args(opts) +
+                [stringify_command(src), '%s@%s:%s' % (opts.user, host, stringify_command(dst))])
+        except subprocess.CalledProcessError as e:
+            if tries > 5:
+                # If this was an ssh failure, provide the user with hints.
+                if e.returncode == 255:
+                    raise UsageError(
+                        "Failed to SCP to remote host {0}.\n"
                         "Please check that you have provided the correct --identity-file and "
                         "--key-pair parameters and try again.".format(host))
                 else:
