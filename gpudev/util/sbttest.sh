@@ -1,6 +1,7 @@
 #!/bin/bash
 # should run a test, but doesn't work
-source args.sh
+SCRIPT_DIR=$(cd $(dirname $(readlink -f $0 || echo $0));pwd -P)
+source $SCRIPT_DIR/args.sh
 cd $DIR
 
 SCALA_TESTS=\

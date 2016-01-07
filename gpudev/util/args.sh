@@ -1,9 +1,10 @@
-DIR=../..
+DIR=$SCRIPT_DIR/../..
 #ABSOLUTE_DIR=`realpath $DIR`
 ABSOLUTE_DIR=`readlink -e $DIR`
 # might need to use -Dos.arch=ppc64le on OpenJDK in MAVEN_OPTS and JAVA_OPTS because of a bug
 export MAVEN_OPTS="$MAVEN_OPTS -Xmx32G -XX:MaxPermSize=8G -XX:ReservedCodeCacheSize=2G"
-MVN_ARGS="-Pyarn -Phadoop-2.4 -Dhadoop.version=2.4.0 -Dscala-2.11 -Phive-thriftserver -Phive"
+#MVN_ARGS="-Pyarn -Phadoop-2.4 -Dhadoop.version=2.4.0 -Dscala-2.11 -Phive-thriftserver -Phive"
+MVN_ARGS="-Pyarn -Phadoop-2.4 -Dhadoop.version=2.4.0 -Dscala-2.11"
 export JAVA_OPTS="-Xms2M -Xmx32G -XX:MaxPermSize=8G -XX:ReservedCodeCacheSize=2G"
 
 #export JAVA_HOME="/usr/lib/jvm/java-8-openjdk-ppc64el"

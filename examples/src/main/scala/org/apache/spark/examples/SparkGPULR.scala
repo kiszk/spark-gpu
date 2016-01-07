@@ -79,7 +79,7 @@ object SparkGPULR {
     val R = 0.7  // Scaling factor
     val ITERATIONS = if (args.length > 3) args(3).toInt else 5
 
-    val ptxURL = SparkGPUPi.getClass.getResource("/SparkGPUExamples.ptx")
+    val ptxURL = SparkGPULR.getClass.getResource("/SparkGPUExamples.ptx")
     val mapFunction = sc.broadcast(
       new CUDAFunction(
       "_Z14SparkGPULR_mapPKlPKdS2_PlPdlS2_",

@@ -2,7 +2,8 @@
 # run only the tests being worked on
 # ./testdev.sh compile also compiles the stuff before
 # ./testdev.sh debug waits for attachment of a scala debugger
-source args.sh
+SCRIPT_DIR=$(cd $(dirname $(readlink -f $0 || echo $0));pwd -P)
+source $SCRIPT_DIR/args.sh
 cd $DIR
 
 SCALA_TESTS=\
