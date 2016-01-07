@@ -1,5 +1,6 @@
 #!/bin/bash
-source args.sh
+SCRIPT_DIR=$(cd $(dirname $(readlink -f $0 || echo $0));pwd -P)
+source $SCRIPT_DIR/args.sh
 cd $DIR
 
 usage() {
@@ -41,19 +42,16 @@ do
 done
 shift $((OPTIND - 1))
 
-DISTASM=dist/lib/spark-assembly-${VERSION}-hadoop${HADOOP}.jar
-if [ ! -f $DISTASM ]; then
-  echo "file $DISTASM does not exist. Please check file name."
-  exit 1
-fi
-
 
 function addlib2jar {
   libdir=$2/target
   lib=lib/$4-${OS}-${ARCH}.${EXT}
-  if [ ! -f $libdir/$lib ]; then
-    echo "file $libdir/$lib does not exist. Please check file name."
-    exit 1
+  if [ ! -f "$libdir/$lib" ]; then
+    #echo "file $libdir/$lib does not exist. Please check file name." >&2
+    return 255
+  fi
+  if [ "$5" == "on" ]; then
+    echo "$1 is being processed" >& 2
   fi
   if [ $1 == "DIST" ]; then
     jar=${DISTASM}
@@ -62,24 +60,34 @@ function addlib2jar {
   fi
   if [ -e $libdir/$lib ]; then
     if [ -e $jar ]; then
-      jar uf $jar -C $libdir $lib
+      jar uf $jar -C $libdir $lib && echo "  added $lib" >&2
     fi 
-  fi 
+  fi
+  return 1 
 }
 
-for dir in *; do
-  if [ -d $dir ] && [ -f $dir/target/lib/libJCudaDrive*.so ]; then
-     echo $dir is being processed
-     addlib2jar $dir $dir jcuda libJCudaDriver
-     addlib2jar $dir $dir jcuda libJCudaRuntime
-     for lib in ublas ufft urand usolver usparse; do
-       addlib2jar $dir $dir jc${lib} libJC${lib} 
-     done
+for dir in core unsafe; do
+  if [ -d $dir ] && [ $dir != "dist" ]; then
+    addlib2jar $dir $dir jcuda libJCudaDriver on
+    if [ $? == 1 ]; then
+      addlib2jar $dir $dir jcuda libJCudaRuntime
+      for lib in ublas ufft urand usolver usparse; do
+        addlib2jar $dir $dir jc${lib} libJC${lib} 
+      done
+    fi
   fi
 done
-echo $DISTASM is being processed
-addlib2jar DIST core jcuda libJCudaDriver
-addlib2jar DIST core jcuda libJCudaRuntime
-for lib in ublas ufft urand usolver usparse; do
-  addlib2jar DIST core jc${lib} libJC${lib} 
-done
+
+DISTASM=dist/lib/spark-assembly-${VERSION}-hadoop${HADOOP}.jar
+if [ -f $DISTASM ]; then
+  addlib2jar DIST core jcuda libJCudaDriver on
+  if [ $? == 1 ]; then
+    addlib2jar DIST core jcuda libJCudaRuntime
+    for lib in ublas ufft urand usolver usparse; do
+      addlib2jar DIST core jc${lib} libJC${lib} 
+    done
+  fi
+else
+  echo "file $DISTASM does not exist. Please check file name." >&2
+fi
+
