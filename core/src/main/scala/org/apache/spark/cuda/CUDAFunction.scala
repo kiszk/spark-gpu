@@ -72,7 +72,7 @@ class CUDAFunction(
     val kernelSignature: String,
     val inputColumnsOrder: Seq[String],
     val outputColumnsOrder: Seq[String],
-    val resourceURL: URL,
+    val resource: Any,
     val constArgs: Seq[AnyVal] = Seq(),
     val stagesCount: Option[Long => Int] = None,
     val dimensions: Option[(Long, Int) => (Int, Int)] = None) extends ExternalFunction {
@@ -88,7 +88,6 @@ class CUDAFunction(
       blockId : Option[BlockId] = None): ColumnPartitionData[U] = {
     val outputSchema = ColumnPartitionSchema.schemaFor[U]
 
-
     // TODO add array size
     val memoryUsage = (if (in.gpuCached) 0 else in.memoryUsage) + outputSchema.memoryUsage(in.size)
 
@@ -100,7 +99,13 @@ class CUDAFunction(
 
     // TODO cache the function if there is a chance that after a deserialization kernel gets called
     // multiple times - but only if no synchronization is needed for that
-    val module = SparkEnv.get.cudaManager.cachedLoadModule(resourceURL)
+    val module = resource match {
+      case url: URL =>
+        SparkEnv.get.cudaManager.cachedLoadModule(Left(url))
+      case (name: String, ptx: String)  =>
+        SparkEnv.get.cudaManager.cachedLoadModule(Right(name, ptx))
+      case _ => throw new SparkException("Unsupported resource type for CUDAFunction")
+    }
     val function = new CUfunction
     JCudaDriver.cuModuleGetFunction(function, module, kernelSignature)
 
@@ -121,8 +126,10 @@ class CUDAFunction(
 
         val outColumns = out.schema.orderedColumns(outputColumnsOrder)
         for (col <- outColumns) {
-          gpuOutputPtrs = gpuOutputPtrs :+
-            SparkEnv.get.cudaManager.allocGPUMemory(col.memoryUsage(out.size))
+          val size = col.memoryUsage(out.size)
+          val gpuPtr = SparkEnv.get.cudaManager.allocGPUMemory(size)
+          JCuda.cudaMemsetAsync(gpuPtr, 0, size, stream)
+          gpuOutputPtrs = gpuOutputPtrs :+ gpuPtr
         }
 
         val inputFreeVarPtrs = if (inputFreeVariables == null) { Seq() } else {
@@ -172,8 +179,10 @@ class CUDAFunction(
         val outBlobBuffers =
            if (out.blobBuffers != null) {out.blobBuffers} else {Array[ByteBuffer]()}
         for (blob <- outBlobBuffers) {
-          gpuOutputBlobs = gpuOutputBlobs :+
-            SparkEnv.get.cudaManager.allocGPUMemory(blob.capacity())
+          val size = blob.capacity()
+          val gpuPtr = SparkEnv.get.cudaManager.allocGPUMemory(size)
+          JCuda.cudaMemsetAsync(gpuPtr, 0, size, stream)
+          gpuOutputBlobs = gpuOutputBlobs :+ gpuPtr
         }
 
         // perform allocGPUMemory and cudaMemcpyAsync
