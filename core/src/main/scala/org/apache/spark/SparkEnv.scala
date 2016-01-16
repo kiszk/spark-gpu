@@ -84,6 +84,7 @@ class SparkEnv (
   val actorSystem: ActorSystem = _actorSystem
 
   val isGPUEnabled = (cudaManager != null)
+  val isGPUCodeGenEnabled = isGPUEnabled && conf.getBoolean("spark.gpu.codegen", false)
 
   private[spark] var isStopped = false
   private val pythonWorkers = mutable.HashMap[(String, Map[String, String]), PythonWorkerFactory]()

@@ -33,6 +33,7 @@ import org.apache.spark._
 import org.apache.spark.Partitioner._
 import org.apache.spark.annotation.{Since, DeveloperApi}
 import org.apache.spark.api.java.JavaRDD
+import org.apache.spark.cuda.CUDACodeGenerator
 import org.apache.spark.partial.BoundedDouble
 import org.apache.spark.partial.CountEvaluator
 import org.apache.spark.partial.GroupedCountEvaluator
@@ -350,7 +351,9 @@ abstract class RDD[T: ClassTag](
    */
   def map[U: ClassTag](f: T => U): RDD[U] = withScope {
     val cleanF = sc.clean(f)
-    new MapPartitionsRDD[U, T](this, (context, pid, iter) => iter.map(cleanF))
+    val cudaFunc = CUDACodeGenerator.generateForMap[U, T](cleanF)
+    new MapPartitionsRDD[U, T](this, (context, pid, iter) => iter.map(cleanF),
+                               extfunc = cudaFunc)
   }
 
   /**
@@ -1048,13 +1051,29 @@ abstract class RDD[T: ClassTag](
    */
   def reduce(f: (T, T) => T): T = withScope {
     val cleanF = sc.clean(f)
-    val reducePartition: Iterator[T] => Option[T] = iter => {
-      if (iter.hasNext) {
-        Some(iter.reduceLeft(cleanF))
-      } else {
-        None
+    val cudaFunc = CUDACodeGenerator.generateForReduce[T](cleanF)
+    val reducePartition: (TaskContext, PartitionData[T]) => Option[T] =
+      (ctx: TaskContext, data: PartitionData[T]) => data match {
+        case IteratorPartitionData(iter) =>
+          if (iter.hasNext) {
+            Some(iter.reduceLeft(cleanF))
+          } else {
+            None
+          }
+
+        case col: ColumnPartitionData[T] =>
+          if (col.size != 0) {
+            cudaFunc match {
+              case Some(extFunc) =>
+                Some(extFunc.run[T, T](col, Some(1), null, null,
+                                       col.blockId).iterator.next)
+              case None =>
+                Some(col.iterator.reduceLeft(cleanF))
+              }
+          } else {
+            None
+          }
       }
-    }
     var jobResult: Option[T] = None
     val mergeResult = (index: Int, taskResult: Option[T]) => {
       if (taskResult.isDefined) {
@@ -1064,7 +1083,7 @@ abstract class RDD[T: ClassTag](
         }
       }
     }
-    sc.runJob(this, reducePartition, mergeResult)
+    sc.runGenericJob(this, reducePartition, 0 until partitions.length, mergeResult)
     // Get the final result out of our Option, or throw an exception if the RDD was empty
     jobResult.getOrElse(throw new UnsupportedOperationException("empty collection"))
   }
