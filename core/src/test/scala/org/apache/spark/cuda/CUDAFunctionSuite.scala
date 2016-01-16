@@ -101,6 +101,75 @@ class CUDAFunctionSuite extends SparkFunSuite with LocalSparkContext {
     }
   }
 
+  test("Run identity string CUDA kernel on a single primitive column", GPUTest) {
+    sc = new SparkContext("local", "test", conf)
+    val manager = {
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => null
+      }
+    }
+    if (manager != null && manager.deviceCount > 0) {
+      val function = new CUDAFunction(
+        "_identity",
+        Array("this"),
+        Array("this"),
+        ("_identity",
+"""
+.version 4.2
+.target sm_30
+.address_size 64
+.visible .entry _identity(
+        .param .u64 _identity_param_0,
+        .param .u64 _identity_param_1,
+        .param .u64 _identity_param_2
+)
+{
+        .reg .pred      %p<2>;
+        .reg .s32       %r<5>;
+        .reg .s64       %rd<12>;
+
+        ld.param.u64    %rd2, [_identity_param_0];
+        ld.param.u64    %rd3, [_identity_param_1];
+        ld.param.u64    %rd4, [_identity_param_2];
+        mov.u32         %r1, %tid.x;
+        cvt.u64.u32     %rd5, %r1;
+        mov.u32         %r2, %ctaid.x;
+        mov.u32         %r3, %ntid.x;
+        mul.wide.u32    %rd6, %r3, %r2;
+        add.s64         %rd1, %rd6, %rd5;
+        setp.ge.s64     %p1, %rd1, %rd4;
+        @%p1 bra        BB_RET;
+
+        cvta.to.global.u64      %rd7, %rd2;
+        shl.b64         %rd8, %rd1, 2;
+        add.s64         %rd9, %rd7, %rd8;
+        ld.global.s32   %r4, [%rd9];
+        add.s32         %r4, %r4, 0;
+        cvta.to.global.u64      %rd10, %rd3;
+        add.s64         %rd11, %rd10, %rd8;
+        st.global.s32   [%rd11], %r4;
+
+BB_RET:
+        ret;
+}
+"""))
+      val n = 1024
+      val input = ColumnPartitionDataBuilder.build(1 to n)
+      val output = function.run[Int, Int](input)
+      assert(output.size == n)
+      assert(output.schema.isPrimitive)
+      val outputItr  = output.iterator
+      assert(outputItr.toIndexedSeq.sameElements(1 to n))
+      assert(!outputItr.hasNext)
+      input.free
+      output.free
+    } else {
+      info("No CUDA devices, so skipping the test.")
+    }
+  }
+
   test("Run identity CUDA kernel on a single primitive array column", GPUTest) {
     sc = new SparkContext("local", "test", conf)
     val manager = {
