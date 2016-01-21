@@ -15,6 +15,7 @@
  * limitations under the License.
  */
 
+
 package org.apache.spark.cuda
 
 import org.apache.spark.storage.BlockId
@@ -25,20 +26,14 @@ import java.net.URL
 import java.nio.ByteBuffer
 import java.nio.file.{Files, Paths}
 
-import jcuda.Pointer
 import jcuda.driver.CUfunction
-import jcuda.driver.CUmodule
-import jcuda.driver.CUstream
-import jcuda.driver.JCudaDriver
-import jcuda.runtime.cudaStream_t
-import jcuda.runtime.cudaMemcpyKind
-import jcuda.runtime.JCuda
 
 import org.apache.commons.io.IOUtils
 import org.apache.spark.rdd.ExternalFunction
 import org.apache.spark.{PartitionData, ColumnPartitionData, ColumnPartitionSchema, SparkEnv,
   SparkException}
 import org.apache.spark.util.Utils
+import org.apache.spark.unsafe.memory.Pointer
 
 /**
  * A CUDA kernel wrapper. Contains CUDA module, information how to extract CUDA kernel from it and
@@ -86,28 +81,20 @@ class CUDAFunction(
       outputArraySizes: Seq[Long] = null,
       inputFreeVariables: Seq[Any] = null,
       blockId : Option[BlockId] = None): ColumnPartitionData[U] = {
+    val cudaManager = SparkEnv.get.cudaManager
     val outputSchema = ColumnPartitionSchema.schemaFor[U]
 
     // TODO add array size
     val memoryUsage = (if (in.gpuCached) 0 else in.memoryUsage) + outputSchema.memoryUsage(in.size)
 
-    val streamDevIx = SparkEnv.get.cudaManager.getStream(memoryUsage, in.gpuDevIx)
-    val stream = streamDevIx._1
+    val devIx = cudaManager.getDevice(memoryUsage, in.gpuDevIx)
     if (in.gpuCache) {
-      in.gpuDevIx = streamDevIx._2
+      in.gpuDevIx = devIx
     }
 
     // TODO cache the function if there is a chance that after a deserialization kernel gets called
     // multiple times - but only if no synchronization is needed for that
-    val module = resource match {
-      case url: URL =>
-        SparkEnv.get.cudaManager.cachedLoadModule(Left(url))
-      case (name: String, ptx: String)  =>
-        SparkEnv.get.cudaManager.cachedLoadModule(Right(name, ptx))
-      case _ => throw new SparkException("Unsupported resource type for CUDAFunction")
-    }
-    val function = new CUfunction
-    JCudaDriver.cuModuleGetFunction(function, module, kernelSignature)
+    val function = cudaManager.moduleGetFunction(resource, kernelSignature)
 
     val actualOutputSize = outputSize.getOrElse(in.size)
     val out = if (outputArraySizes == null) {
@@ -127,8 +114,8 @@ class CUDAFunction(
         val outColumns = out.schema.orderedColumns(outputColumnsOrder)
         for (col <- outColumns) {
           val size = col.memoryUsage(out.size)
-          val gpuPtr = SparkEnv.get.cudaManager.allocGPUMemory(size)
-          JCuda.cudaMemsetAsync(gpuPtr, 0, size, stream)
+          val gpuPtr = cudaManager.allocGPUMemory(size)
+          cudaManager.memsetASync(gpuPtr, 0, size, devIx)
           gpuOutputPtrs = gpuOutputPtrs :+ gpuPtr
         }
 
@@ -144,31 +131,31 @@ class CUDAFunction(
             case v: Array[Byte] =>
               val len = v.length
               cpuInputFreeVars = cpuInputFreeVars :+ (Pointer.to(v), len)
-              SparkEnv.get.cudaManager.allocGPUMemory(len)
+              cudaManager.allocGPUMemory(len)
             case v: Array[Char] =>
               val len = v.length * 2
               cpuInputFreeVars = cpuInputFreeVars :+ (Pointer.to(v), len)
-              SparkEnv.get.cudaManager.allocGPUMemory(len)
+              cudaManager.allocGPUMemory(len)
             case v: Array[Short] =>
               val len = v.length * 2
               cpuInputFreeVars = cpuInputFreeVars :+ (Pointer.to(v), len)
-              SparkEnv.get.cudaManager.allocGPUMemory(len)
+              cudaManager.allocGPUMemory(len)
             case v: Array[Int] =>
               val len = v.length * 4
               cpuInputFreeVars = cpuInputFreeVars :+ (Pointer.to(v), len)
-              SparkEnv.get.cudaManager.allocGPUMemory(len)
+              cudaManager.allocGPUMemory(len)
             case v: Array[Long] =>
               val len = v.length * 8
               cpuInputFreeVars = cpuInputFreeVars :+ (Pointer.to(v), len)
-              SparkEnv.get.cudaManager.allocGPUMemory(len)
+              cudaManager.allocGPUMemory(len)
             case v: Array[Float] =>
               val len = v.length * 4
               cpuInputFreeVars = cpuInputFreeVars :+ (Pointer.to(v), len)
-              SparkEnv.get.cudaManager.allocGPUMemory(len)
+              cudaManager.allocGPUMemory(len)
             case v: Array[Double] =>
               val len = v.length * 8
               cpuInputFreeVars = cpuInputFreeVars :+ (Pointer.to(v), len)
-              SparkEnv.get.cudaManager.allocGPUMemory(len)
+              cudaManager.allocGPUMemory(len)
             case _ => throw new SparkException("Unsupported type passed to kernel "
             + "as a free variable argument")
           }
@@ -180,17 +167,16 @@ class CUDAFunction(
            if (out.blobBuffers != null) {out.blobBuffers} else {Array[ByteBuffer]()}
         for (blob <- outBlobBuffers) {
           val size = blob.capacity()
-          val gpuPtr = SparkEnv.get.cudaManager.allocGPUMemory(size)
-          JCuda.cudaMemsetAsync(gpuPtr, 0, size, stream)
+          val gpuPtr = cudaManager.allocGPUMemory(size)
+          cudaManager.memsetASync(gpuPtr, 0, size, devIx)
           gpuOutputBlobs = gpuOutputBlobs :+ gpuPtr
         }
 
         // perform allocGPUMemory and cudaMemcpyAsync
-        val gpuInputPtrs = in.orderedGPUPointers(inputColumnsOrder, stream)
+        val gpuInputPtrs = in.orderedGPUPointers(inputColumnsOrder, devIx)
 
         for (((cpuPtr, size), gpuPtr) <- (cpuInputFreeVars zip inputFreeVarPtrs)) {
-          JCuda.cudaMemcpyAsync(gpuPtr, cpuPtr, size,
-            cudaMemcpyKind.cudaMemcpyHostToDevice, stream)
+          cudaManager.memcpyH2DASync(gpuPtr, cpuPtr, size, devIx)
         }
 
         val gpuPtrParams = (gpuInputPtrs ++
@@ -208,8 +194,6 @@ class CUDAFunction(
             + "argument")
         }
 
-        val wrappedStream = new CUstream(stream)
-
         stagesCount match {
           // normal launch, no stages, suitable for map
           case None =>
@@ -220,16 +204,16 @@ class CUDAFunction(
 
             val (gpuGridSize, gpuBlockSize) = dimensions match {
               case Some(computeDim) => computeDim(in.size, 1)
-              case None => SparkEnv.get.cudaManager.computeDimensions(in.size)
+              case None => cudaManager.computeDimensions(in.size)
             }
 
-            JCudaDriver.cuLaunchKernel(
+            cudaManager.launchKernel(
               function,
               gpuGridSize, 1, 1,
               gpuBlockSize, 1, 1,
               0,
-              wrappedStream,
-              kernelParameters, null)
+              devIx,
+              kernelParameters)
 
           // launch kernel multiple times (multiple stages), suitable for reduce
           case Some(totalStagesFun) =>
@@ -253,39 +237,37 @@ class CUDAFunction(
                   throw new SparkException("Dimensions must be provided for multi-stage kernels")
               }
 
-              JCudaDriver.cuLaunchKernel(
+              cudaManager.launchKernel(
                 function,
                 gpuGridSize, 1, 1,
                 gpuBlockSize, 1, 1,
                 0,
-                wrappedStream,
-                kernelParameters, null)
+                devIx,
+                kernelParameters)
             }
         }
 
         val outPointers = out.orderedPointers(outputColumnsOrder)
         for ((cpuPtr, gpuPtr, col) <- (outPointers, gpuOutputPtrs, outColumns).zipped) {
-          JCuda.cudaMemcpyAsync(cpuPtr, gpuPtr, col.memoryUsage(out.size),
-            cudaMemcpyKind.cudaMemcpyDeviceToHost, stream)
+          cudaManager.memcpyD2HASync(cpuPtr, gpuPtr, col.memoryUsage(out.size), devIx)
         }
 
         for ((cpuPtr, gpuPtr, blob) <- (outBlobs, gpuOutputBlobs, outBlobBuffers).zipped) {
-          JCuda.cudaMemcpyAsync(cpuPtr, gpuPtr, blob.capacity(),
-            cudaMemcpyKind.cudaMemcpyDeviceToHost, stream)
+          cudaManager.memcpyD2HASync(cpuPtr, gpuPtr, blob.capacity(), devIx)
         }
 
         if (!in.gpuCache || ((gpuOutputPtrs.size + gpuOutputBlobs.size) > 0)) {
-          JCuda.cudaStreamSynchronize(stream)
+          cudaManager.streamSynchronize(devIx)
         }
         out.blockId = blockId
         out
       }  {
         in.freeGPUPointers()
         for (ptr <- gpuOutputPtrs) {
-          SparkEnv.get.cudaManager.freeGPUMemory(ptr)
+          cudaManager.freeGPUMemory(ptr)
         }
         for (ptr <- gpuOutputBlobs) {
-          SparkEnv.get.cudaManager.freeGPUMemory(ptr)
+          cudaManager.freeGPUMemory(ptr)
         }
       }
     } catch {

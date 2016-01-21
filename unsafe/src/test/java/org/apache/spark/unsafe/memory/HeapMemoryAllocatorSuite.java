@@ -17,10 +17,6 @@
 
 package org.apache.spark.unsafe.memory;
 
-import jcuda.Pointer;
-import jcuda.driver.JCudaDriver;
-import jcuda.runtime.JCuda;
-
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -30,9 +26,12 @@ public class HeapMemoryAllocatorSuite {
   @BeforeClass
   public static void setUp() {
     // normally it's set by CUDAManager
-    JCudaDriver.setExceptionsEnabled(true);
-    JCudaDriver.cuInit(0);
-    JCuda.cudaSetDevice(0);
+    /*
+    @@@CUDA
+    jcuda.driver.JCudaDriver.setExceptionsEnabled(true);
+    jcuda.driver.JCudaDriver.cuInit(0);
+    jcuda.runtime.JCuda.cudaSetDevice(0);
+    */
   }
 
   @Test
@@ -44,7 +43,7 @@ public class HeapMemoryAllocatorSuite {
 
     Pointer ptr1 = manager.allocatePinnedMemory(2048);
     // this is a way of checking that ptr1 is not null internally (native address is private)
-    Assert.assertTrue(!ptr1.equals(new Pointer()));
+    //Assert.assertTrue(!ptr1.equals(new Pointer()));
     Assert.assertEquals(2048, manager.getAllocatedPinnedMemorySize());
     Assert.assertEquals(2048, manager.getUsedAllocatedPinnedMemorySize());
 
