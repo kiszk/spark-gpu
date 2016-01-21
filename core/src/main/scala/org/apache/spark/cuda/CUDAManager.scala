@@ -25,19 +25,20 @@ import java.nio.ByteBuffer
 import java.nio.file.{Files, Paths}
 
 import jcuda.CudaException;
-import jcuda.Pointer
 import jcuda.driver.CUcontext
 import jcuda.driver.CUdevice
 import jcuda.driver.CUdevice_attribute
 import jcuda.driver.CUfunction
 import jcuda.driver.CUmodule
-import jcuda.driver.CUresult;
+import jcuda.driver.CUresult
+import jcuda.driver.CUstream
 import jcuda.driver.JCudaDriver
-import jcuda.runtime.cudaStream_t
+import jcuda.runtime.{cudaMemcpyKind, cudaStream_t}
 import jcuda.runtime.JCuda
 
 import org.apache.commons.io.IOUtils
 import org.apache.spark.SparkException
+import org.apache.spark.unsafe.memory.Pointer
 
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -77,13 +78,14 @@ class CUDAManager {
   }
 
   private val allStreams = MutableList[Array[cudaStream_t]]()
+
   private def allocateThreadStreams: Array[cudaStream_t] = {
     val threadStreams = (0 to deviceCount - 1).map { devIx =>
       JCuda.cudaSetDevice(devIx)
       val stream = new cudaStream_t
       JCuda.cudaStreamCreateWithFlags(stream, JCuda.cudaStreamNonBlocking)
       stream
-    } .toArray
+    }.toArray
     synchronized {
       allStreams += threadStreams
     }
@@ -100,13 +102,17 @@ class CUDAManager {
     }
   }
 
+  private def getStream(devIx: Int): cudaStream_t = {
+    return streams.get.apply(devIx)
+  }
+
   /**
-   * Chooses a device to work on and returns a stream for it.
-   */
+    * Chooses a device to work on and returns a stream for it.
+    */
   // TODO make sure only specified amount of tasks at once uses GPU
   // TODO make sure that amount of conversions is minimized by giving GPU to appropriate tasks,
   // task context might be required for that
-  private[spark] def getStream(memoryUsage: Long, gpuDevIx: Int): (cudaStream_t, Int) = {
+  private[spark] def getDevice(memoryUsage: Long, gpuDevIx: Int): Int = {
     if (deviceCount == 0) {
       throw new SparkException("No available CUDA devices to create a stream")
     }
@@ -139,7 +145,7 @@ class CUDAManager {
         // allocating it now?)
         // TODO GPU memory pooling - no need to reallocate, since usually exact same sizes of memory
         // chunks will be required
-        return (streams.get.apply(devIx), devIx)
+        return devIx
       }
     }
 
@@ -147,7 +153,7 @@ class CUDAManager {
       s"($memoryUsage bytes needed)")
   }
 
-  private[spark] def cachedLoadModule(resource: Either[URL, (String, String)]): CUmodule = {
+  private def cachedLoadModule(resource: Either[URL, (String, String)]): CUmodule = {
     var resourceURL: URL = null
     var key: String = null
     var ptxString: String = null
@@ -181,7 +187,7 @@ class CUDAManager {
         }
 
         val moduleBinaryData0 = new Array[Byte](moduleBinaryData.length + 1)
-	System.arraycopy(moduleBinaryData, 0, moduleBinaryData0, 0, moduleBinaryData.length)
+        System.arraycopy(moduleBinaryData, 0, moduleBinaryData0, 0, moduleBinaryData.length)
         moduleBinaryData0(moduleBinaryData.length) = 0
         val module = new CUmodule
         JCudaDriver.cuModuleLoadData(module, moduleBinaryData0)
@@ -192,7 +198,7 @@ class CUDAManager {
 
   private[spark] def allocGPUMemory(size: Long): Pointer = {
     require(size >= 0)
-    val ptr = new Pointer
+    val ptr = new jcuda.Pointer
     if (CUDAManager.logger.isDebugEnabled()) {
       CUDAManager.logger.debug(s"Allocating ${size}B of GPU memory (Thread ID " +
         s"${Thread.currentThread.getId})");
@@ -201,12 +207,55 @@ class CUDAManager {
     if (result != CUresult.CUDA_SUCCESS) {
       throw new CudaException("Cannot allocate GPU memory: " + JCuda.cudaGetErrorString(result));
     }
-    assert(size == 0 || ptr != new Pointer())
-    ptr
+    assert(size == 0 || ptr != new jcuda.Pointer())
+    new Pointer(ptr)
   }
 
   private[spark] def freeGPUMemory(ptr: Pointer) {
-    JCuda.cudaFree(ptr)
+    JCuda.cudaFree(ptr.getJPointer())
+  }
+
+  private[spark] def memcpyH2DASync(gpuPtr: Pointer, cpuPtr: Pointer, length: Long, devIx: Int) {
+    JCuda.cudaMemcpyAsync(gpuPtr.getJPointer(), cpuPtr.getJPointer(), length,
+      cudaMemcpyKind.cudaMemcpyHostToDevice, getStream(devIx))
+  }
+
+  private[spark] def memcpyD2HASync(cpuPtr: Pointer, gpuPtr: Pointer, length: Long, devIx: Int) {
+    JCuda.cudaMemcpyAsync(cpuPtr.getJPointer(), gpuPtr.getJPointer(), length,
+      cudaMemcpyKind.cudaMemcpyDeviceToHost, getStream(devIx))
+  }
+
+  private[spark] def memsetASync(gpuPtr: Pointer, value: Byte, length: Long, devIx: Int) {
+    JCuda.cudaMemsetAsync(gpuPtr.getJPointer(), value, length, getStream(devIx))
+  }
+
+  private[spark] def streamSynchronize(devIx: Int) {
+    JCuda.cudaStreamSynchronize(getStream(devIx))
+  }
+
+  private[spark] def moduleGetFunction(resource:Any, kernelSignature: String): CUfunction = {
+    val module = resource match {
+      case url: URL => cachedLoadModule(Left(url))
+      case (name: String, ptx: String) => cachedLoadModule(Right(name, ptx))
+      case _ => throw new SparkException("Unsupported resource type for CUDAFunction")
+    }
+    val function = new CUfunction
+    JCudaDriver.cuModuleGetFunction(function, module, kernelSignature)
+    function
+  }
+
+  private[spark] def launchKernel(f: CUfunction,
+                                   gridDimX: Int, gridDimY: Int, gridDimZ: Int,
+                                   blockDimX: Int, blockDimY: Int, blockDimZ: Int,
+                                   sharedMemBytes: Int, devIx: Int,
+                                   kernelParams: Pointer) {
+    val stream = getStream(devIx)
+    val wrappedStream = new CUstream(stream)
+    JCudaDriver.cuLaunchKernel(f,
+      gridDimX, gridDimY, gridDimZ,
+      blockDimX, blockDimY, blockDimZ,
+      sharedMemBytes, wrappedStream,
+      kernelParams.getJPointer(), null)
   }
 
   private[spark] def computeDimensions(size: Long): (Int, Int) = {
@@ -228,11 +277,8 @@ class CUDAManager {
   private[spark] def stop() {
     allStreams.flatten.foreach(JCuda.cudaStreamDestroy(_))
   }
-
 }
 
 object CUDAManager {
-
   private final val logger: Logger = LoggerFactory.getLogger(classOf[CUDAManager])
-
 }

@@ -17,11 +17,10 @@
 
 package org.apache.spark.cuda
 
-import jcuda.Pointer
 import org.apache.spark.{SparkEnv, SparkException}
 import org.apache.spark.rpc.{RpcEndpointRef, RpcCallContext, RpcEnv, ThreadSafeRpcEndpoint}
+import org.apache.spark.unsafe.memory.Pointer
 
-import scala.collection.mutable
 import scala.collection.mutable.{ListBuffer, HashMap}
 
 

@@ -17,8 +17,6 @@
 
 package org.apache.spark
 
-import jcuda.driver.CUmodule
-import jcuda.runtime.{cudaStream_t, cudaMemcpyKind, JCuda}
 import org.apache.spark.storage.{RDDBlockId, BlockId}
 
 import math._
@@ -31,11 +29,9 @@ import java.nio.{ByteBuffer, ByteOrder}
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
 import org.apache.spark.annotation.{DeveloperApi, Experimental}
-import org.apache.spark.unsafe.memory.MemoryBlock
 import org.apache.spark.util.IteratorFunctions._
 import org.apache.spark.util.Utils
-
-import jcuda.Pointer
+import org.apache.spark.unsafe.memory.Pointer
 
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -61,6 +57,7 @@ class ColumnPartitionData[T](
   private var refCounter = 1
 
   // TODO blockId can never be NULL, modify the testcase to pass valid blockId and remove (0,0).
+  val cudaManager = SparkEnv.get.cudaManager
   var blockId  : Option[BlockId] = Some(RDDBlockId(0, 0))
   def rddId : Int = blockId.getOrElse(RDDBlockId(0, 0)).asRDDId.get.rddId
   def cachedGPUPointers : HashMap[String, Pointer] =
@@ -194,7 +191,7 @@ class ColumnPartitionData[T](
     order.map(columnsByAccessors(_))
   }
 
-  private[spark] def orderedGPUPointers(order: Seq[String], stream : cudaStream_t):
+  private[spark] def orderedGPUPointers(order: Seq[String], devIx: Int):
     Vector[Pointer] = {
     var gpuPtrs = Vector[Pointer]()
     var gpuBlobs = Vector[Pointer]()
@@ -204,7 +201,7 @@ class ColumnPartitionData[T](
     val inPointers = orderedPointers(order)
     for ((col, name, cpuPtr) <- (inColumns, order, inPointers).zipped) {
       gpuPtrs = gpuPtrs :+ cachedGPUPointers.getOrElseUpdate(blockId.get + name, {
-        val gpuPtr = SparkEnv.get.cudaManager.allocGPUMemory(col.memoryUsage(size))
+        val gpuPtr = cudaManager.allocGPUMemory(col.memoryUsage(size))
         memCpys = memCpys :+ (gpuPtr, cpuPtr, col.memoryUsage(size))
         gpuPtr
       })
@@ -215,7 +212,7 @@ class ColumnPartitionData[T](
     for ((blob, name, cpuPtr) <-
       (inBlobBuffers, (1 to inBlobBuffers.length).map(_.toString), inBlobs).zipped) {
       gpuBlobs = gpuBlobs :+ cachedGPUPointers.getOrElseUpdate(blockId.get + name, {
-        val gpuPtr = SparkEnv.get.cudaManager.allocGPUMemory(blob.capacity())
+        val gpuPtr = cudaManager.allocGPUMemory(blob.capacity())
         memCpys = memCpys :+ (gpuPtr, cpuPtr, blob.capacity().toLong)
         gpuPtr
       })
@@ -233,8 +230,7 @@ class ColumnPartitionData[T](
     */
 
     for ((gpuPtr, cpuPtr, length) <- memCpys) {
-      JCuda.cudaMemcpyAsync(gpuPtr, cpuPtr, length,
-                            cudaMemcpyKind.cudaMemcpyHostToDevice, stream)
+      cudaManager.memcpyH2DASync(gpuPtr, cpuPtr, length, devIx)
     }
 
     gpuPtrs ++ gpuBlobs
@@ -244,7 +240,7 @@ class ColumnPartitionData[T](
     if (!gpuCache) {
       for ((name, ptr) <- cachedGPUPointers) {
         if (name.startsWith(blockId.get.toString)) {
-          SparkEnv.get.cudaManager.freeGPUMemory(ptr)
+          cudaManager.freeGPUMemory(ptr)
           cachedGPUPointers.remove(name)
         }
       }
