@@ -233,7 +233,7 @@ class CUDAManager {
     JCuda.cudaStreamSynchronize(getStream(devIx))
   }
 
-  private[spark] def moduleGetFunction(resource:Any, kernelSignature: String): CUfunction = {
+  private[spark] def moduleGetFunction(resource: Any, kernelSignature: String): CUfunction = {
     val module = resource match {
       case url: URL => cachedLoadModule(Left(url))
       case (name: String, ptx: String) => cachedLoadModule(Right(name, ptx))
