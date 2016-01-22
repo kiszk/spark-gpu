@@ -254,6 +254,7 @@ if [ "$SPARK_TACHYON" == "true" ]; then
   rm -rf "$TMPD"
 fi
 
+$SPARK_HOME/gpudev/util/embedjcudalib.sh
 if [ "$MAKE_TGZ" == "true" ]; then
   TARDIR_NAME=spark-$VERSION-bin-$NAME
   TARDIR="$SPARK_HOME/$TARDIR_NAME"
