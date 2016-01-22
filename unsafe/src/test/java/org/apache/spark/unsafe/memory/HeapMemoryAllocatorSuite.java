@@ -26,12 +26,9 @@ public class HeapMemoryAllocatorSuite {
   @BeforeClass
   public static void setUp() {
     // normally it's set by CUDAManager
-    /*
-    @@@CUDA
     jcuda.driver.JCudaDriver.setExceptionsEnabled(true);
     jcuda.driver.JCudaDriver.cuInit(0);
     jcuda.runtime.JCuda.cudaSetDevice(0);
-    */
   }
 
   @Test
