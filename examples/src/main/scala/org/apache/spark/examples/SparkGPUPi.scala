@@ -60,7 +60,7 @@ object SparkGPUPi {
       .mapExtFunc( (i : Int) => {
         val x = random * 2 - 1
         val y = random * 2 - 1
-        if (x * x + y * y < 1) 1 else 0 } ,  
+        if (x * x + y * y < 1) 1 else 0 },
         mapFunction)
       .reduceExtFunc((x: Int, y: Int) => x + y, reduceFunction)
     println("Pi is roughly " + 4.0 * count / n)

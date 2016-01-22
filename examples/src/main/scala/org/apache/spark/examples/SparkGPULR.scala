@@ -87,7 +87,7 @@ object SparkGPULR {
       Array("this"),
       ptxURL))
     val threads = 1024
-    val blocks = min((N + threads- 1) / threads, 1024) 
+    val blocks = min((N + threads- 1) / threads, 1024)
     val dimensions = (size: Long, stage: Int) => stage match {
       case 0 => (blocks, threads)
     }
@@ -109,14 +109,14 @@ object SparkGPULR {
     // Initialize w to a random value
     var w = Array.fill(D){2 * rand.nextDouble - 1}
     printf("numSlices=%d, N=%d, D=%d, ITERATIONS=%d\n", numSlices, N, D, ITERATIONS)
-    //println("Initial w: " + w)
+    // println("Initial w: " + w)
 
     val now = System.nanoTime
     for (i <- 1 to ITERATIONS) {
       println("On iteration " + i)
       val wbc = sc.broadcast(w)
       val gradient = pointsColumnCached.mapExtFunc((p: DataPoint) =>
-        dmulvs(p.x,  (1 / (1 + exp(-p.y * (ddotvv(wbc.value, p.x)))) - 1) * p.y),
+        dmulvs(p.x, (1 / (1 + exp(-p.y * (ddotvv(wbc.value, p.x)))) - 1) * p.y),
         mapFunction.value, outputArraySizes = Array(D),
         inputFreeVariables = Array(wbc.value)
       ).reduceExtFunc((x: Array[Double], y: Array[Double]) => daddvv(x, y),
@@ -128,7 +128,7 @@ object SparkGPULR {
 
     pointsColumnCached.unCacheGpu()
 
-    //println("Final w: " + w)
+    // println("Final w: " + w)
 
     sc.stop()
   }

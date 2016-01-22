@@ -74,11 +74,11 @@ object SparkLR {
     val skelton = sc.parallelize((1 to N), numSlices)
     val points = skelton.map(i => generateData(i, N, D, R)).cache()
     points.count()
- 
+
     // Initialize w to a random value
     var w = DenseVector.fill(D){2 * rand.nextDouble - 1}
     printf("numSlices=%d, N=%d, D=%d, ITERATIONS=%d\n", numSlices, N, D, ITERATIONS)
-    //println("Initial w: " + w)
+    // println("Initial w: " + w)
 
     val now = System.nanoTime
     for (i <- 1 to ITERATIONS) {
@@ -92,7 +92,7 @@ object SparkLR {
     val ms = (System.nanoTime - now) / 1000000
     println("Elapsed time: %d ms".format(ms))
 
-    //println("Final w: " + w)
+    // println("Final w: " + w)
 
     sc.stop()
   }
