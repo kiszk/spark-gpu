@@ -365,8 +365,10 @@ object SparkEnv extends Logging {
         UnifiedMemoryManager(conf, numUsableCores)
       }
     val heapMemoryAllocator: HeapMemoryAllocator = {
-      val maxPinnedMemory = conf.getLong("spark.memory.pinnedOffHeap.size", -1)
-      new HeapMemoryAllocator(maxPinnedMemory)
+      val maxColumnarMemory = conf.getLong("spark.gpu.columnar.size", -1)
+      val typeColumnarMemory = conf.get("spark.gpu.columnar.memtype", "default")
+      val isColumnarMemPool = conf.getBoolean("spark.gpu.columnar.mempool", true)
+      new HeapMemoryAllocator(maxColumnarMemory, typeColumnarMemory, isColumnarMemPool)
     }
 
     val blockTransferService = new NettyBlockTransferService(conf, securityManager, numUsableCores)
