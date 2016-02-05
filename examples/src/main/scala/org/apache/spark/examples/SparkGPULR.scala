@@ -102,8 +102,10 @@ object SparkGPULR {
       Some(dimensions)))
 
     val skelton = sc.parallelize((1 to N), numSlices)
-    val points = skelton.map(i => generateData(i, N, D, R))
-    val pointsColumnCached = points.convert(ColumnFormat).cache().cacheGpu()
+    val points = skelton.map(i => generateData(i, N, D, R)).cache
+    points.count()
+
+    val pointsColumnCached = points.convert(ColumnFormat).cacheGpu()
     pointsColumnCached.count()
 
     // Initialize w to a random value

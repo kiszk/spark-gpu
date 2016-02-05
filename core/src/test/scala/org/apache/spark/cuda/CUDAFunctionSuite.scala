@@ -954,17 +954,22 @@ BB_RET:
         Some((size: Long) => 1),
         Some(dimensions)))
 
-      def generateData: Array[DataPoint] = {
+      def generateData(seed: Int, N: Int, D: Int, R: Double): DataPoint = {
+        val r = new Random(seed)
         def generatePoint(i: Int): DataPoint = {
           val y = if (i % 2 == 0) -1 else 1
-          val x = Array.fill(D){rand.nextGaussian + y * R}
+          val x = Array.fill(D){r.nextGaussian + y * R}
           DataPoint(x, y)
         }
-        Array.tabulate(N)(generatePoint)
+        generatePoint(seed)
       }
 
-      val pointsCached = sc.parallelize(generateData, numSlices).cache()
-      val pointsColumnCached = pointsCached.convert(ColumnFormat, false).cache().cacheGpu()
+      val skelton = sc.parallelize((1 to N), numSlices)
+      val pointsCached = skelton.map(i => generateData(i, N, D, R)).cache
+      pointsCached.count()
+
+      val pointsColumnCached = pointsCached.convert(ColumnFormat, false).cacheGpu()
+      pointsColumnCached.count()
 
       // Initialize w to a random value
       var wCPU = Array.fill(D){2 * rand.nextDouble - 1}
@@ -1031,7 +1036,7 @@ BB_RET:
         assert(r2.sameElements(r1.map(mulby2)))
 
         // UncacheGPU should clear the GPU cache.
-        baseRDD.unCacheGpu().unCacheGpu()
+        baseRDD.unCacheGpu()
         r1 = baseRDD.mapExtFunc((x: Int) => 2 * x, mapFunction).collect()
         r2 = baseRDD.mapExtFunc((x: Int) => 2 * x, mapFunction).collect()
         assert(r2.sameElements(r2))
