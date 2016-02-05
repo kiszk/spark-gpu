@@ -203,8 +203,16 @@ abstract class RDD[T: ClassTag](
   /** Persist this RDD with the default storage level (`MEMORY_ONLY`). */
   def cache(): this.type = persist()
 
-  def cacheGpu() : RDD[T] = { sc.env.gpuMemoryManager.cacheGPUSlaves(id); this }
-  def unCacheGpu() : RDD[T] = { sc.env.gpuMemoryManager.unCacheGPUSlaves(id); this }
+  def cacheGpu() : RDD[T] = {
+    sc.env.gpuMemoryManager.cacheGPUSlaves(id);
+    storageGpuLevel = StorageLevel.MEMORY_ONLY
+    this
+  }
+  def unCacheGpu() : RDD[T] = {
+    sc.env.gpuMemoryManager.unCacheGPUSlaves(id);
+    storageGpuLevel = StorageLevel.NONE
+    this
+  }
 
   /**
    * Mark the RDD as non-persistent, and remove all blocks for it from memory and disk.
@@ -294,6 +302,8 @@ abstract class RDD[T: ClassTag](
   final def partitionData(split: Partition, context: TaskContext): PartitionData[T] = {
     if (storageLevel != StorageLevel.NONE) {
       SparkEnv.get.cacheManager.getOrCompute(this, split, context, storageLevel)
+    } else if (storageGpuLevel != StorageLevel.NONE) {
+      SparkEnv.get.cacheManager.getOrCompute(this, split, context, storageGpuLevel)
     } else {
       computeOrReadCheckpoint(split, context)
     }
@@ -1717,6 +1727,7 @@ abstract class RDD[T: ClassTag](
   // =======================================================================
 
   private var storageLevel: StorageLevel = StorageLevel.NONE
+  private var storageGpuLevel: StorageLevel = StorageLevel.NONE
 
   /** User code that created this RDD (e.g. `textFile`, `parallelize`). */
   @transient private[spark] val creationSite = sc.getCallSite()

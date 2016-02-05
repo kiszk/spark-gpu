@@ -85,7 +85,7 @@ class ColumnPartitionData[T](
   // Extracted to a function for use in deserialization
   private def initialize {
     pointers = schema.columns.map { col =>
-      SparkEnv.get.heapMemoryAllocator.allocatePinnedMemory(col.columnType.bytes * size)
+      SparkEnv.get.heapMemoryAllocator.allocateMemory(col.columnType.bytes * size)
     }
 
     refCounter = 1
@@ -96,7 +96,7 @@ class ColumnPartitionData[T](
     if (blobs == null) {
       blobs = new Array(1)
     }
-    val ptr = SparkEnv.get.heapMemoryAllocator.allocatePinnedMemory(blobSize)
+    val ptr = SparkEnv.get.heapMemoryAllocator.allocateMemory(blobSize)
     blobs(0) = ptr
     if (blobBuffers == null) {
       blobBuffers = new Array(1)
@@ -148,9 +148,9 @@ class ColumnPartitionData[T](
     assert(refCounter > 0)
     refCounter -= 1
     if (refCounter == 0) {
-      pointers.foreach(SparkEnv.get.heapMemoryAllocator.freePinnedMemory(_))
+      pointers.foreach(SparkEnv.get.heapMemoryAllocator.freeMemory(_))
       if (blobs != null) {
-        blobs.foreach(SparkEnv.get.heapMemoryAllocator.freePinnedMemory(_))
+        blobs.foreach(SparkEnv.get.heapMemoryAllocator.freeMemory(_))
       }
       freeGPUPointers()
     }
@@ -608,7 +608,7 @@ class ColumnPartitionData[T](
       while (i < blobBuffersSize) {
         val blobSize = in.readLong()
         var blobOffset: Long = 8
-        val ptr = SparkEnv.get.heapMemoryAllocator.allocatePinnedMemory(blobSize)
+        val ptr = SparkEnv.get.heapMemoryAllocator.allocateMemory(blobSize)
         blobs(i) = ptr
         val byteBuffer = ptr.getByteBuffer(0, blobSize).order(ByteOrder.LITTLE_ENDIAN)
         blobBuffers(i) = byteBuffer
