@@ -237,7 +237,7 @@ object CUDACodeGenerator {
     val cls = f.getClass
     classReader(cls).accept(e, 0)
     val fullName =
-      "_map_" + (f.getClass.getName+"."+e.methodName).replace(".", "_").replace("$", "_")
+      "_map_" + (f.getClass.getName + "." + e.methodName).replace(".", "_").replace("$", "_")
     if (!e.isValid) { return None }
 
     val ptxType = e.exprtype match {
@@ -258,7 +258,7 @@ object CUDACodeGenerator {
     }
     val ptxOpRound = e.exprtype match {
       case FLOAD | DLOAD => "rz."
-      case _  => ""
+      case _ => ""
     }
     val ptxOp = e.exprop match {
       case IADD => "add"
@@ -505,7 +505,7 @@ BB_6:
     // declaredFields.foreach { f => println("     " + f) }
     // println(" + declared methods: " + declaredMethods.size)
     // declaredMethods.foreach { m => println("     " + m) }
-   
+
     val e = new reduceLambdaExpressionExtractor
     val cls = f.getClass
     classReader(cls).accept(e, 0)
@@ -519,7 +519,7 @@ BB_6:
       case ILOAD => "_intReduce"
       case DLOAD => "_doubleReduce"
     }
-    
+
     val cudaFunc =
       new CUDAFunction(funcEntryName, Array("this"), Array("this"), (funcEntryName, ptxReduce))
     Some(cudaFunc)
