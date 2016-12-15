@@ -41,7 +41,7 @@ public class HeapMemoryAllocator implements MemoryAllocator {
    */
   final long maxMemory;
 
-  final int  memType;	// 0:default, 1:pinned, 2:array
+  final int  memType; // 0:default, 1:pinned, 2:array
 
   final boolean isMemPool; 
 
@@ -177,7 +177,7 @@ public class HeapMemoryAllocator implements MemoryAllocator {
 
           do {
             Pointer ptr = listIt.next();
-            _freeMemory(ptr);
+            internalFreeMemory(ptr);
             listIt.remove();
             memorySizes.remove(ptr);
             allocatedMemory -= sizeAndList.getKey();
@@ -193,7 +193,7 @@ public class HeapMemoryAllocator implements MemoryAllocator {
         }
       }
 
-      Pointer ptr = _allocateMemory(size);
+      Pointer ptr = internalAllocateMemory(size);
       memorySizes.put(ptr, size);
       allocatedMemory += size;
       return ptr;
@@ -217,13 +217,13 @@ public class HeapMemoryAllocator implements MemoryAllocator {
     }
   }
 
-  static protected final Logger logger = LoggerFactory.getLogger(HeapMemoryAllocator.class);
+  protected static final Logger logger = LoggerFactory.getLogger(HeapMemoryAllocator.class);
 
   protected void finalize() {
     // Deallocating off-heap memory pool
     for (Map.Entry<Long, LinkedList<Pointer>> sizeAndList : memoryBySize.entrySet()) {
       for (Pointer ptr : sizeAndList.getValue()) {
-        _freeMemory(ptr);
+        internalFreeMemory(ptr);
         allocatedMemory -= sizeAndList.getKey();
       }
     }
@@ -258,12 +258,12 @@ public class HeapMemoryAllocator implements MemoryAllocator {
   }
 
 
-  private Pointer _allocateMemory(long size) {
+  private Pointer internalAllocateMemory(long size) {
     jcuda.Pointer ptr = new jcuda.Pointer();
     if ((memType == 0) || (memType == 1)) {
       try {
         int result = jcuda.runtime.JCuda.cudaHostAlloc(ptr, size,
-	  (memType == 0) ? jcuda.runtime.JCuda.cudaHostAllocDefault :
+          (memType == 0) ? jcuda.runtime.JCuda.cudaHostAllocDefault :
                            jcuda.runtime.JCuda.cudaHostAllocPortable);
         if (result != jcuda.driver.CUresult.CUDA_SUCCESS) {
           throw new jcuda.CudaException(jcuda.runtime.JCuda.cudaGetErrorString(result));
@@ -280,7 +280,7 @@ public class HeapMemoryAllocator implements MemoryAllocator {
     return new Pointer(ptr);
   }
 
-  private void _freeMemory(Pointer ptr) {
+  private void internalFreeMemory(Pointer ptr) {
     if ((memType == 0) || (memType == 1)) {
       try {
         int result = jcuda.runtime.JCuda.cudaFreeHost(ptr.getJPointer());
