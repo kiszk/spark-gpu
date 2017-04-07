@@ -37,7 +37,7 @@
     <dependency>
       <groupId>org.mystic</groupId>
       <artifactId>mavenized-jcuda</artifactId>
-      <version>0.1.2</version>
+      <version>0.8.0</version>
     </dependency>
     <dependency>
       <groupId>org.apache.avro</groupId>
