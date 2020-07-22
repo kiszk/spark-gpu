@@ -28,7 +28,7 @@ import org.apache.spark.storage._
 import org.apache.spark.streaming.receiver.WriteAheadLogBasedBlockHandler._
 import org.apache.spark.streaming.util.{WriteAheadLogRecordHandle, WriteAheadLogUtils}
 import org.apache.spark.util.{Clock, SystemClock, ThreadUtils}
-import org.apache.spark.{Logging, SparkConf, SparkException}
+import org.apache.spark.{Logging, SparkConf, SparkException, IteratorPartitionData}
 
 /** Trait that represents the metadata related to storage of blocks */
 private[streaming] trait ReceivedBlockStoreResult {
@@ -170,10 +170,11 @@ private[streaming] class WriteAheadLogBasedBlockHandler(
     val serializedBlock = block match {
       case ArrayBufferBlock(arrayBuffer) =>
         numRecords = Some(arrayBuffer.size.toLong)
-        blockManager.dataSerialize(blockId, arrayBuffer.iterator)
+        blockManager.dataSerialize(blockId, IteratorPartitionData(arrayBuffer.iterator))
       case IteratorBlock(iterator) =>
         val countIterator = new CountingIterator(iterator)
-        val serializedBlock = blockManager.dataSerialize(blockId, countIterator)
+        val serializedBlock =
+          blockManager.dataSerialize(blockId, IteratorPartitionData(countIterator))
         numRecords = countIterator.count
         serializedBlock
       case ByteBufferBlock(byteBuffer) =>

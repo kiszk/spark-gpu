@@ -250,7 +250,7 @@ class StreamingContext(object):
 
     def checkpoint(self, directory):
         """
-        Sets the context to periodically checkpoint the DStream operations for master
+        Sets the context to periodically checkpoint the DStream operations for main
         fault-tolerance. The graph will be checkpointed every batch interval.
 
         @param directory: HDFS-compatible directory where the checkpoint data
@@ -258,7 +258,7 @@ class StreamingContext(object):
         """
         self._jssc.checkpoint(directory)
 
-    def socketTextStream(self, hostname, port, storageLevel=StorageLevel.MEMORY_AND_DISK_SER_2):
+    def socketTextStream(self, hostname, port, storageLevel=StorageLevel.MEMORY_AND_DISK_2):
         """
         Create an input from TCP source hostname:port. Data is received using
         a TCP socket and receive byte is interpreted as UTF8 encoded ``\\n`` delimited

@@ -17,7 +17,8 @@
 
 package org.apache.spark.rdd
 
-import org.apache.spark.{Partition, SharedSparkContext, SparkFunSuite, TaskContext}
+import org.apache.spark.{Partition, SharedSparkContext, SparkFunSuite, TaskContext,
+  IteratorPartitionData}
 
 class PartitionPruningRDDSuite extends SparkFunSuite with SharedSparkContext {
 
@@ -33,6 +34,10 @@ class PartitionPruningRDDSuite extends SparkFunSuite with SharedSparkContext {
 
       def compute(split: Partition, context: TaskContext) = {
         Iterator()
+      }
+
+      override def computePartition(split: Partition, context: TaskContext) = {
+        IteratorPartitionData(Iterator())
       }
     }
     val prunedRDD = PartitionPruningRDD.create(rdd, _ == 2)
@@ -55,6 +60,10 @@ class PartitionPruningRDDSuite extends SparkFunSuite with SharedSparkContext {
 
       def compute(split: Partition, context: TaskContext) = {
         List(split.asInstanceOf[TestPartition].testValue).iterator
+      }
+
+      override def computePartition(split: Partition, context: TaskContext) = {
+        IteratorPartitionData(List(split.asInstanceOf[TestPartition].testValue).iterator)
       }
     }
     val prunedRDD1 = PartitionPruningRDD.create(rdd, _ == 0)

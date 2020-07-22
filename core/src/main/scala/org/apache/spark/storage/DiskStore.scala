@@ -25,6 +25,10 @@ import org.apache.spark.Logging
 import org.apache.spark.serializer.Serializer
 import org.apache.spark.util.Utils
 
+import org.apache.spark.PartitionData
+import org.apache.spark.ColumnPartitionData
+import org.apache.spark.IteratorPartitionData
+
 /**
  * Stores BlockManager blocks on disk.
  */
@@ -69,6 +73,22 @@ private[spark] class DiskStore(blockManager: BlockManager, diskManager: DiskBloc
   override def putIterator(
       blockId: BlockId,
       values: Iterator[Any],
+      level: StorageLevel,
+      returnValues: Boolean): PutResult = {
+    putData(blockId, IteratorPartitionData(values), level, returnValues)
+  }
+
+  override def putColumns(
+      blockId: BlockId,
+      values: ColumnPartitionData[_],
+      level: StorageLevel,
+      returnValues: Boolean): PutResult = {
+    putData(blockId, values, level, returnValues)
+  }
+
+  override def putData(
+      blockId: BlockId,
+      values: PartitionData[_],
       level: StorageLevel,
       returnValues: Boolean): PutResult = {
 
@@ -140,18 +160,8 @@ private[spark] class DiskStore(blockManager: BlockManager, diskManager: DiskBloc
     getBytes(segment.file, segment.offset, segment.length)
   }
 
-  override def getValues(blockId: BlockId): Option[Iterator[Any]] = {
+  override def getValues(blockId: BlockId): Option[PartitionData[_]] = {
     getBytes(blockId).map(buffer => blockManager.dataDeserialize(blockId, buffer))
-  }
-
-  /**
-   * A version of getValues that allows a custom serializer. This is used as part of the
-   * shuffle short-circuit code.
-   */
-  def getValues(blockId: BlockId, serializer: Serializer): Option[Iterator[Any]] = {
-    // TODO: Should bypass getBytes and use a stream based implementation, so that
-    // we won't use a lot of memory during e.g. external sort merge.
-    getBytes(blockId).map(bytes => blockManager.dataDeserialize(blockId, bytes, serializer))
   }
 
   override def remove(blockId: BlockId): Boolean = {

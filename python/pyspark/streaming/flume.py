@@ -40,15 +40,15 @@ class FlumeUtils(object):
 
     @staticmethod
     def createStream(ssc, hostname, port,
-                     storageLevel=StorageLevel.MEMORY_AND_DISK_SER_2,
+                     storageLevel=StorageLevel.MEMORY_AND_DISK_2,
                      enableDecompression=False,
                      bodyDecoder=utf8_decoder):
         """
         Create an input stream that pulls events from Flume.
 
         :param ssc:  StreamingContext object
-        :param hostname:  Hostname of the slave machine to which the flume data will be sent
-        :param port:  Port of the slave machine to which the flume data will be sent
+        :param hostname:  Hostname of the subordinate machine to which the flume data will be sent
+        :param port:  Port of the subordinate machine to which the flume data will be sent
         :param storageLevel:  Storage level to use for storing the received objects
         :param enableDecompression:  Should netty server decompress input stream
         :param bodyDecoder:  A function used to decode body (default is utf8_decoder)
@@ -70,7 +70,7 @@ class FlumeUtils(object):
 
     @staticmethod
     def createPollingStream(ssc, addresses,
-                            storageLevel=StorageLevel.MEMORY_AND_DISK_SER_2,
+                            storageLevel=StorageLevel.MEMORY_AND_DISK_2,
                             maxBatchSize=1000,
                             parallelism=5,
                             bodyDecoder=utf8_decoder):

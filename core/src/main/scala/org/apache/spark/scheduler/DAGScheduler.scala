@@ -329,7 +329,7 @@ class DAGScheduler(
    */
   private def newResultStage(
       rdd: RDD[_],
-      func: (TaskContext, Iterator[_]) => _,
+      func: (TaskContext, PartitionData[_]) => _,
       partitions: Array[Int],
       jobId: Int,
       callSite: CallSite): ResultStage = {
@@ -560,7 +560,7 @@ class DAGScheduler(
    */
   def submitJob[T, U](
       rdd: RDD[T],
-      func: (TaskContext, Iterator[T]) => U,
+      func: (TaskContext, PartitionData[T]) => U,
       partitions: Seq[Int],
       callSite: CallSite,
       resultHandler: (Int, U) => Unit,
@@ -580,7 +580,7 @@ class DAGScheduler(
     }
 
     assert(partitions.size > 0)
-    val func2 = func.asInstanceOf[(TaskContext, Iterator[_]) => _]
+    val func2 = func.asInstanceOf[(TaskContext, PartitionData[_]) => _]
     val waiter = new JobWaiter(this, jobId, partitions.size, resultHandler)
     eventProcessLoop.post(JobSubmitted(
       jobId, rdd, func2, partitions.toArray, callSite, waiter,
@@ -604,7 +604,7 @@ class DAGScheduler(
    */
   def runJob[T, U](
       rdd: RDD[T],
-      func: (TaskContext, Iterator[T]) => U,
+      func: (TaskContext, PartitionData[T]) => U,
       partitions: Seq[Int],
       callSite: CallSite,
       resultHandler: (Int, U) => Unit,
@@ -639,14 +639,14 @@ class DAGScheduler(
    */
   def runApproximateJob[T, U, R](
       rdd: RDD[T],
-      func: (TaskContext, Iterator[T]) => U,
+      func: (TaskContext, PartitionData[T]) => U,
       evaluator: ApproximateEvaluator[U, R],
       callSite: CallSite,
       timeout: Long,
       properties: Properties): PartialResult[R] = {
     val listener = new ApproximateActionListener(rdd, func, evaluator, timeout)
-    val func2 = func.asInstanceOf[(TaskContext, Iterator[_]) => _]
-    val partitions = (0 until rdd.partitions.length).toArray
+    val func2 = func.asInstanceOf[(TaskContext, PartitionData[_]) => _]
+    val partitions = (0 until rdd.partitions.size).toArray
     val jobId = nextJobId.getAndIncrement()
     eventProcessLoop.post(JobSubmitted(
       jobId, rdd, func2, partitions, callSite, listener, SerializationUtils.clone(properties)))
@@ -805,7 +805,8 @@ class DAGScheduler(
 
   private[scheduler] def cleanUpAfterSchedulerStop() {
     for (job <- activeJobs) {
-      val error = new SparkException("Job cancelled because SparkContext was shut down")
+      val error =
+        new SparkException(s"Job ${job.jobId} cancelled because SparkContext was shut down")
       job.listener.jobFailed(error)
       // Tell the listeners that all of the running stages have ended.  Don't bother
       // cancelling the stages because if the DAG scheduler is stopped, the entire application
@@ -827,7 +828,7 @@ class DAGScheduler(
 
   private[scheduler] def handleJobSubmitted(jobId: Int,
       finalRDD: RDD[_],
-      func: (TaskContext, Iterator[_]) => _,
+      func: (TaskContext, PartitionData[_]) => _,
       partitions: Array[Int],
       callSite: CallSite,
       listener: JobListener,
@@ -1295,7 +1296,7 @@ class DAGScheduler(
       case TaskResultLost =>
         // Do nothing here; the TaskScheduler handles these failures and resubmits the task.
 
-      case other =>
+      case _: ExecutorLostFailure | TaskKilled | UnknownReason =>
         // Unrecognized failure - also do nothing. If the task fails repeatedly, the TaskScheduler
         // will abort the job.
     }

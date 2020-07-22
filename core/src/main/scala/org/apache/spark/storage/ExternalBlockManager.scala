@@ -19,6 +19,8 @@ package org.apache.spark.storage
 
 import java.nio.ByteBuffer
 
+import org.apache.spark.PartitionData
+
 /**
  * An abstract class that the concrete external block manager has to inherit.
  * The class has to have a no-argument constructor, and will be initialized by init,
@@ -77,7 +79,7 @@ private[spark] abstract class ExternalBlockManager {
    */
   def putBytes(blockId: BlockId, bytes: ByteBuffer): Unit
 
-  def putValues(blockId: BlockId, values: Iterator[_]): Unit = {
+  def putValues(blockId: BlockId, values: PartitionData[_]): Unit = {
     val bytes = blockManager.dataSerialize(blockId, values)
     putBytes(blockId, bytes)
   }
@@ -93,12 +95,12 @@ private[spark] abstract class ExternalBlockManager {
 
   /**
    * Retrieve the block data.
-   * @return Some(Iterator[Any]) if the block data is successfully retrieved
+   * @return Some(PartitionData[_]) if the block data is successfully retrieved
    *         None if the block does not exist in the external block store.
    *
    * @throws java.io.IOException if there is any file system failure in getting the block.
    */
-  def getValues(blockId: BlockId): Option[Iterator[_]] = {
+  def getValues(blockId: BlockId): Option[PartitionData[_]] = {
     getBytes(blockId).map(buffer => blockManager.dataDeserialize(blockId, buffer))
   }
 

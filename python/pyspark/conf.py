@@ -19,14 +19,14 @@
 >>> from pyspark.conf import SparkConf
 >>> from pyspark.context import SparkContext
 >>> conf = SparkConf()
->>> conf.setMaster("local").setAppName("My app")
+>>> conf.setMain("local").setAppName("My app")
 <pyspark.conf.SparkConf object at ...>
->>> conf.get("spark.master")
+>>> conf.get("spark.main")
 u'local'
 >>> conf.get("spark.app.name")
 u'My app'
 >>> sc = SparkContext(conf=conf)
->>> sc.master
+>>> sc.main
 u'local'
 >>> sc.appName
 u'My app'
@@ -80,7 +80,7 @@ class SparkConf(object):
     what the system properties are.
 
     All setter methods in this class support chaining. For example,
-    you can write C{conf.setMaster("local").setAppName("My app")}.
+    you can write C{conf.setMain("local").setAppName("My app")}.
 
     Note that once a SparkConf object is passed to Spark, it is cloned
     and can no longer be modified by the user.
@@ -116,9 +116,9 @@ class SparkConf(object):
             self.set(key, value)
         return self
 
-    def setMaster(self, value):
-        """Set master URL to connect to."""
-        self._jconf.setMaster(value)
+    def setMain(self, value):
+        """Set main URL to connect to."""
+        self._jconf.setMain(value)
         return self
 
     def setAppName(self, value):

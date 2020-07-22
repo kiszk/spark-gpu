@@ -29,6 +29,7 @@ import org.apache.spark.mllib.feature
 import org.apache.spark.mllib.linalg.{BLAS, Vector, VectorUDT, Vectors}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.types._
 
 /**

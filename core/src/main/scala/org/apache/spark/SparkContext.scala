@@ -759,7 +759,7 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
     val numElements: BigInt = {
       val safeStart = BigInt(start)
       val safeEnd = BigInt(end)
-      if ((safeEnd - safeStart) % step == 0 || safeEnd > safeStart ^ step > 0) {
+      if ((safeEnd - safeStart) % step == 0 || (safeEnd > safeStart) != (step > 0)) {
         (safeEnd - safeStart) / step
       } else {
         // the remainder has the same sign with range, could add 1 more
@@ -1248,7 +1248,7 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
   }
 
   /** Get an RDD that has no partitions or elements. */
-  def emptyRDD[T: ClassTag]: EmptyRDD[T] = new EmptyRDD[T](this)
+  def emptyRDD[T: ClassTag]: RDD[T] = new EmptyRDD[T](this)
 
   // Methods for creating shared variables
 
@@ -1819,25 +1819,50 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
 
   /**
    * Run a function on a given set of partitions in an RDD and pass the results to the given
-   * handler function. This is the main entry point for all actions in Spark.
+   * handler function. Works on PartitionData, so custom data handling is possible.
+   * The input function is already supposed to be cleaned.
+   * This is the main entry point for all actions in Spark.
    */
-  def runJob[T, U: ClassTag](
+  private[spark] def runGenericJob[T, U: ClassTag](
       rdd: RDD[T],
-      func: (TaskContext, Iterator[T]) => U,
+      func: (TaskContext, PartitionData[T]) => U,
       partitions: Seq[Int],
       resultHandler: (Int, U) => Unit): Unit = {
     if (stopped.get()) {
       throw new IllegalStateException("SparkContext has been shutdown")
     }
     val callSite = getCallSite
-    val cleanedFunc = clean(func)
     logInfo("Starting job: " + callSite.shortForm)
     if (conf.getBoolean("spark.logLineage", false)) {
       logInfo("RDD's recursive dependencies:\n" + rdd.toDebugString)
     }
-    dagScheduler.runJob(rdd, cleanedFunc, partitions, callSite, resultHandler, localProperties.get)
+    dagScheduler.runJob(rdd, func, partitions, callSite, resultHandler, localProperties.get)
     progressBar.foreach(_.finishAll())
     rdd.doCheckpoint()
+  }
+
+  /**
+   * Run a function on a given set of partitions in an RDD and pass the results to the given
+   * handler function.
+   */
+  def runJob[T, U: ClassTag](
+      rdd: RDD[T],
+      func: (TaskContext, Iterator[T]) => U,
+      partitions: Seq[Int],
+      resultHandler: (Int, U) => Unit): Unit = {
+    val cleanF = clean(func)
+    val dataFunc = (ctx: TaskContext, data: PartitionData[T]) => cleanF(ctx, data.iterator)
+    runGenericJob(rdd, dataFunc, partitions, resultHandler)
+  }
+  def runJob[T, U: ClassTag](
+      rdd: RDD[T],
+      func: (TaskContext, PartitionData[T]) => U,
+      partitions: Seq[Int],
+      resultHandler: (Int, U) => Unit)
+      (implicit x: DummyImplicit): Unit = {
+    val cleanF = clean(func)
+    val dataFunc = (ctx: TaskContext, data: PartitionData[T]) => cleanF(ctx, data)
+    runGenericJob(rdd, dataFunc, partitions, resultHandler)
   }
 
   /**
@@ -1847,6 +1872,15 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
       rdd: RDD[T],
       func: (TaskContext, Iterator[T]) => U,
       partitions: Seq[Int]): Array[U] = {
+    val results = new Array[U](partitions.size)
+    runJob[T, U](rdd, func, partitions, (index, res) => results(index) = res)
+    results
+  }
+  def runJob[T, U: ClassTag](
+      rdd: RDD[T],
+      func: (TaskContext, PartitionData[T]) => U,
+      partitions: Seq[Int])
+      (implicit x: DummyImplicit): Array[U] = {
     val results = new Array[U](partitions.size)
     runJob[T, U](rdd, func, partitions, (index, res) => results(index) = res)
     results
@@ -1863,7 +1897,14 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
     val cleanedFunc = clean(func)
     runJob(rdd, (ctx: TaskContext, it: Iterator[T]) => cleanedFunc(it), partitions)
   }
-
+  def runJob[T, U: ClassTag](
+      rdd: RDD[T],
+      func: PartitionData[T] => U,
+      partitions: Seq[Int])
+      (implicit x: DummyImplicit): Array[U] = {
+    val cleanedFunc = clean(func)
+    runJob(rdd, (ctx: TaskContext, data: PartitionData[T]) => cleanedFunc(data), partitions)
+  }
 
   /**
    * Run a function on a given set of partitions in an RDD and pass the results to the given
@@ -1934,14 +1975,18 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
   def runJob[T, U: ClassTag](rdd: RDD[T], func: Iterator[T] => U): Array[U] = {
     runJob(rdd, func, 0 until rdd.partitions.length)
   }
+  def runJob[T, U: ClassTag](rdd: RDD[T], func: PartitionData[T] => U)
+      (implicit x: DummyImplicit): Array[U] = {
+    runJob(rdd, func, 0 until rdd.partitions.length)
+  }
 
   /**
    * Run a job on all partitions in an RDD and pass the results to a handler function.
    */
   def runJob[T, U: ClassTag](
-    rdd: RDD[T],
-    processPartition: (TaskContext, Iterator[T]) => U,
-    resultHandler: (Int, U) => Unit)
+      rdd: RDD[T],
+      processPartition: (TaskContext, Iterator[T]) => U,
+      resultHandler: (Int, U) => Unit)
   {
     runJob[T, U](rdd, processPartition, 0 until rdd.partitions.length, resultHandler)
   }
@@ -1962,6 +2007,7 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
    * :: DeveloperApi ::
    * Run a job that can return approximate results.
    */
+  // TODO version with kernel, just like in runJob, though U: ClassTag will be needed
   @DeveloperApi
   def runApproximateJob[T, U, R](
       rdd: RDD[T],
@@ -1973,7 +2019,8 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
     logInfo("Starting job: " + callSite.shortForm)
     val start = System.nanoTime
     val cleanedFunc = clean(func)
-    val result = dagScheduler.runApproximateJob(rdd, cleanedFunc, evaluator, callSite, timeout,
+    val dataFunc = (ctx: TaskContext, data: PartitionData[T]) => cleanedFunc(ctx, data.iterator)
+    val result = dagScheduler.runApproximateJob(rdd, dataFunc, evaluator, callSite, timeout,
       localProperties.get)
     logInfo(
       "Job finished: " + callSite.shortForm + ", took " + (System.nanoTime - start) / 1e9 + " s")
@@ -1983,6 +2030,7 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
   /**
    * Submit a job for execution and return a FutureJob holding the result.
    */
+  // TODO version with kernel, just like in runJob, though U: ClassTag will be needed
   def submitJob[T, U, R](
       rdd: RDD[T],
       processPartition: Iterator[T] => U,
@@ -1995,7 +2043,7 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
     val callSite = getCallSite
     val waiter = dagScheduler.submitJob(
       rdd,
-      (context: TaskContext, iter: Iterator[T]) => cleanF(iter),
+      (context: TaskContext, data: PartitionData[T]) => cleanF(data.iterator),
       partitions,
       callSite,
       resultHandler,

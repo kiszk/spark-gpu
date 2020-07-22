@@ -21,6 +21,8 @@ import java.io.File
 import java.net.Socket
 
 import scala.collection.mutable
+import scala.util.control.ControlThrowable
+import scala.util.control.NonFatal
 import scala.util.Properties
 
 import akka.actor.ActorSystem
@@ -29,6 +31,7 @@ import com.google.common.collect.MapMaker
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.api.python.PythonWorkerFactory
 import org.apache.spark.broadcast.BroadcastManager
+import org.apache.spark.cuda.{GPUMemoryManagerMasterEndPoint, CUDAManager, GPUMemoryManager}
 import org.apache.spark.metrics.MetricsSystem
 import org.apache.spark.memory.{MemoryManager, StaticMemoryManager, UnifiedMemoryManager}
 import org.apache.spark.network.BlockTransferService
@@ -40,6 +43,7 @@ import org.apache.spark.scheduler.OutputCommitCoordinator.OutputCommitCoordinato
 import org.apache.spark.serializer.Serializer
 import org.apache.spark.shuffle.ShuffleManager
 import org.apache.spark.storage._
+import org.apache.spark.unsafe.memory.HeapMemoryAllocator
 import org.apache.spark.util.{AkkaUtils, RpcUtils, Utils}
 
 /**
@@ -69,12 +73,18 @@ class SparkEnv (
     val sparkFilesDir: String,
     val metricsSystem: MetricsSystem,
     val memoryManager: MemoryManager,
+    val heapMemoryAllocator: HeapMemoryAllocator,
     val outputCommitCoordinator: OutputCommitCoordinator,
+    val cudaManager: CUDAManager,
+    val gpuMemoryManager : GPUMemoryManager,
     val conf: SparkConf) extends Logging {
 
   // TODO Remove actorSystem
   @deprecated("Actor system is no longer supported as of 1.4.0", "1.4.0")
   val actorSystem: ActorSystem = _actorSystem
+
+  val isGPUEnabled = (cudaManager != null)
+  val isGPUCodeGenEnabled = isGPUEnabled && conf.getBoolean("spark.gpu.codegen", false)
 
   private[spark] var isStopped = false
   private val pythonWorkers = mutable.HashMap[(String, Map[String, String]), PythonWorkerFactory]()
@@ -101,6 +111,7 @@ class SparkEnv (
         actorSystem.shutdown()
       }
       rpcEnv.shutdown()
+      if (cudaManager != null) { cudaManager.stop() }
 
       // Unfortunately Akka's awaitTermination doesn't actually wait for the Netty server to shut
       // down, but let's call it anyway in case it gets fixed in a later release
@@ -256,7 +267,12 @@ object SparkEnv extends Logging {
       if (rpcEnv.isInstanceOf[AkkaRpcEnv]) {
         rpcEnv.asInstanceOf[AkkaRpcEnv].actorSystem
       } else {
-        val actorSystemPort = if (port == 0) 0 else rpcEnv.address.port + 1
+        val actorSystemPort =
+          if (port == 0 || rpcEnv.address == null) {
+            port
+          } else {
+            rpcEnv.address.port + 1
+          }
         // Create a ActorSystem for legacy codes
         AkkaUtils.createActorSystem(
           actorSystemName + "ActorSystem",
@@ -348,6 +364,12 @@ object SparkEnv extends Logging {
       } else {
         UnifiedMemoryManager(conf, numUsableCores)
       }
+    val heapMemoryAllocator: HeapMemoryAllocator = {
+      val maxColumnarMemory = conf.getLong("spark.gpu.columnar.size", -1)
+      val typeColumnarMemory = conf.get("spark.gpu.columnar.memtype", "default")
+      val isColumnarMemPool = conf.getBoolean("spark.gpu.columnar.mempool", true)
+      new HeapMemoryAllocator(maxColumnarMemory, typeColumnarMemory, isColumnarMemPool)
+    }
 
     val blockTransferService = new NettyBlockTransferService(conf, securityManager, numUsableCores)
 
@@ -396,6 +418,37 @@ object SparkEnv extends Logging {
       new OutputCommitCoordinatorEndpoint(rpcEnv, outputCommitCoordinator))
     outputCommitCoordinator.coordinatorRef = Some(outputCommitCoordinatorRef)
 
+    val configGPU = if (isDriver) {
+      conf.getBoolean("spark.driver.gpu.enabled", true)
+    } else {
+      conf.getBoolean("spark.executor.gpu.enabled", true)
+    }
+
+    val cudaManager: CUDAManager = if (isDriver && !isLocal || !configGPU) {
+      null
+    } else {
+      try {
+        new CUDAManager
+      } catch {
+        case ex: Exception => {
+          logWarning(s"Unable to load GPU-related library for your platform..." +
+            "GPU cannot be used, using conventional Spark code on CPU")
+          null
+        }
+      }
+    }
+
+    val gpuMemoryManager = new GPUMemoryManager(
+                                  executorId,
+                                  rpcEnv,
+                                  registerOrLookupEndpoint(
+                                      GPUMemoryManager.DRIVER_ENDPOINT_NAME,
+                                      new GPUMemoryManagerMasterEndPoint(rpcEnv)),
+                                  isDriver,
+                                  isLocal)
+
+
+
     val envInstance = new SparkEnv(
       executorId,
       rpcEnv,
@@ -412,7 +465,10 @@ object SparkEnv extends Logging {
       sparkFilesDir,
       metricsSystem,
       memoryManager,
+      heapMemoryAllocator,
       outputCommitCoordinator,
+      cudaManager,
+      gpuMemoryManager,
       conf)
 
     // Add a reference to tmp dir created by driver, we will delete this tmp dir when stop() is

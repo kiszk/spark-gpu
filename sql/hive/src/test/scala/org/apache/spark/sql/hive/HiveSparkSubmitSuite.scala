@@ -28,6 +28,8 @@ import org.scalatest.concurrent.Timeouts
 import org.scalatest.exceptions.TestFailedDueToTimeoutException
 import org.scalatest.time.SpanSugar._
 
+import org.scalatest.exceptions.TestFailedDueToTimeoutException
+
 import org.apache.spark._
 import org.apache.spark.sql.{SQLContext, QueryTest}
 import org.apache.spark.sql.expressions.Window
@@ -35,6 +37,10 @@ import org.apache.spark.sql.hive.test.{TestHive, TestHiveContext}
 import org.apache.spark.sql.test.ProcessTestUtils.ProcessOutputCapturer
 import org.apache.spark.sql.types.DecimalType
 import org.apache.spark.util.{ResetSystemProperties, Utils}
+
+import org.apache.spark.PPCIBMJDKFailingTest
+
+import org.apache.spark.PPCIBMJDKFailingTest
 
 /**
  * This suite tests spark-submit with applications using HiveContext.
@@ -72,7 +78,7 @@ class HiveSparkSubmitSuite
     runSparkSubmit(args)
   }
 
-  test("SPARK-8020: set sql conf in spark conf") {
+  test("SPARK-8020: set sql conf in spark conf", PPCIBMJDKFailingTest) {
     val unusedJar = TestUtils.createJarWithClasses(Seq.empty)
     val args = Seq(
       "--class", SparkSQLConfTest.getClass.getName.stripSuffix("$"),

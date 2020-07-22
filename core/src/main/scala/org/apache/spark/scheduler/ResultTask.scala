@@ -58,12 +58,12 @@ private[spark] class ResultTask[T, U](
     // Deserialize the RDD and the func using the broadcast variables.
     val deserializeStartTime = System.currentTimeMillis()
     val ser = SparkEnv.get.closureSerializer.newInstance()
-    val (rdd, func) = ser.deserialize[(RDD[T], (TaskContext, Iterator[T]) => U)](
+    val (rdd, func) = ser.deserialize[(RDD[T], (TaskContext, PartitionData[T]) => U)](
       ByteBuffer.wrap(taskBinary.value), Thread.currentThread.getContextClassLoader)
     _executorDeserializeTime = System.currentTimeMillis() - deserializeStartTime
 
     metrics = Some(context.taskMetrics)
-    func(context, rdd.iterator(partition, context))
+    func(context, rdd.partitionData(partition, context))
   }
 
   // This is only callable on the driver side.

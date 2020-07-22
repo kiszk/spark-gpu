@@ -33,11 +33,12 @@ import org.apache.spark._
 import org.apache.spark.Partitioner._
 import org.apache.spark.annotation.{Since, DeveloperApi}
 import org.apache.spark.api.java.JavaRDD
+import org.apache.spark.cuda.CUDACodeGenerator
 import org.apache.spark.partial.BoundedDouble
 import org.apache.spark.partial.CountEvaluator
 import org.apache.spark.partial.GroupedCountEvaluator
 import org.apache.spark.partial.PartialResult
-import org.apache.spark.storage.StorageLevel
+import org.apache.spark.storage.{RDDBlockId, StorageLevel}
 import org.apache.spark.util.{BoundedPriorityQueue, Utils}
 import org.apache.spark.util.collection.OpenHashMap
 import org.apache.spark.util.random.{BernoulliSampler, PoissonSampler, BernoulliCellSampler,
@@ -104,10 +105,20 @@ abstract class RDD[T: ClassTag](
 
   /**
    * :: DeveloperApi ::
-   * Implemented by subclasses to compute a given partition.
+   * Implemented by subclasses to compute a given partition in iterator form.
    */
   @DeveloperApi
   def compute(split: Partition, context: TaskContext): Iterator[T]
+
+  /**
+   * :: DeveloperApi ::
+   * Implemented by subclasses to compute a given partition. Should be overwritten by all new RDDs.
+   * The default implementation falls back to `.compute()`.
+   */
+  @DeveloperApi
+  def computePartition(split: Partition, context: TaskContext): PartitionData[T] = {
+    IteratorPartitionData(compute(split, context))
+  }
 
   /**
    * Implemented by subclasses to return the set of partitions in this RDD. This method will only
@@ -192,6 +203,17 @@ abstract class RDD[T: ClassTag](
   /** Persist this RDD with the default storage level (`MEMORY_ONLY`). */
   def cache(): this.type = persist()
 
+  def cacheGpu() : RDD[T] = {
+    sc.env.gpuMemoryManager.cacheGPUSlaves(id);
+    storageGpuLevel = StorageLevel.MEMORY_ONLY
+    this
+  }
+  def unCacheGpu() : RDD[T] = {
+    sc.env.gpuMemoryManager.unCacheGPUSlaves(id);
+    storageGpuLevel = StorageLevel.NONE
+    this
+  }
+
   /**
    * Mark the RDD as non-persistent, and remove all blocks for it from memory and disk.
    *
@@ -259,13 +281,29 @@ abstract class RDD[T: ClassTag](
   }
 
   /**
+   * Internal method returning iterator to values in the Partition. It will perform costly
+   * conversion and print a warning if the partition is not of IteratorPartitionData type.
+   */
+  final def iterator(split: Partition, context: TaskContext): Iterator[T] = {
+    partitionData(split, context) match {
+      case IteratorPartitionData(iter) => iter
+      case data =>
+        logWarning(s"Implicitly converting non-iterator partition ${split.index} into iterator " +
+          "partiion.")
+        data.iterator
+    }
+  }
+
+  /**
    * Internal method to this RDD; will read from cache if applicable, or otherwise compute it.
    * This should ''not'' be called by users directly, but is available for implementors of custom
    * subclasses of RDD.
    */
-  final def iterator(split: Partition, context: TaskContext): Iterator[T] = {
+  final def partitionData(split: Partition, context: TaskContext): PartitionData[T] = {
     if (storageLevel != StorageLevel.NONE) {
       SparkEnv.get.cacheManager.getOrCompute(this, split, context, storageLevel)
+    } else if (storageGpuLevel != StorageLevel.NONE) {
+      SparkEnv.get.cacheManager.getOrCompute(this, split, context, storageGpuLevel)
     } else {
       computeOrReadCheckpoint(split, context)
     }
@@ -298,12 +336,13 @@ abstract class RDD[T: ClassTag](
   /**
    * Compute an RDD partition or read it from a checkpoint if the RDD is checkpointing.
    */
-  private[spark] def computeOrReadCheckpoint(split: Partition, context: TaskContext): Iterator[T] =
+  private[spark] def computeOrReadCheckpoint(split: Partition, context: TaskContext):
+      PartitionData[T] =
   {
     if (isCheckpointedAndMaterialized) {
-      firstParent[T].iterator(split, context)
+      firstParent[T].partitionData(split, context)
     } else {
-      compute(split, context)
+      computePartition(split, context)
     }
   }
 
@@ -322,7 +361,23 @@ abstract class RDD[T: ClassTag](
    */
   def map[U: ClassTag](f: T => U): RDD[U] = withScope {
     val cleanF = sc.clean(f)
-    new MapPartitionsRDD[U, T](this, (context, pid, iter) => iter.map(cleanF))
+    val cudaFunc = CUDACodeGenerator.generateForMap[U, T](cleanF)
+    new MapPartitionsRDD[U, T](this, (context, pid, iter) => iter.map(cleanF),
+                               extfunc = cudaFunc)
+  }
+
+  /**
+   * Return a new RDD by applying a function to all elements of this RDD.
+   * Uses supplied lambda function for iterator-based partitions and
+   * external function for column-based partitions.
+   */
+  def mapExtFunc[U: ClassTag](f: T => U, extfunc: ExternalFunction,
+                              outputArraySizes: Seq[Long] = null,
+                              inputFreeVariables: Seq[Any] = null): RDD[U] = withScope {
+    val cleanF = sc.clean(f)
+    new MapPartitionsRDD[U, T](this, (context, pid, iter) => iter.map(cleanF),
+      extfunc = Some(extfunc), outputArraySizes = outputArraySizes,
+                               inputFreeVariables = inputFreeVariables)
   }
 
   /**
@@ -1006,13 +1061,29 @@ abstract class RDD[T: ClassTag](
    */
   def reduce(f: (T, T) => T): T = withScope {
     val cleanF = sc.clean(f)
-    val reducePartition: Iterator[T] => Option[T] = iter => {
-      if (iter.hasNext) {
-        Some(iter.reduceLeft(cleanF))
-      } else {
-        None
+    val cudaFunc = CUDACodeGenerator.generateForReduce[T](cleanF)
+    val reducePartition: (TaskContext, PartitionData[T]) => Option[T] =
+      (ctx: TaskContext, data: PartitionData[T]) => data match {
+        case IteratorPartitionData(iter) =>
+          if (iter.hasNext) {
+            Some(iter.reduceLeft(cleanF))
+          } else {
+            None
+          }
+
+        case col: ColumnPartitionData[T] =>
+          if (col.size != 0) {
+            cudaFunc match {
+              case Some(extFunc) =>
+                Some(extFunc.run[T, T](col, Some(1), null, null,
+                                       col.blockId).iterator.next)
+              case None =>
+                Some(col.iterator.reduceLeft(cleanF))
+              }
+          } else {
+            None
+          }
       }
-    }
     var jobResult: Option[T] = None
     val mergeResult = (index: Int, taskResult: Option[T]) => {
       if (taskResult.isDefined) {
@@ -1022,7 +1093,47 @@ abstract class RDD[T: ClassTag](
         }
       }
     }
-    sc.runJob(this, reducePartition, mergeResult)
+    sc.runGenericJob(this, reducePartition, 0 until partitions.length, mergeResult)
+    // Get the final result out of our Option, or throw an exception if the RDD was empty
+    jobResult.getOrElse(throw new UnsupportedOperationException("empty collection"))
+  }
+
+  /**
+   * Reduces the elements of this RDD using the specified commutative and associative binary
+   * operator. Uses supplied external function for performing those operations
+   * on column-based partitions.
+   */
+  def reduceExtFunc(f: (T, T) => T, extfunc: ExternalFunction,
+                    outputArraySizes: Seq[Long] = null,
+                    inputFreeVariables: Seq[Any] = null): T = withScope {
+    val cleanF = sc.clean(f)
+    val reducePartition: (TaskContext, PartitionData[T]) => Option[T] =
+      (ctx: TaskContext, data: PartitionData[T]) => data match {
+        case IteratorPartitionData(iter) =>
+          if (iter.hasNext) {
+            Some(iter.reduceLeft(cleanF))
+          } else {
+            None
+          }
+
+        case col: ColumnPartitionData[T] =>
+          if (col.size != 0) {
+            Some(extfunc.run[T, T](col, Some(1), outputArraySizes,
+                                   inputFreeVariables, col.blockId).iterator.next)
+          } else {
+            None
+          }
+      }
+    var jobResult: Option[T] = None
+    val mergeResult = (index: Int, taskResult: Option[T]) => {
+      if (taskResult.isDefined) {
+        jobResult = jobResult match {
+          case Some(value) => Some(f(value, taskResult.get))
+          case None => taskResult
+        }
+      }
+    }
+    sc.runGenericJob(this, reducePartition, 0 until partitions.length, mergeResult)
     // Get the final result out of our Option, or throw an exception if the RDD was empty
     jobResult.getOrElse(throw new UnsupportedOperationException("empty collection"))
   }
@@ -1140,7 +1251,7 @@ abstract class RDD[T: ClassTag](
   /**
    * Return the number of elements in the RDD.
    */
-  def count(): Long = sc.runJob(this, Utils.getIteratorSize _).sum
+  def count(): Long = sc.runJob(this, Utils.getPartitionDataSize[T] _).sum
 
   /**
    * Approximate version of count() that returns a potentially incomplete result
@@ -1596,11 +1707,27 @@ abstract class RDD[T: ClassTag](
     }
   }
 
+  /**
+   * Converts the RDD to iterator-based or column-based format.
+   *
+   * @param format the target format
+   */
+  def convert(format: PartitionFormat, unpersist: Boolean = true):
+      RDD[T] = {
+    val ratio = 1.0
+    if (ratio < 0.0 || ratio > 1.0) {
+      throw new SparkException("RDD conversion ratio must be between 0 (no conversion) and 1 " +
+        "(convert everything)")
+    }
+    new ConvertRDD(this, format, unpersist, ratio)
+  }
+
   // =======================================================================
   // Other internal methods and fields
   // =======================================================================
 
   private var storageLevel: StorageLevel = StorageLevel.NONE
+  private var storageGpuLevel: StorageLevel = StorageLevel.NONE
 
   /** User code that created this RDD (e.g. `textFile`, `parallelize`). */
   @transient private[spark] val creationSite = sc.getCallSite()

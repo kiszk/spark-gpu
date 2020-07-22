@@ -110,18 +110,18 @@ class WriteAheadLogBackedBlockRDD[T: ClassTag](
    * If the block does not exist, then the data is read from the corresponding record
    * in write ahead log files.
    */
-  override def compute(split: Partition, context: TaskContext): Iterator[T] = {
+  override def computePartition(split: Partition, context: TaskContext): PartitionData[T] = {
     assertValid()
     val hadoopConf = broadcastedHadoopConf.value
     val blockManager = SparkEnv.get.blockManager
     val partition = split.asInstanceOf[WriteAheadLogBackedBlockRDDPartition]
     val blockId = partition.blockId
 
-    def getBlockFromBlockManager(): Option[Iterator[T]] = {
-      blockManager.get(blockId).map(_.data.asInstanceOf[Iterator[T]])
+    def getBlockFromBlockManager(): Option[PartitionData[T]] = {
+      blockManager.get(blockId).map(_.data.asInstanceOf[PartitionData[T]])
     }
 
-    def getBlockFromWriteAheadLog(): Iterator[T] = {
+    def getBlockFromWriteAheadLog(): PartitionData[T] = {
       var dataRead: ByteBuffer = null
       var writeAheadLog: WriteAheadLog = null
       try {
@@ -160,7 +160,7 @@ class WriteAheadLogBackedBlockRDD[T: ClassTag](
         logDebug(s"Stored partition data of $this into block manager with level $storageLevel")
         dataRead.rewind()
       }
-      blockManager.dataDeserialize(blockId, dataRead).asInstanceOf[Iterator[T]]
+      blockManager.dataDeserialize(blockId, dataRead).asInstanceOf[PartitionData[T]]
     }
 
     if (partition.isBlockIdValid) {

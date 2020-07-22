@@ -35,21 +35,18 @@ import org.apache.spark._
  * org.apache.spark.mllib.classification.LogisticRegressionWithLBFGS based on your needs.
  */
 object SparkLR {
-  val N = 10000  // Number of data points
-  val D = 10   // Numer of dimensions
-  val R = 0.7  // Scaling factor
-  val ITERATIONS = 5
   val rand = new Random(42)
 
   case class DataPoint(x: Vector[Double], y: Double)
 
-  def generateData: Array[DataPoint] = {
+  def generateData(seed: Int, N: Int, D: Int, R: Double): DataPoint = {
+    val r = new Random(seed)
     def generatePoint(i: Int): DataPoint = {
       val y = if (i % 2 == 0) -1 else 1
-      val x = DenseVector.fill(D){rand.nextGaussian + y * R}
+      val x = DenseVector.fill(D){r.nextGaussian + y * R}
       DataPoint(x, y)
     }
-    Array.tabulate(N)(generatePoint)
+    generatePoint(seed)
   }
 
   def showWarning() {
@@ -67,22 +64,35 @@ object SparkLR {
 
     val sparkConf = new SparkConf().setAppName("SparkLR")
     val sc = new SparkContext(sparkConf)
+
     val numSlices = if (args.length > 0) args(0).toInt else 2
-    val points = sc.parallelize(generateData, numSlices).cache()
+    val N = if (args.length > 1) args(1).toInt else 10000  // Number of data points
+    val D = if (args.length > 2) args(2).toInt else 10   // Numer of dimensions
+    val R = 0.7  // Scaling factor
+    val ITERATIONS = if (args.length > 3) args(3).toInt else 5
+
+    val skelton = sc.parallelize((1 to N), numSlices)
+    val points = skelton.map(i => generateData(i, N, D, R)).cache()
+    points.count()
 
     // Initialize w to a random value
     var w = DenseVector.fill(D){2 * rand.nextDouble - 1}
-    println("Initial w: " + w)
+    printf("numSlices=%d, N=%d, D=%d, ITERATIONS=%d\n", numSlices, N, D, ITERATIONS)
+    // println("Initial w: " + w)
 
+    val now = System.nanoTime
     for (i <- 1 to ITERATIONS) {
       println("On iteration " + i)
+      val wbc = sc.broadcast(w)
       val gradient = points.map { p =>
-        p.x * (1 / (1 + exp(-p.y * (w.dot(p.x)))) - 1) * p.y
+        p.x * (1 / (1 + exp(-p.y * (wbc.value.dot(p.x)))) - 1) * p.y
       }.reduce(_ + _)
       w -= gradient
     }
+    val ms = (System.nanoTime - now) / 1000000
+    println("Elapsed time: %d ms".format(ms))
 
-    println("Final w: " + w)
+    // println("Final w: " + w)
 
     sc.stop()
   }

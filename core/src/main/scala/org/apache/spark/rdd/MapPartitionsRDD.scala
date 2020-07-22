@@ -17,9 +17,12 @@
 
 package org.apache.spark.rdd
 
+import org.apache.spark.storage.RDDBlockId
+
 import scala.reflect.ClassTag
 
-import org.apache.spark.{Partition, TaskContext}
+import org.apache.spark.{Partition, TaskContext, PartitionData, IteratorPartitionData,
+  ColumnPartitionData, PartitionFormat, IteratorFormat, SparkException}
 
 /**
  * An RDD that applies the provided function to every partition of the parent RDD.
@@ -27,13 +30,29 @@ import org.apache.spark.{Partition, TaskContext}
 private[spark] class MapPartitionsRDD[U: ClassTag, T: ClassTag](
     prev: RDD[T],
     f: (TaskContext, Int, Iterator[T]) => Iterator[U],  // (TaskContext, partition index, iterator)
-    preservesPartitioning: Boolean = false)
+    preservesPartitioning: Boolean = false,
+    extfunc: Option[ExternalFunction] = None,
+    outputArraySizes: Seq[Long] = null,
+    inputFreeVariables: Seq[Any] = null)
   extends RDD[U](prev) {
 
   override val partitioner = if (preservesPartitioning) firstParent[T].partitioner else None
 
   override def getPartitions: Array[Partition] = firstParent[T].partitions
 
-  override def compute(split: Partition, context: TaskContext): Iterator[U] =
-    f(context, split.index, firstParent[T].iterator(split, context))
+  override def compute(split: Partition, context: TaskContext): Iterator[U] = {
+    throw new SparkException("We do not implement compute since computePartition is implemented.")
+  }
+
+  override def computePartition(split: Partition, context: TaskContext): PartitionData[U] = {
+    (firstParent[T].partitionData(split, context), extfunc) match {
+      // computing column-based partition on GPU
+      case (col: ColumnPartitionData[T], Some(extfun)) =>
+        extfun.run(col, None, outputArraySizes,
+                        inputFreeVariables, Some(RDDBlockId(id, split.index)))
+      // computing  iterator-based partition on CPU
+      case (data, _) =>
+        IteratorPartitionData(f(context, split.index, data.iterator))
+    }
+  }
 }

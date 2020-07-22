@@ -41,6 +41,8 @@ import org.apache.spark.deploy.history.HistoryServerSuite
 import org.apache.spark.shuffle.FetchFailedException
 import org.apache.spark.status.api.v1.{JacksonMessageWriter, StageStatus}
 
+import org.apache.spark.PPCIBMJDKFailingTest
+
 private[spark] class SparkUICssErrorHandler extends DefaultCssErrorHandler {
 
   private val cssWhiteList = List("bootstrap.min.css", "vis.min.css")
@@ -587,7 +589,7 @@ class UISeleniumSuite extends SparkFunSuite with WebBrowser with Matchers with B
     }
   }
 
-  test("live UI json application list") {
+  test("live UI json application list", PPCIBMJDKFailingTest) {
     withSpark(newSparkContext()) { sc =>
       val appListRawJson = HistoryServerSuite.getUrl(new URL(
         sc.ui.get.appUIAddress + "/api/v1/applications"))

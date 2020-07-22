@@ -114,7 +114,7 @@ class PartitioningSuite extends SparkFunSuite with SharedSparkContext with Priva
     }
   }
 
-  test("RangePartitioner.determineBounds") {
+  test("RangePartitioner.determineBounds", PPCIBMJDKFailingTest) {
     assert(RangePartitioner.determineBounds(ArrayBuffer.empty[(Int, Float)], 10).isEmpty,
       "Bounds on an empty candidates set should be empty.")
     val candidates = ArrayBuffer(

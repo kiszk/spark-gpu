@@ -83,6 +83,8 @@ class RFormula(override val uid: String) extends Estimator[RFormulaModel] with R
     require(isDefined(formula), "Formula must be defined first.")
     val parsedFormula = RFormulaParser.parse($(formula))
     val resolvedFormula = parsedFormula.resolve(dataset.schema)
+    // StringType terms and terms representing interactions need to be encoded before assembly.
+    // TODO(ekl) add support for feature interactions
     val encoderStages = ArrayBuffer[PipelineStage]()
 
     val prefixesToRewrite = mutable.Map[String, String]()

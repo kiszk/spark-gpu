@@ -121,8 +121,8 @@ private[spark] class SqlNewHadoopRDD[V: ClassTag](
   }
 
   override def compute(
-    theSplit: SparkPartition,
-    context: TaskContext): Iterator[V] = {
+      theSplit: SparkPartition,
+      context: TaskContext): Iterator[V] = {
     val iter = new Iterator[V] {
       val split = theSplit.asInstanceOf[SqlNewHadoopPartition]
       logInfo("Input split: " + split.serializableHadoopSplit)

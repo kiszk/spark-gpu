@@ -138,6 +138,7 @@ object RandomForestClassifier {
  * features.
  * @param _trees  Decision trees in the ensemble.
  *               Warning: These have null parents.
+ * @param numFeatures  Number of features used by this model
  */
 @Since("1.4.0")
 @Experimental

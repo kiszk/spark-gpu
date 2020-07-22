@@ -27,6 +27,7 @@ import scala.util.Random
 import scala.util.control.NonFatal
 
 import sun.nio.ch.DirectBuffer
+import java.nio.channels.Channels
 
 import org.apache.spark._
 import org.apache.spark.executor.{DataReadMethod, ShuffleWriteMetrics}
@@ -37,19 +38,25 @@ import org.apache.spark.network.buffer.{ManagedBuffer, NioManagedBuffer}
 import org.apache.spark.network.netty.SparkTransportConf
 import org.apache.spark.network.shuffle.ExternalShuffleClient
 import org.apache.spark.network.shuffle.protocol.ExecutorShuffleInfo
+import org.apache.spark.PartitionData
+import org.apache.spark.ColumnPartitionData
+import org.apache.spark.IteratorPartitionData
 import org.apache.spark.rpc.RpcEnv
 import org.apache.spark.serializer.{Serializer, SerializerInstance}
 import org.apache.spark.shuffle.ShuffleManager
 import org.apache.spark.util._
 
+import scala.language.existentials
+
 private[spark] sealed trait BlockValues
 private[spark] case class ByteBufferValues(buffer: ByteBuffer) extends BlockValues
 private[spark] case class IteratorValues(iterator: Iterator[Any]) extends BlockValues
 private[spark] case class ArrayValues(buffer: Array[Any]) extends BlockValues
+private[spark] case class ColumnValues(columns: ColumnPartitionData[_]) extends BlockValues
 
 /* Class for returning a fetched block and associated metrics. */
 private[spark] class BlockResult(
-    val data: Iterator[Any],
+    val data: PartitionData[_],
     val readMethod: DataReadMethod.Value,
     val bytes: Long)
 
@@ -537,17 +544,25 @@ private[spark] class BlockManager(
             } else {
               val values = dataDeserialize(blockId, bytes)
               if (level.deserialized) {
-                // Cache the values before returning them
-                val putResult = memoryStore.putIterator(
-                  blockId, values, level, returnValues = true, allowPersistToDisk = false)
-                // The put may or may not have succeeded, depending on whether there was enough
-                // space to unroll the block. Either way, the put here should return an iterator.
-                putResult.data match {
-                  case Left(it) =>
-                    return Some(new BlockResult(it, DataReadMethod.Disk, info.size))
-                  case _ =>
-                    // This only happens if we dropped the values back to disk (which is never)
-                    throw new SparkException("Memory store did not return an iterator!")
+                values match {
+                  case IteratorPartitionData(iter) =>
+                    // Cache the values before returning them
+                    val putResult = memoryStore.putIterator(
+                      blockId, iter, level, returnValues = true, allowPersistToDisk = false)
+                    // The put may or may not have succeeded, depending on whether there was enough
+                    // space to unroll the block. Either way, the put here should return an
+                    // iterator.
+                    putResult.data match {
+                      case Left(it: IteratorPartitionData[_]) =>
+                        return Some(new BlockResult(it, DataReadMethod.Disk, info.size))
+                      case _ =>
+                        // This never happens, since nothing should be dropped to disk nor
+                        // should be the iterated partition converted to a column-based partition
+                        throw new SparkException("Memory store did not return an iterator!")
+                    }
+
+                  case col: ColumnPartitionData[_] =>
+                    return Some(new BlockResult(values, DataReadMethod.Disk, info.size))
                 }
               } else {
                 return Some(new BlockResult(values, DataReadMethod.Disk, info.size))
@@ -578,9 +593,19 @@ private[spark] class BlockManager(
     doGetRemote(blockId, asBlockResult = false).asInstanceOf[Option[ByteBuffer]]
   }
 
+  /**
+   * Return a list of locations for the given block, prioritizing the local machine since
+   * multiple block managers can share the same host.
+   */
+  private def getLocations(blockId: BlockId): Seq[BlockManagerId] = {
+    val locs = Random.shuffle(master.getLocations(blockId))
+    val (preferredLocs, otherLocs) = locs.partition { loc => blockManagerId.host == loc.host }
+    preferredLocs ++ otherLocs
+  }
+
   private def doGetRemote(blockId: BlockId, asBlockResult: Boolean): Option[Any] = {
     require(blockId != null, "BlockId is null")
-    val locations = Random.shuffle(master.getLocations(blockId))
+    val locations = getLocations(blockId)
     var numFetchFailures = 0
     for (loc <- locations) {
       logDebug(s"Getting remote block $blockId from $loc")
@@ -691,6 +716,20 @@ private[spark] class BlockManager(
   }
 
   /**
+   * Put a column-based partition to the block manager.
+   * Return a list of blocks updated as a result of thids put.
+   */
+  def putColumns[T](
+      blockId: BlockId,
+      columns: ColumnPartitionData[T],
+      level: StorageLevel,
+      tellMaster: Boolean = true,
+      effectiveStorageLevel: Option[StorageLevel] = None): Seq[(BlockId, BlockStatus)] = {
+    require(columns != null, "Columns is null")
+    doPut(blockId, ColumnValues(columns), level, tellMaster, effectiveStorageLevel)
+  }
+
+  /**
    * Put the given block according to the given level in one of the block stores, replicating
    * the values if necessary.
    *
@@ -741,7 +780,7 @@ private[spark] class BlockManager(
      * but because our put will read the whole iterator, there will be no values left. For the
      * case where the put serializes data, we'll remember the bytes, above; but for the case where
      * it doesn't, such as deserialized storage, let's rely on the put returning an Iterator. */
-    var valuesAfterPut: Iterator[Any] = null
+    var valuesAfterPut: PartitionData[_] = null
 
     // Ditto for the bytes after the put
     var bytesAfterPut: ByteBuffer = null
@@ -801,11 +840,13 @@ private[spark] class BlockManager(
           case ByteBufferValues(bytes) =>
             bytes.rewind()
             blockStore.putBytes(blockId, bytes, putLevel)
+          case ColumnValues(columns) =>
+            blockStore.putColumns(blockId, columns, putLevel, returnValues)
         }
         size = result.size
         result.data match {
-          case Left (newIterator) if putLevel.useMemory => valuesAfterPut = newIterator
-          case Right (newBytes) => bytesAfterPut = newBytes
+          case Left(newData) if putLevel.useMemory => valuesAfterPut = newData
+          case Right(newBytes) => bytesAfterPut = newBytes
           case _ =>
         }
 
@@ -989,11 +1030,16 @@ private[spark] class BlockManager(
    * Read a block consisting of a single object.
    */
   def getSingle(blockId: BlockId): Option[Any] = {
-    get(blockId).map(_.data.next())
+    get(blockId).map(_.data match {
+      case IteratorPartitionData(it) =>
+        it.next()
+      case col: ColumnPartitionData[_] =>
+        throw new SparkException("Unexpected read of a single object from a column-based partition")
+    })
   }
 
   /**
-   * Write a block consisting of a single object.
+   * Write a block consisting of a single object. Makes an iterated partition from the object.
    */
   def putSingle(
       blockId: BlockId,
@@ -1005,7 +1051,7 @@ private[spark] class BlockManager(
 
   def dropFromMemory(
       blockId: BlockId,
-      data: Either[Array[Any], ByteBuffer]): Option[BlockStatus] = {
+      data: Any): Option[BlockStatus] = {
     dropFromMemory(blockId, () => data)
   }
 
@@ -1019,7 +1065,7 @@ private[spark] class BlockManager(
    */
   def dropFromMemory(
       blockId: BlockId,
-      data: () => Either[Array[Any], ByteBuffer]): Option[BlockStatus] = {
+      data: () => Any): Option[BlockStatus] = {
 
     logInfo(s"Dropping block $blockId from memory")
     val info = blockInfo.get(blockId).orNull
@@ -1044,10 +1090,12 @@ private[spark] class BlockManager(
         if (level.useDisk && !diskStore.contains(blockId)) {
           logInfo(s"Writing block $blockId to disk")
           data() match {
-            case Left(elements) =>
-              diskStore.putArray(blockId, elements, level, returnValues = false)
-            case Right(bytes) =>
-              diskStore.putBytes(blockId, bytes, level)
+            case arr: Array[Any] =>
+              diskStore.putArray(blockId, arr, level, returnValues = false)
+            case col: ColumnPartitionData[_] =>
+              diskStore.putColumns(blockId, col, level, returnValues = false)
+            case buf: ByteBuffer =>
+              diskStore.putBytes(blockId, buf, level)
           }
           blockIsUpdated = true
         }
@@ -1190,20 +1238,26 @@ private[spark] class BlockManager(
   def dataSerializeStream(
       blockId: BlockId,
       outputStream: OutputStream,
-      values: Iterator[Any],
-      serializer: Serializer = defaultSerializer): Unit = {
+      values: PartitionData[_]): Unit = {
     val byteStream = new BufferedOutputStream(outputStream)
-    val ser = serializer.newInstance()
-    ser.serializeStream(wrapForCompression(blockId, byteStream)).writeAll(values).close()
+    val ser = defaultSerializer.newInstance()
+    val wrappedStream = wrapForCompression(blockId, byteStream)
+    values match {
+      case col: ColumnPartitionData[_] =>
+        // columns are already kind of serialized and on off-heap, so using custom serializer from
+        // ColumnPartitionData
+        ser.serializeStream(wrappedStream).writeObject(col).close()
+
+      case IteratorPartitionData(iter) =>
+        // using standard serialization for a sequence of Java objects
+        ser.serializeStream(wrappedStream).writeAll(iter).close()
+    }
   }
 
   /** Serializes into a byte buffer. */
-  def dataSerialize(
-      blockId: BlockId,
-      values: Iterator[Any],
-      serializer: Serializer = defaultSerializer): ByteBuffer = {
+  def dataSerialize(blockId: BlockId, values: PartitionData[_]): ByteBuffer = {
     val byteStream = new ByteBufferOutputStream(4096)
-    dataSerializeStream(blockId, byteStream, values, serializer)
+    dataSerializeStream(blockId, byteStream, values)
     byteStream.toByteBuffer
   }
 
@@ -1211,24 +1265,30 @@ private[spark] class BlockManager(
    * Deserializes a ByteBuffer into an iterator of values and disposes of it when the end of
    * the iterator is reached.
    */
-  def dataDeserialize(
-      blockId: BlockId,
-      bytes: ByteBuffer,
-      serializer: Serializer = defaultSerializer): Iterator[Any] = {
+  def dataDeserialize(blockId: BlockId, bytes: ByteBuffer): PartitionData[_] = {
     bytes.rewind()
-    dataDeserializeStream(blockId, new ByteBufferInputStream(bytes, true), serializer)
+    dataDeserializeStream(blockId, new ByteBufferInputStream(bytes, true))
   }
 
   /**
    * Deserializes a InputStream into an iterator of values and disposes of it when the end of
    * the iterator is reached.
    */
-  def dataDeserializeStream(
-      blockId: BlockId,
-      inputStream: InputStream,
-      serializer: Serializer = defaultSerializer): Iterator[Any] = {
+  def dataDeserializeStream(blockId: BlockId, inputStream: InputStream): PartitionData[_] = {
     val stream = new BufferedInputStream(inputStream)
-    serializer.newInstance().deserializeStream(wrapForCompression(blockId, stream)).asIterator
+    val objIter = defaultSerializer
+      .newInstance()
+      .deserializeStream(wrapForCompression(blockId, stream))
+      .asIterator
+
+    if (objIter.hasNext) {
+      objIter.next match {
+        case col: ColumnPartitionData[_] => col
+        case obj => IteratorPartitionData(Iterator.single(obj) ++ objIter)
+      }
+    } else {
+      IteratorPartitionData(objIter)
+    }
   }
 
   def stop(): Unit = {

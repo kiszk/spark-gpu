@@ -213,6 +213,9 @@ class RDDSuite extends SparkFunSuite with SharedSparkContext {
       override def compute(split: Partition, context: TaskContext): Iterator[Int] = {
         throw new Exception("injected failure")
       }
+      override def computePartition(split: Partition, context: TaskContext): PartitionData[Int] = {
+        throw new Exception("injected failure")
+      }
     }.cache()
     val thrown = intercept[Exception]{
       rdd.collect()
@@ -963,6 +966,8 @@ class RDDSuite extends SparkFunSuite with SharedSparkContext {
   private class CyclicalDependencyRDD[T: ClassTag] extends RDD[T](sc, Nil) {
     private val mutableDependencies: ArrayBuffer[Dependency[_]] = ArrayBuffer.empty
     override def compute(p: Partition, c: TaskContext): Iterator[T] = Iterator.empty
+    override def computePartition(p: Partition, c: TaskContext): PartitionData[T] =
+      IteratorPartitionData(Iterator.empty)
     override def getPartitions: Array[Partition] = Array.empty
     override def getDependencies: Seq[Dependency[_]] = mutableDependencies
     def addDependency(dep: Dependency[_]) {

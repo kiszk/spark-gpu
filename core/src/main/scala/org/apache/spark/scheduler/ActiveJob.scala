@@ -19,7 +19,7 @@ package org.apache.spark.scheduler
 
 import java.util.Properties
 
-import org.apache.spark.TaskContext
+import org.apache.spark.{TaskContext, PartitionData}
 import org.apache.spark.util.CallSite
 
 /**

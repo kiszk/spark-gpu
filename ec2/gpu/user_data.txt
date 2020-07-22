@@ -1,0 +1,12 @@
+#!/bin/bash
+
+sed -i 's/Defaults    requiretty/Defaults    !requiretty/g' /etc/sudoers
+
+sed -i 's/PermitRootLogin forced-commands-only/PermitRootLogin without-password/g' /etc/ssh/sshd_config
+
+cd /root/.ssh
+cp authorized_keys authorized_keys.orig
+cp /home/ec2-user/.ssh/authorized_keys .
+service sshd restart
+
+yum install -y git

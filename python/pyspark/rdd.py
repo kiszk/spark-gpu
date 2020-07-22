@@ -220,18 +220,18 @@ class RDD(object):
 
     def cache(self):
         """
-        Persist this RDD with the default storage level (C{MEMORY_ONLY_SER}).
+        Persist this RDD with the default storage level (C{MEMORY_ONLY}).
         """
         self.is_cached = True
-        self.persist(StorageLevel.MEMORY_ONLY_SER)
+        self.persist(StorageLevel.MEMORY_ONLY)
         return self
 
-    def persist(self, storageLevel=StorageLevel.MEMORY_ONLY_SER):
+    def persist(self, storageLevel=StorageLevel.MEMORY_ONLY):
         """
         Set this RDD's storage level to persist its values across operations
         after the first time it is computed. This can only be used to assign
         a new storage level if the RDD does not have a storage level set yet.
-        If no storage level is specified defaults to (C{MEMORY_ONLY_SER}).
+        If no storage level is specified defaults to (C{MEMORY_ONLY}).
 
         >>> rdd = sc.parallelize(["b", "a", "c"])
         >>> rdd.persist().is_cached
@@ -1509,7 +1509,7 @@ class RDD(object):
 
     def collectAsMap(self):
         """
-        Return the key-value pairs in this RDD to the master as a dictionary.
+        Return the key-value pairs in this RDD to the main as a dictionary.
 
         >>> m = sc.parallelize([(1, 2), (3, 4)]).collectAsMap()
         >>> m[1]
@@ -1560,7 +1560,7 @@ class RDD(object):
     def reduceByKeyLocally(self, func):
         """
         Merge the values for each key using an associative reduce function, but
-        return the results immediately to the master as a dictionary.
+        return the results immediately to the main as a dictionary.
 
         This will also perform the merging locally on each mapper before
         sending results to a reducer, similarly to a "combiner" in MapReduce.
@@ -1585,7 +1585,7 @@ class RDD(object):
     def countByKey(self):
         """
         Count the number of elements for each key, and return the result to the
-        master as a dictionary.
+        main as a dictionary.
 
         >>> rdd = sc.parallelize([("a", 1), ("b", 1), ("a", 1)])
         >>> sorted(rdd.countByKey().items())
