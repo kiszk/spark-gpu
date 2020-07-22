@@ -71,14 +71,14 @@ class SparkContext(object):
 
     PACKAGE_EXTENSIONS = ('.zip', '.egg', '.jar')
 
-    def __init__(self, master=None, appName=None, sparkHome=None, pyFiles=None,
+    def __init__(self, main=None, appName=None, sparkHome=None, pyFiles=None,
                  environment=None, batchSize=0, serializer=PickleSerializer(), conf=None,
                  gateway=None, jsc=None, profiler_cls=BasicProfiler):
         """
-        Create a new SparkContext. At least the master and app name should be set,
+        Create a new SparkContext. At least the main and app name should be set,
         either through the named parameters here or through C{conf}.
 
-        :param master: Cluster URL to connect to
+        :param main: Cluster URL to connect to
                (e.g. mesos://host:port, spark://host:port, local[4]).
         :param appName: A name for your job, to display on the cluster web UI.
         :param sparkHome: Location where Spark is installed on cluster nodes.
@@ -111,14 +111,14 @@ class SparkContext(object):
         self._callsite = first_spark_call() or CallSite(None, None, None)
         SparkContext._ensure_initialized(self, gateway=gateway)
         try:
-            self._do_init(master, appName, sparkHome, pyFiles, environment, batchSize, serializer,
+            self._do_init(main, appName, sparkHome, pyFiles, environment, batchSize, serializer,
                           conf, jsc, profiler_cls)
         except:
             # If an error occurs, clean up in order to allow future SparkContext creation:
             self.stop()
             raise
 
-    def _do_init(self, master, appName, sparkHome, pyFiles, environment, batchSize, serializer,
+    def _do_init(self, main, appName, sparkHome, pyFiles, environment, batchSize, serializer,
                  conf, jsc, profiler_cls):
         self.environment = environment or {}
         self._conf = conf or SparkConf(_jvm=self._jvm)
@@ -131,8 +131,8 @@ class SparkContext(object):
                                                 batchSize)
 
         # Set any parameters passed directly to us on the conf
-        if master:
-            self._conf.setMaster(master)
+        if main:
+            self._conf.setMain(main)
         if appName:
             self._conf.setAppName(appName)
         if sparkHome:
@@ -144,19 +144,19 @@ class SparkContext(object):
             self._conf.setIfMissing(key, value)
 
         # Check that we have at least the required parameters
-        if not self._conf.contains("spark.master"):
-            raise Exception("A master URL must be set in your configuration")
+        if not self._conf.contains("spark.main"):
+            raise Exception("A main URL must be set in your configuration")
         if not self._conf.contains("spark.app.name"):
             raise Exception("An application name must be set in your configuration")
 
         # Read back our properties from the conf in case we loaded some of them from
         # the classpath or an external config file
-        self.master = self._conf.get("spark.master")
+        self.main = self._conf.get("spark.main")
         self.appName = self._conf.get("spark.app.name")
         self.sparkHome = self._conf.get("spark.home", None)
 
         # Let YARN know it's a pyspark app, so it distributes needed libraries.
-        if self.master == "yarn-client":
+        if self.main == "yarn-client":
             self._conf.set("spark.yarn.isPython", "true")
 
         for (k, v) in self._conf.getAll():
@@ -248,16 +248,16 @@ class SparkContext(object):
             if instance:
                 if (SparkContext._active_spark_context and
                         SparkContext._active_spark_context != instance):
-                    currentMaster = SparkContext._active_spark_context.master
+                    currentMain = SparkContext._active_spark_context.main
                     currentAppName = SparkContext._active_spark_context.appName
                     callsite = SparkContext._active_spark_context._callsite
 
                     # Raise error if there is already a running Spark context
                     raise ValueError(
                         "Cannot run multiple SparkContexts at once; "
-                        "existing SparkContext(app=%s, master=%s)"
+                        "existing SparkContext(app=%s, main=%s)"
                         " created by %s at %s:%s "
-                        % (currentAppName, currentMaster,
+                        % (currentAppName, currentMain,
                             callsite.function, callsite.file, callsite.linenum))
                 else:
                     SparkContext._active_spark_context = instance

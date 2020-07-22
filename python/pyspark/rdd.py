@@ -1509,7 +1509,7 @@ class RDD(object):
 
     def collectAsMap(self):
         """
-        Return the key-value pairs in this RDD to the master as a dictionary.
+        Return the key-value pairs in this RDD to the main as a dictionary.
 
         >>> m = sc.parallelize([(1, 2), (3, 4)]).collectAsMap()
         >>> m[1]
@@ -1560,7 +1560,7 @@ class RDD(object):
     def reduceByKeyLocally(self, func):
         """
         Merge the values for each key using an associative reduce function, but
-        return the results immediately to the master as a dictionary.
+        return the results immediately to the main as a dictionary.
 
         This will also perform the merging locally on each mapper before
         sending results to a reducer, similarly to a "combiner" in MapReduce.
@@ -1585,7 +1585,7 @@ class RDD(object):
     def countByKey(self):
         """
         Count the number of elements for each key, and return the result to the
-        master as a dictionary.
+        main as a dictionary.
 
         >>> rdd = sc.parallelize([("a", 1), ("b", 1), ("a", 1)])
         >>> sorted(rdd.countByKey().items())

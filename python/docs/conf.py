@@ -43,8 +43,8 @@ source_suffix = '.rst'
 # The encoding of source files.
 #source_encoding = 'utf-8-sig'
 
-# The master toctree document.
-master_doc = 'index'
+# The main toctree document.
+main_doc = 'index'
 
 # General information about the project.
 project = u'PySpark'
@@ -55,7 +55,7 @@ copyright = u''
 # built documents.
 #
 # The short X.Y version.
-version = 'master'
+version = 'main'
 # The full version, including alpha/beta/rc tags.
 release = os.environ.get('RELEASE_VERSION', version)
 

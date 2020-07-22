@@ -250,7 +250,7 @@ class StreamingContext(object):
 
     def checkpoint(self, directory):
         """
-        Sets the context to periodically checkpoint the DStream operations for master
+        Sets the context to periodically checkpoint the DStream operations for main
         fault-tolerance. The graph will be checkpointed every batch interval.
 
         @param directory: HDFS-compatible directory where the checkpoint data

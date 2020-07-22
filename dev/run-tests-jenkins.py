@@ -145,13 +145,13 @@ def main():
     # ---
     # $ghprbActualCommit
     #   This is the hash of the most recent commit in the PR.
-    #   The merge-base of this and master is the commit from which the PR was branched.
+    #   The merge-base of this and main is the commit from which the PR was branched.
     # $sha1
     #   If the patch merges cleanly, this is a reference to the merge commit hash
     #     (e.g. "origin/pr/2606/merge").
     #   If the patch does not merge cleanly, it is equal to $ghprbActualCommit.
-    #   The merge-base of this and master in the case of a clean merge is the most recent commit
-    #     against master.
+    #   The merge-base of this and main in the case of a clean merge is the most recent commit
+    #     against main.
     ghprb_pull_id = os.environ["ghprbPullId"]
     ghprb_actual_commit = os.environ["ghprbActualCommit"]
     ghprb_pull_title = os.environ["ghprbPullTitle"]
